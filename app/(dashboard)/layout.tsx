@@ -20,10 +20,12 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className={cn(
-      "min-h-screen flex flex-col",
-      isMobileMenuOpen && "h-screen overflow-hidden"
-    )}>
+    <div
+      className={cn(
+        "min-h-screen flex flex-col",
+        isMobileMenuOpen && "h-screen overflow-hidden"
+      )}
+    >
       {/* Header Fixed */}
       <Header
         isMobileMenuOpen={isMobileMenuOpen}
@@ -49,8 +51,15 @@ export default function DashboardLayout({
           onClose={() => setIsMobileMenuOpen(false)}
           headerHeight="h-14"
         />
-        {/* Main Content */}
-        <main className={cn("flex-1", "lg:pl-64", isCollapsed && "lg:pl-16")}>
+        {/* Main Content - Con overflow-auto para permitir scroll */}
+        <main
+          className={cn(
+            "flex-1",
+            "lg:pl-64",
+            isCollapsed && "lg:pl-16",
+            "overflow-auto" // Añadido para permitir scroll
+          )}
+        >
           <div className="container p-6 h-full">{children}</div>
         </main>
       </div>

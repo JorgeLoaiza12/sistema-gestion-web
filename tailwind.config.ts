@@ -1,6 +1,5 @@
 // tailwind.config.ts
 import { themes } from "./lib/themes";
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -49,6 +48,10 @@ export default {
           DEFAULT: themes.default.content.DEFAULT,
           emphasis: themes.default.content.emphasis,
         },
+        accent: {
+          DEFAULT: themes.default.accent.DEFAULT,
+          hover: themes.default.accent.hover,
+        },
         error: {
           DEFAULT: themes.default.error.DEFAULT,
           foreground: themes.default.error.foreground,
@@ -65,17 +68,37 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" },
+        },
+        fadeIn: {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        fadeOut: {
+          from: { opacity: "1" },
+          to: { opacity: "0" },
+        },
+        zoomIn: {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        zoomOut: {
+          from: { opacity: "1", transform: "scale(1)" },
+          to: { opacity: "0", transform: "scale(0.95)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        fadeIn: "fadeIn 0.2s ease-out",
+        fadeOut: "fadeOut 0.2s ease-out",
+        zoomIn: "zoomIn 0.2s ease-out",
+        zoomOut: "zoomOut 0.2s ease-out",
       },
     },
   },

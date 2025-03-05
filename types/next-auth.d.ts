@@ -10,6 +10,7 @@ declare module "next-auth" {
       image?: string | null;
     };
     expires: string;
+    accessToken?: string; // Añadir esta propiedad
   }
 
   interface User {
@@ -19,6 +20,7 @@ declare module "next-auth" {
     role: string;
     image?: string | null;
     emailVerified?: Date | null;
+    token?: string; // Añadir esta propiedad
   }
 }
 
@@ -29,5 +31,6 @@ declare module "next-auth/jwt" {
     name: string;
     role: string;
     image?: string | null;
+    accessToken?: string; // Añadir esta propiedad
   }
 }

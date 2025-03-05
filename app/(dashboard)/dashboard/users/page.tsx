@@ -15,15 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Plus,
   Search,
-  User,
-  Mail,
+  User as UserIcon,
   UserPlus,
   Users,
   Shield,
-  MoreVertical,
-  Clock,
   Edit,
   Trash,
   Star,
@@ -37,45 +33,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { FormInput } from "@/components/ui/form-input";
-
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  department: string;
-  status: "active" | "inactive";
-  joinedAt: string;
-  avatar?: string;
-  bio: string;
-  isAdmin: boolean;
-}
+import { User } from "@/lib/definitions";
 
 export default function TeamPage() {
-  const [members, setMembers] = useState<TeamMember[]>([
-    {
-      id: "1",
-      name: "Carlos Rodríguez",
-      email: "carlos@example.com",
-      role: "Frontend Developer",
-      department: "Engineering",
-      status: "active",
-      joinedAt: "2024-01-15",
-      bio: "Frontend Developer con 5 años de experiencia",
-      isAdmin: true,
-    },
-    {
-      id: "2",
-      name: "Ana Martínez",
-      email: "ana@example.com",
-      role: "UX Designer",
-      department: "Design",
-      status: "active",
-      joinedAt: "2024-02-01",
-      bio: "UX Designer apasionada por la experiencia de usuario",
-      isAdmin: false,
-    },
-  ]);
+  const [members, setMembers] = useState<(typeof User)[]>([]);
 
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
@@ -86,9 +47,6 @@ export default function TeamPage() {
     name: "",
     email: "",
     role: "",
-    department: "",
-    bio: "",
-    isAdmin: false,
   });
 
   const departments = [
@@ -99,37 +57,7 @@ export default function TeamPage() {
     "Customer Support",
   ];
 
-  const roles = {
-    Engineering: [
-      "Frontend Developer",
-      "Backend Developer",
-      "Full Stack Developer",
-      "DevOps Engineer",
-    ],
-    Design: [
-      "UX Designer",
-      "UI Designer",
-      "Product Designer",
-      "Graphic Designer",
-    ],
-    Marketing: [
-      "Marketing Manager",
-      "Content Writer",
-      "SEO Specialist",
-      "Social Media Manager",
-    ],
-    Sales: [
-      "Sales Representative",
-      "Account Executive",
-      "Sales Manager",
-      "Business Developer",
-    ],
-    "Customer Support": [
-      "Support Agent",
-      "Customer Success Manager",
-      "Support Team Lead",
-    ],
-  };
+  const roles = ["ADMIN", "WORKER"];
 
   const filteredMembers = members
     .filter(
@@ -162,15 +90,12 @@ export default function TeamPage() {
     resetForm();
   };
 
-  const handleEdit = (member: TeamMember) => {
+  const handleEdit = (member: User) => {
     setIsEditing(member.id);
     setFormData({
       name: member.name,
       email: member.email,
       role: member.role,
-      department: member.department,
-      bio: member.bio,
-      isAdmin: member.isAdmin,
     });
   };
 
@@ -187,16 +112,13 @@ export default function TeamPage() {
       name: "",
       email: "",
       role: "",
-      department: "",
-      bio: "",
-      isAdmin: false,
     });
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-content-emphasis">Equipo</h1>
+        <h1 className="text-3xl font-bold text-content-emphasis">Usuarios</h1>
         <p className="text-content-subtle mt-2">
           Gestiona los miembros de tu equipo y sus roles
         </p>
@@ -240,7 +162,7 @@ export default function TeamPage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-6 w-6 text-primary" />
+                  <UserIcon className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-medium flex items-center gap-2">

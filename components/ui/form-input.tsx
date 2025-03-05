@@ -42,6 +42,7 @@ export function FormInput({
       <Input
         className={cn(
           Icon && "pl-8 !m-0",
+          error && "border-error focus:ring-error",
           className
         )}
         disabled={disabled}

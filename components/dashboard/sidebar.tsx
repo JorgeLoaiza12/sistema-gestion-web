@@ -4,20 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  Settings,
-  CreditCard,
-  LineChart,
-  MessagesSquare,
-  UserPlus,
-  HelpCircle,
-  User,
-  Boxes,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { navigation } from "@/config/navigation";
 
@@ -37,14 +24,19 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <div className={cn("h-full flex flex-col", className)}>
+    <div
+      className={cn(
+        "h-full flex flex-col bg-background border-r border-border",
+        className
+      )}
+    >
       {/* Collapse Button - Only show on desktop */}
       <div className="hidden lg:flex justify-end p-2">
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleCollapse}
-          className="shrink-0"
+          className="shrink-0 text-content-subtle hover:text-primary"
         >
           {isCollapsed ? (
             <ChevronRight className="h-4 w-4" />
@@ -59,7 +51,7 @@ export function Sidebar({
         {navigation.map((group) => (
           <div key={group.title} className="px-3">
             {!isCollapsed && (
-              <h3 className="mb-2 px-4 text-sm font-semibold tracking-tight text-muted-foreground">
+              <h3 className="mb-2 px-4 text-sm font-semibold tracking-tight text-content-subtle">
                 {group.title}
               </h3>
             )}
@@ -71,20 +63,27 @@ export function Sidebar({
                   onClick={onItemClick}
                   className={cn(
                     "group flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
+                    "hover:bg-accent hover:text-primary",
                     pathname === item.href
-                      ? "bg-accent text-accent-foreground"
-                      : "transparent",
+                      ? "bg-accent text-primary"
+                      : "text-content-subtle",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     isCollapsed && "justify-center"
                   )}
                 >
                   <div className="flex items-center gap-x-3">
-                    <item.icon className="h-4 w-4 shrink-0" />
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        pathname === item.href
+                          ? "text-primary"
+                          : "text-content-subtle group-hover:text-primary"
+                      )}
+                    />
                     {!isCollapsed && <span>{item.name}</span>}
                   </div>
                   {!isCollapsed && item.badge && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
                       {item.badge}
                     </span>
                   )}

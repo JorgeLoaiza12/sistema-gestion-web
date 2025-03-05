@@ -1,57 +1,33 @@
-// middleware.ts
-import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export default auth((req) => {
-  const token = req.auth?.user;
-  const isLoggedIn = !!token;
-  const isAuthRoute =
-    req.nextUrl.pathname.startsWith("/login") ||
-    req.nextUrl.pathname.startsWith("/register") ||
-    req.nextUrl.pathname.startsWith("/forgot-password");
+export async function middleware(request: NextRequest) {
+  // Usamos getToken para obtener la sesión
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  console.log("Token from NextAuth:", token);
 
-  // Add security headers
-  const headers = new Headers(req.headers);
-  headers.set("X-Frame-Options", "DENY");
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "same-origin");
-  headers.set(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+  const publicPages = ["/login", "/register", "/forgot-password"];
+  const isPublicPage = publicPages.some((page) =>
+    request.nextUrl.pathname.startsWith(page)
   );
+  const isDashboardPage = request.nextUrl.pathname.startsWith("/dashboard");
 
-  // Si está autenticado y trata de acceder a rutas de auth, redirigir al dashboard
-  if (isLoggedIn && isAuthRoute) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+  if (!token && isDashboardPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  // Si NO está autenticado y trata de acceder al dashboard, redirigir a login
-  if (!isLoggedIn && req.nextUrl.pathname.startsWith("/dashboard")) {
-    const redirectUrl = new URL("/login", req.nextUrl);
-    redirectUrl.searchParams.set("from", req.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+  if (token && isPublicPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
-  // Modificar la respuesta con los headers de seguridad
-  const response = NextResponse.next({
-    request: {
-      headers,
-    },
-  });
-
-  // Security: Remove powered-by header
-  response.headers.delete("x-powered-by");
-
-  return response;
-});
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: [
-    // Rutas que requieren autenticación
-    "/dashboard/:path*",
-    // Rutas de autenticación
-    "/login",
-    "/register",
-    "/forgot-password",
-  ],
+  matcher: ["/dashboard/:path*", "/login", "/register", "/forgot-password"],
 };

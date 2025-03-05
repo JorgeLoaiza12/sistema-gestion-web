@@ -1,7 +1,4 @@
-// components/auth/auth-layout.tsx
-import { cn } from "@/lib/utils";
 import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
-import Image from "next/image";
 import { ReactNode } from "react";
 
 interface AuthLayoutProps {
@@ -22,7 +19,7 @@ export function AuthLayout({
       {/* Lado izquierdo - Área de decoración */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-primary p-12 items-center justify-center">
         <div className="relative z-10 text-white max-w-lg">
-          <h1 className="text 4xl font-bold mb-6">Bienvenido a SaasStarter</h1>
+          <h1 className="text-4xl font-bold mb-6">Bienvenido a SaasStarter</h1>
           <p className="text-lg opacity-90 mb-8">
             Una plataforma moderna y completa para iniciar tu próximo proyecto
             SaaS.
@@ -56,17 +53,17 @@ export function AuthLayout({
       {/* Lado derecho - Formulario */}
       <div className="flex-1 flex flex-col min-h-screen">
         {showDemoAlert && (
-          <div className="bg-yellow-50 border-b border-yellow-200">
+          <div className="bg-accent border-b border-primary/20">
             <div className="max-w-lg mx-auto py-2 px-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <AlertCircleIcon className="text-yellow-600" />
-                <p className="text-sm text-yellow-700">
+                <AlertCircleIcon className="text-primary" />
+                <p className="text-sm text-primary font-medium">
                   Modo demo: Usa{" "}
                   <span className="font-mono">test@example.com</span> /{" "}
                   <span className="font-mono">test</span>
                 </p>
               </div>
-              <button className="text-yellow-600 hover:text-yellow-800">
+              <button className="text-primary hover:text-primary-hover">
                 <XIcon className="w-4 h-4" />
               </button>
             </div>

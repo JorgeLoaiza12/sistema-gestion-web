@@ -7,9 +7,8 @@ import { AuthLayout } from "@/components/auth/auth-layout";
 import { AuthForm } from "@/components/auth/auth-form";
 import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ProvidersButtons } from "@/components/auth/providers-buttons";
 import Link from "next/link";
-import { signIn } from "@/auth";
+import { register } from "@/services/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,7 +18,11 @@ export default function RegisterPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
+
     const formData = new FormData(event.currentTarget);
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
 
@@ -30,22 +33,24 @@ export default function RegisterPage() {
     }
 
     try {
-      // Aquí se implementaría el registro en el backend.
-      router.push("/login");
+      // Llamar a la función register del servicio de auth
+      const response = await register(name, email, password);
+
+      if (response.error) {
+        setError(response.error || "Error al registrar el usuario");
+        setIsLoading(false);
+        return;
+      }
+
+      // Si el registro es exitoso, redirigir a la página de login
+      router.push("/login?registered=true");
     } catch (error) {
-      setError("Ocurrió un error al intentar registrarse");
+      console.error("Error durante el registro:", error);
+      setError("Ocurrió un error al intentar registrarse. Intente nuevamente.");
     } finally {
       setIsLoading(false);
     }
   }
-
-  const handleGoogleRegister = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
-  };
-
-  const handleGithubRegister = () => {
-    signIn("github", { callbackUrl: "/dashboard" });
-  };
 
   return (
     <AuthLayout
@@ -119,12 +124,6 @@ export default function RegisterPage() {
             ¿Ya tienes una cuenta? Inicia sesión
           </Link>
         </div>
-
-        <ProvidersButtons
-          onGoogleClick={handleGoogleRegister}
-          onGithubClick={handleGithubRegister}
-          isLoading={isLoading}
-        />
       </AuthForm>
     </AuthLayout>
   );

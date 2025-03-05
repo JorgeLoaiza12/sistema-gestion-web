@@ -10,14 +10,9 @@ import { useEffect } from "react";
 interface MobileSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  headerHeight: string;
 }
 
-export function MobileSidebar({
-  isOpen,
-  onClose,
-  headerHeight,
-}: MobileSidebarProps) {
+export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const pathname = usePathname();
 
   // Controlar el scroll del body cuando el sidebar está abierto
@@ -49,7 +44,7 @@ export function MobileSidebar({
       {/* Sidebar Mobile Container */}
       <div
         className={cn(
-          "fixed left-0 z-40 w-64 bg-background transform transition-transform duration-300 ease-in-out lg:hidden",
+          "fixed left-0 z-40 w-64 bg-background transform transition-transform duration-300 ease-in-out lg:hidden border-r border-border",
           "top-14 bottom-0", // Posicionamiento considerando el header
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
@@ -61,7 +56,7 @@ export function MobileSidebar({
             <nav className="px-3 py-4">
               {navigation.map((group) => (
                 <div key={group.title} className="mb-6">
-                  <h3 className="px-4 text-sm font-semibold text-muted-foreground mb-2">
+                  <h3 className="px-4 text-sm font-semibold text-content-subtle mb-2">
                     {group.title}
                   </h3>
                   <div className="space-y-1">
@@ -74,14 +69,21 @@ export function MobileSidebar({
                           "flex items-center gap-x-3 px-4 py-2 text-sm font-medium rounded-md",
                           "transition-colors duration-200",
                           pathname === item.href
-                            ? "bg-accent text-accent-foreground"
-                            : "hover:bg-accent/50"
+                            ? "bg-accent text-primary"
+                            : "text-content-subtle hover:bg-accent/50 hover:text-primary"
                         )}
                       >
-                        <item.icon className="h-5 w-5 shrink-0" />
+                        <item.icon
+                          className={cn(
+                            "h-5 w-5 shrink-0",
+                            pathname === item.href
+                              ? "text-primary"
+                              : "text-content-subtle"
+                          )}
+                        />
                         <span>{item.name}</span>
                         {item.badge && (
-                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
                             {item.badge}
                           </span>
                         )}

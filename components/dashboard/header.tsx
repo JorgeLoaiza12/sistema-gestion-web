@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bell, Search, X, Menu } from "lucide-react";
+import { Search, X, Menu } from "lucide-react";
 import { UserNav } from "./user-nav";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export function Header({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "sticky top-0 z-50 w-full border-b border-border bg-primary text-primary-foreground backdrop-blur supports-[backdrop-filter]:bg-primary/95",
         className
       )}
     >
@@ -42,7 +42,7 @@ export function Header({
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
+          className="lg:hidden text-primary-foreground hover:bg-primary-hover/20"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           {isMobileMenuOpen ? (
@@ -57,11 +57,11 @@ export function Header({
         <Link
           href="/dashboard"
           className={cn(
-            "flex items-between space-x-2",
+            "flex items-between space-x-2 text-primary-foreground",
             showMobileSearch && "hidden md:flex"
           )}
         >
-          <span className="font-bold">Logo</span>
+          <span className="font-bold">RG Electronica</span>
         </Link>
 
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
@@ -90,7 +90,7 @@ export function Header({
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="md:hidden text-primary-foreground hover:bg-primary-hover/20"
                 onClick={() => setShowMobileSearch(true)}
               >
                 <Search className="h-5 w-5" />
@@ -100,11 +100,11 @@ export function Header({
               {/* Búsqueda desktop */}
               <div className="hidden md:block">
                 <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-content-subtle" />
                   <Input
                     type="search"
                     placeholder="Buscar..."
-                    className="w-[200px] pl-8"
+                    className="w-[200px] pl-8 bg-white/10 border-white/20 text-primary-foreground placeholder:text-primary-foreground/50 focus:bg-white focus:text-content focus:placeholder:text-content-subtle"
                   />
                 </div>
               </div>

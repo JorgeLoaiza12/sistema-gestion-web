@@ -4,6 +4,7 @@ import {
   MessagesSquare,
   User,
   Boxes,
+  Anvil,
 } from "lucide-react";
 
 type NavigationItem = {
@@ -52,6 +53,18 @@ export const navigation: Navigation[] = [
         icon: MessagesSquare,
         description: "Centro de mensajes",
       },
+      {
+        name: "Trabajos",
+        href: "/dashboard/tasks",
+        icon: Anvil,
+        description: "Gestiona tus trabajos",
+      },
+      {
+        name: "Reportes",
+        href: "/dashboard/reports",
+        icon: Anvil,
+        description: "Gestiona tus reportes",
+      },
     ],
   },
   {
@@ -59,7 +72,7 @@ export const navigation: Navigation[] = [
     items: [
       {
         name: "Usuarios",
-        href: "/dashboard/team",
+        href: "/dashboard/users",
         icon: Users,
         description: "Gestiona tu equipo",
       },

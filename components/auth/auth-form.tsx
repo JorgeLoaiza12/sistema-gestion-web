@@ -25,13 +25,13 @@ export function AuthForm({
   className,
 }: AuthFormProps) {
   return (
-    <Card className={cn("p-6", className)}>
+    <Card className={cn("p-6 shadow-lg", className)}>
       <form onSubmit={onSubmit} className="space-y-6">
         <div className="space-y-4">{children}</div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-            <p className="text-sm text-red-600 text-center">{error}</p>
+          <div className="p-3 rounded-lg bg-error/10 border border-error/20">
+            <p className="text-sm text-error text-center">{error}</p>
           </div>
         )}
 
@@ -52,7 +52,7 @@ export function AuthForm({
               <div className="w-full border-t border-gray-300" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">
+              <span className="px-2 bg-white text-content-subtle">
                 {footerContent}
               </span>
             </div>

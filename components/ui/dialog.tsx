@@ -1,4 +1,3 @@
-// components/ui/dialog.tsx
 "use client";
 
 import * as React from "react";
@@ -10,13 +9,17 @@ const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogClose = DialogPrimitive.Close;
 
+type ExtendedDialogPortalProps = DialogPrimitive.DialogPortalProps & {
+  className?: string;
+};
+
 const DialogPortal = ({
   children,
   className,
   ...props
-}: DialogPrimitive.DialogPortalProps) => (
-  <DialogPrimitive.Portal className={cn(className)} {...props}>
-    {children}
+}: ExtendedDialogPortalProps) => (
+  <DialogPrimitive.Portal {...props}>
+    <div className={cn(className)}>{children}</div>
   </DialogPrimitive.Portal>
 );
 DialogPortal.displayName = "DialogPortal";
@@ -40,7 +43,10 @@ DialogOverlay.displayName = "DialogOverlay";
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    className?: string;
+    children?: React.ReactNode;
+  }
 >(({ className, children, ...props }, ref) => {
   // Deshabilitar el scroll del body mientras el modal está abierto
   React.useEffect(() => {
@@ -57,7 +63,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed z-50 top-1/2 left-1/2 max-h-[85vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-background p-6 shadow-lg",
+          "fixed z-50 top-1/2 left-1/2 max-h-[85vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-background p-6 shadow-lg border border-border",
           "data-[state=open]:animate-zoomIn",
           "data-[state=closed]:animate-zoomOut",
           className
@@ -65,7 +71,7 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-content hover:bg-accent">
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-content hover:bg-accent hover:text-primary">
           <X className="h-4 w-4" />
           <span className="sr-only">Cerrar</span>
         </DialogPrimitive.Close>

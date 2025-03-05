@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/auth";
 
 export function UserAvatar() {
   const [isUploading, setIsUploading] = useState(false);

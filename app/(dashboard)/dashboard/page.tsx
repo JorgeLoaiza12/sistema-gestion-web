@@ -16,8 +16,6 @@ import {
   EyeIcon,
   TrendingUpIcon,
   UsersIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
   FilterIcon,
   DownloadIcon,
 } from "lucide-react";

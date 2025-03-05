@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react"; // Importación correcta
+import { signIn } from "next-auth/react";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { AuthForm } from "@/components/auth/auth-form";
 import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ProvidersButtons } from "@/components/auth/providers-buttons";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -51,14 +50,6 @@ function LoginPageContent() {
       setIsLoading(false);
     }
   }
-
-  const handleGoogleLogin = () => {
-    signIn("google", { callbackUrl: "/dashboard" });
-  };
-
-  const handleGithubLogin = () => {
-    signIn("github", { callbackUrl: "/dashboard" });
-  };
 
   return (
     <AuthLayout
@@ -112,12 +103,6 @@ function LoginPageContent() {
             Crear cuenta
           </Link>
         </div>
-
-        <ProvidersButtons
-          onGoogleClick={handleGoogleLogin}
-          onGithubClick={handleGithubLogin}
-          isLoading={isLoading}
-        />
       </AuthForm>
     </AuthLayout>
   );

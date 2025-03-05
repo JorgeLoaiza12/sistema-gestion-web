@@ -37,13 +37,13 @@ interface TablePaginationProps {
 const TablePagination = ({ table }: TablePaginationProps) => {
   return (
     <div className="flex items-center justify-between px-2 py-4">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex-1 text-sm text-content-subtle hidden md:block">
         {table.getFilteredSelectedRowModel().rows.length} de{" "}
         {table.getFilteredRowModel().rows.length} fila(s) seleccionada(s).
       </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Filas por página</p>
+          <p className="text-sm font-medium hidden md:block">Filas por página</p>
           <select
             value={table.getState().pagination.pageSize}
             onChange={(e) => {
@@ -127,17 +127,17 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border border-border">
       <div className="relative w-full overflow-auto">
         <table className="w-full caption-bottom text-sm">
-          <thead className="[&_tr]:border-b">
+          <thead className="[&_tr]:border-b bg-accent/50">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
                     <th
                       key={header.id}
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0"
+                      className="h-12 px-4 text-left align-middle font-medium text-content [&:has([role=checkbox])]:pr-0"
                     >
                       {header.isPlaceholder ? null : (
                         <div>
@@ -145,7 +145,7 @@ export function DataTable<TData, TValue>({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="-ml-3 h-8 data-[state=open]:bg-accent"
+                              className="-ml-3 h-8 data-[state=open]:bg-accent hover:text-primary"
                               onClick={header.column.getToggleSortingHandler()}
                             >
                               {flexRender(
@@ -182,7 +182,7 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+                    "border-b transition-colors hover:bg-accent/30 data-[state=selected]:bg-accent/50",
                     onRowClick && "cursor-pointer"
                   )}
                   onClick={() => onRowClick?.(row.original)}
@@ -202,7 +202,10 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="h-24 text-center">
+                <td
+                  colSpan={columns.length}
+                  className="h-24 text-center text-content-subtle"
+                >
                   No hay resultados.
                 </td>
               </tr>
