@@ -1,6 +1,6 @@
 // services/serviceReports.ts
 import { httpClient } from "@/lib/httpClient";
-import { getSession } from "@/utils/session";
+import { getSession } from "next-auth/react";
 
 export interface ServiceReport {
   id?: number;
