@@ -1,10 +1,12 @@
-"use client"
-import { useState } from "react";
+"use client";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FormField, FormLabel } from "@/components/ui/form";
-import { UserAvatar } from "@/components/dashboard/user-avatar";
+import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
+import { FormTextarea } from "@/components/ui/form-textarea";
+import { useNotification } from "@/contexts/NotificationContext";
+import { useSession } from "next-auth/react";
 import {
   User,
   Mail,
@@ -12,41 +14,219 @@ import {
   MapPin,
   Building,
   Globe,
-  Twitter,
-  Github,
-  Linkedin,
   Save,
+  Upload,
+  Lock,
+  Loader2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  getProfile,
+  updateProfile,
+  updatePassword,
+  uploadAvatar,
+  ProfileUpdateData,
+  PasswordUpdateData,
+} from "@/services/profile";
 
 export default function ProfilePage() {
+  const { data: session, update: updateSession } = useSession();
   const [isUpdating, setIsUpdating] = useState(false);
-  const [profile, setProfile] = useState({
-    name: "Usuario de Prueba",
-    email: "test@example.com",
-    phone: "+1234567890",
-    location: "Ciudad de México, México",
-    company: "Tech Company",
-    website: "https://example.com",
-    bio: "Senior Software Developer con más de 5 años de experiencia en desarrollo web y aplicaciones móviles. Apasionado por las nuevas tecnologías y el aprendizaje continuo.",
-    social: {
-      twitter: "@usuario",
-      github: "usuario",
-      linkedin: "usuario",
-    },
+  const [isLoading, setIsLoading] = useState(true);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState<PasswordUpdateData>({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { addNotification } = useNotification();
+
+  const [profile, setProfile] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    company: "",
+    website: "",
+    bio: "",
+    role: "",
+    avatarUrl: "",
+  });
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setIsLoading(true);
+        const profileData = await getProfile();
+
+        setProfile({
+          name: profileData.name || "",
+          email: profileData.email || "",
+          phone: profileData.phone || "",
+          location: profileData.location || "",
+          company: profileData.company || "",
+          website: profileData.website || "",
+          bio: profileData.bio || "",
+          role: profileData.role || "WORKER",
+          avatarUrl: profileData.avatarUrl || "",
+        });
+      } catch (error) {
+        console.error("Error al cargar el perfil:", error);
+        addNotification("error", "No se pudo cargar la información del perfil");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [addNotification]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsUpdating(true);
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Aquí iría la llamada al backend
-      console.log("Perfil actualizado:", profile);
+      const updateData: ProfileUpdateData = {
+        name: profile.name,
+        phone: profile.phone,
+        location: profile.location,
+        company: profile.company,
+        website: profile.website,
+        bio: profile.bio,
+      };
+
+      const result = await updateProfile(updateData);
+
+      // Actualizar la sesión con el nuevo nombre si cambió
+      if (
+        result.user &&
+        session &&
+        session.user &&
+        result.user.name !== session.user.name
+      ) {
+        await updateSession({
+          ...session,
+          user: {
+            ...session.user,
+            name: result.user.name,
+          },
+        });
+      }
+
+      addNotification("success", "Perfil actualizado correctamente");
     } catch (error) {
       console.error("Error al actualizar el perfil:", error);
+      addNotification("error", "Error al actualizar el perfil");
     } finally {
       setIsUpdating(false);
     }
+  }
+
+  async function handleAvatarUpload(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setAvatarLoading(true);
+
+    try {
+      // Validación de tipo y tamaño
+      if (!file.type.startsWith("image/")) {
+        throw new Error("El archivo debe ser una imagen (JPEG, PNG, etc.)");
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB
+        throw new Error("La imagen no debe exceder los 5MB");
+      }
+
+      const result = await uploadAvatar(file);
+
+      // Actualizar el perfil con la nueva URL de avatar
+      setProfile((prev) => ({
+        ...prev,
+        avatarUrl: result.imageUrl,
+      }));
+
+      // Actualizar la sesión si está disponible
+      if (session) {
+        await updateSession({
+          ...session,
+          user: {
+            ...session.user,
+            image: result.imageUrl,
+          },
+        });
+      }
+
+      addNotification("success", "Avatar actualizado correctamente");
+    } catch (error: any) {
+      console.error("Error al subir el avatar:", error);
+      addNotification("error", error.message || "Error al subir el avatar");
+    } finally {
+      setAvatarLoading(false);
+      // Resetear el input de archivo para permitir seleccionar el mismo archivo nuevamente
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handlePasswordChange() {
+    setPasswordError(null);
+
+    // Validación simple
+    if (
+      !passwordData.currentPassword ||
+      !passwordData.newPassword ||
+      !passwordData.confirmPassword
+    ) {
+      setPasswordError("Todos los campos son obligatorios");
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("Las nuevas contraseñas no coinciden");
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      setPasswordError("La nueva contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
+    try {
+      await updatePassword(passwordData);
+      setPasswordModalOpen(false);
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      addNotification("success", "Contraseña actualizada correctamente");
+    } catch (error: any) {
+      console.error("Error al actualizar la contraseña:", error);
+      setPasswordError(error.message || "Error al actualizar la contraseña");
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -64,7 +244,41 @@ export default function ProfilePage() {
           <h2 className="text-xl font-semibold mb-6">Información Personal</h2>
 
           <div className="flex items-center gap-6 mb-6 pb-6 border-b">
-            <UserAvatar />
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="h-12 w-12 text-gray-400" />
+                )}
+                {avatarLoading && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="absolute bottom-0 right-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={avatarLoading}
+              >
+                <Upload className="h-4 w-4" />
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                disabled={avatarLoading}
+              />
+            </div>
             <div>
               <h3 className="font-medium text-content">Foto de Perfil</h3>
               <p className="text-sm text-content-subtle mt-1">
@@ -97,6 +311,9 @@ export default function ProfilePage() {
                 </div>
               </FormLabel>
               <Input type="email" value={profile.email} disabled />
+              <FormDescription>
+                El correo electrónico no se puede cambiar
+              </FormDescription>
             </FormField>
 
             <FormField>
@@ -129,114 +346,26 @@ export default function ProfilePage() {
                 }
               />
             </FormField>
-
-            <FormField>
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Empresa
-                </div>
-              </FormLabel>
-              <Input
-                value={profile.company}
-                onChange={(e) =>
-                  setProfile({ ...profile, company: e.target.value })
-                }
-              />
-            </FormField>
-
-            <FormField>
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" />
-                  Sitio web
-                </div>
-              </FormLabel>
-              <Input
-                type="url"
-                value={profile.website}
-                onChange={(e) =>
-                  setProfile({ ...profile, website: e.target.value })
-                }
-              />
-            </FormField>
-          </div>
-
-          <FormField className="mt-6">
-            <FormLabel>Biografía</FormLabel>
-            <textarea
-              className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              value={profile.bio}
-              onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            />
-          </FormField>
-        </Card>
-
-        {/* Redes Sociales */}
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-6">Redes Sociales</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField>
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <Twitter className="h-4 w-4" />
-                  Twitter
-                </div>
-              </FormLabel>
-              <Input
-                value={profile.social.twitter}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    social: { ...profile.social, twitter: e.target.value },
-                  })
-                }
-              />
-            </FormField>
-
-            <FormField>
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <Github className="h-4 w-4" />
-                  GitHub
-                </div>
-              </FormLabel>
-              <Input
-                value={profile.social.github}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    social: { ...profile.social, github: e.target.value },
-                  })
-                }
-              />
-            </FormField>
-
-            <FormField className="md:col-span-2">
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <Linkedin className="h-4 w-4" />
-                  LinkedIn
-                </div>
-              </FormLabel>
-              <Input
-                value={profile.social.linkedin}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    social: { ...profile.social, linkedin: e.target.value },
-                  })
-                }
-              />
-            </FormField>
           </div>
         </Card>
 
-        <div className="flex justify-end">
+        <div className="flex justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPasswordModalOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Lock className="h-4 w-4" />
+            Cambiar contraseña
+          </Button>
+
           <Button type="submit" disabled={isUpdating} size="lg">
             {isUpdating ? (
-              <>Guardando...</>
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Guardando...
+              </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" />
@@ -246,6 +375,71 @@ export default function ProfilePage() {
           </Button>
         </div>
       </form>
+
+      {/* Modal de cambio de contraseña */}
+      <Dialog open={passwordModalOpen} onOpenChange={setPasswordModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar contraseña</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <FormField>
+              <FormLabel>Contraseña actual</FormLabel>
+              <Input
+                type="password"
+                value={passwordData.currentPassword}
+                onChange={(e) =>
+                  setPasswordData({
+                    ...passwordData,
+                    currentPassword: e.target.value,
+                  })
+                }
+              />
+            </FormField>
+            <FormField>
+              <FormLabel>Nueva contraseña</FormLabel>
+              <Input
+                type="password"
+                value={passwordData.newPassword}
+                onChange={(e) =>
+                  setPasswordData({
+                    ...passwordData,
+                    newPassword: e.target.value,
+                  })
+                }
+              />
+            </FormField>
+            <FormField>
+              <FormLabel>Confirmar nueva contraseña</FormLabel>
+              <Input
+                type="password"
+                value={passwordData.confirmPassword}
+                onChange={(e) =>
+                  setPasswordData({
+                    ...passwordData,
+                    confirmPassword: e.target.value,
+                  })
+                }
+              />
+            </FormField>
+            {passwordError && (
+              <div className="text-error text-sm">{passwordError}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPasswordModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handlePasswordChange}>
+              Cambiar contraseña
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

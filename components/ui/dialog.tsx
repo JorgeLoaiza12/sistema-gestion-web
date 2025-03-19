@@ -4,8 +4,15 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useScrollLock } from "@/hooks/useScrollLock"; // Ajusta la ruta según tu estructura
 
-const Dialog = DialogPrimitive.Root;
+const Dialog = ({ children, open, onOpenChange, ...props }) => {
+  // Usar nuestro hook personalizado
+  useScrollLock(open);
+
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props}>{children}</DialogPrimitive.Root>;
+};
+
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogClose = DialogPrimitive.Close;
 
@@ -48,15 +55,7 @@ const DialogContent = React.forwardRef<
     children?: React.ReactNode;
   }
 >(({ className, children, ...props }, ref) => {
-  // Deshabilitar el scroll del body mientras el modal está abierto
-  React.useEffect(() => {
-    const originalStyle = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
-  }, []);
-
+  // El manejo de scroll ahora está en el componente Dialog con el hook
   return (
     <DialogPortal>
       <DialogOverlay />

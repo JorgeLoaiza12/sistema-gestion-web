@@ -1,6 +1,6 @@
 // services/reports.ts
 import { httpClient } from "@/lib/httpClient";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/utils/session";
 
 export interface ReportFilter {
   startDate: string;

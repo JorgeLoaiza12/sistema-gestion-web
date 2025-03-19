@@ -15,6 +15,7 @@ import {
   Search,
   RefreshCcw,
   FileText,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -101,7 +102,8 @@ export default function ReportsPage() {
   );
   const [clientId, setClientId] = useState<string>("");
   const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [activeChart, setActiveChart] = useState<string>("monthly");
@@ -116,6 +118,8 @@ export default function ReportsPage() {
       } catch (error) {
         console.error("Error loading clients:", error);
         addNotification("error", "Error al cargar los clientes");
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -151,7 +155,7 @@ export default function ReportsPage() {
     }
 
     try {
-      setIsLoading(true);
+      setIsGenerating(true);
       const data = await generateCustomReport(filter);
       setReportData(data as unknown as ReportData);
       addNotification("success", "Reporte generado correctamente");
@@ -159,7 +163,7 @@ export default function ReportsPage() {
       console.error("Error generating report:", error);
       addNotification("error", "Error al generar el reporte");
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -414,6 +418,25 @@ export default function ReportsPage() {
     }
   };
 
+  // Mostrar pantalla de carga mientras se cargan los datos iniciales
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-content-emphasis">Reportes</h1>
+          <p className="text-content-subtle mt-2">
+            Analiza el rendimiento de tus cotizaciones y ventas
+          </p>
+        </div>
+
+        <div className="h-[500px] w-full flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+          <p>Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -463,11 +486,14 @@ export default function ReportsPage() {
           </div>
           <Button
             onClick={generateReport}
-            disabled={isLoading}
+            disabled={isGenerating}
             className="w-full md:w-auto"
           >
-            {isLoading ? (
-              <>Generando...</>
+            {isGenerating ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generando...
+              </div>
             ) : (
               <>
                 <RefreshCcw className="mr-2 h-4 w-4" />
@@ -479,27 +505,43 @@ export default function ReportsPage() {
             <Button
               variant="outline"
               onClick={handleExportPDF}
-              disabled={isExporting !== null || !reportData}
+              disabled={isExporting !== null || !reportData || isGenerating}
               className="w-full md:w-auto"
             >
-              <FileText className="mr-2 h-4 w-4" />
+              {isExporting === "pdf" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" />
+              )}
               PDF
             </Button>
             <Button
               variant="outline"
               onClick={handleExportExcel}
-              disabled={isExporting !== null || !reportData}
+              disabled={isExporting !== null || !reportData || isGenerating}
               className="w-full md:w-auto"
             >
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              {isExporting === "excel" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
               Excel
             </Button>
           </div>
         </div>
       </Card>
 
+      {/* Mostrar spinner mientras se genera el reporte */}
+      {isGenerating && (
+        <div className="h-[400px] w-full flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+          <p>Generando reporte...</p>
+        </div>
+      )}
+
       {/* Resumen */}
-      {reportData && (
+      {!isGenerating && reportData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 flex flex-col items-center justify-center">
             <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center mb-4">
@@ -532,51 +574,53 @@ export default function ReportsPage() {
       )}
 
       {/* Gráficos */}
-      <Card className="p-6">
-        <div className="flex flex-col space-y-6">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={activeChart === "monthly" ? "default" : "outline"}
-              onClick={() => setActiveChart("monthly")}
-              size="sm"
-            >
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Por mes
-            </Button>
-            <Button
-              variant={activeChart === "status" ? "default" : "outline"}
-              onClick={() => setActiveChart("status")}
-              size="sm"
-            >
-              <PieChart className="mr-2 h-4 w-4" />
-              Por estado
-            </Button>
-            <Button
-              variant={activeChart === "client" ? "default" : "outline"}
-              onClick={() => setActiveChart("client")}
-              size="sm"
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Por cliente
-            </Button>
-            <Button
-              variant={activeChart === "product" ? "default" : "outline"}
-              onClick={() => setActiveChart("product")}
-              size="sm"
-            >
-              <Package className="mr-2 h-4 w-4" />
-              Por producto
-            </Button>
-          </div>
+      {!isGenerating && reportData && (
+        <Card className="p-6">
+          <div className="flex flex-col space-y-6">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={activeChart === "monthly" ? "default" : "outline"}
+                onClick={() => setActiveChart("monthly")}
+                size="sm"
+              >
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Por mes
+              </Button>
+              <Button
+                variant={activeChart === "status" ? "default" : "outline"}
+                onClick={() => setActiveChart("status")}
+                size="sm"
+              >
+                <PieChart className="mr-2 h-4 w-4" />
+                Por estado
+              </Button>
+              <Button
+                variant={activeChart === "client" ? "default" : "outline"}
+                onClick={() => setActiveChart("client")}
+                size="sm"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Por cliente
+              </Button>
+              <Button
+                variant={activeChart === "product" ? "default" : "outline"}
+                onClick={() => setActiveChart("product")}
+                size="sm"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Por producto
+              </Button>
+            </div>
 
-          <div className="h-[400px] w-full">
-            {activeChart === "monthly" && renderMonthlyChart()}
-            {activeChart === "status" && renderStatusChart()}
-            {activeChart === "client" && renderClientChart()}
-            {activeChart === "product" && renderProductChart()}
+            <div className="h-[400px] w-full">
+              {activeChart === "monthly" && renderMonthlyChart()}
+              {activeChart === "status" && renderStatusChart()}
+              {activeChart === "client" && renderClientChart()}
+              {activeChart === "product" && renderProductChart()}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }

@@ -4,8 +4,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useSession, signOut } from "next-auth/react";
 import { navigation } from "@/config/navigation";
 
 interface SidebarProps {
@@ -22,6 +23,26 @@ export function Sidebar({
   toggleCollapse,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const userRole = session?.user?.role || "WORKER";
+
+  // Filtrar elementos según propiedad requiredRole (si no se define se muestra a todos)
+  const filteredNavigation = navigation
+    .map((group) => {
+      const items = group.items.filter((item) => {
+        if (!item.requiredRole || item.requiredRole === "ALL") return true;
+        if (Array.isArray(item.requiredRole)) {
+          return item.requiredRole.includes(userRole);
+        }
+        return item.requiredRole === userRole;
+      });
+      return { ...group, items };
+    })
+    .filter((group) => group.items.length > 0);
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: "/login" });
+  };
 
   return (
     <div
@@ -30,7 +51,6 @@ export function Sidebar({
         className
       )}
     >
-      {/* Collapse Button - Only show on desktop */}
       <div className="hidden lg:flex justify-end p-2">
         <Button
           variant="ghost"
@@ -45,10 +65,8 @@ export function Sidebar({
           )}
         </Button>
       </div>
-
-      {/* Navigation */}
       <nav className="flex-1 space-y-4 overflow-y-auto">
-        {navigation.map((group) => (
+        {filteredNavigation.map((group) => (
           <div key={group.title} className="px-3">
             {!isCollapsed && (
               <h3 className="mb-2 px-4 text-sm font-semibold tracking-tight text-content-subtle">
@@ -83,7 +101,7 @@ export function Sidebar({
                     {!isCollapsed && <span>{item.name}</span>}
                   </div>
                   {!isCollapsed && item.badge && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
+                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground font-bold">
                       {item.badge}
                     </span>
                   )}
@@ -93,6 +111,21 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+
+      {/* Botón de cerrar sesión */}
+      <div className="mt-auto p-3 border-t border-border">
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full flex items-center justify-start text-content-subtle hover:bg-accent hover:text-error",
+            isCollapsed && "justify-center"
+          )}
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4 shrink-0 mr-2" />
+          {!isCollapsed && <span>Cerrar sesión</span>}
+        </Button>
+      </div>
     </div>
   );
 }

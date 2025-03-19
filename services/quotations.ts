@@ -1,4 +1,3 @@
-// services/quotations.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -34,6 +33,7 @@ export interface Quotation {
   status?: string;
   createdAt?: string;
   updatedAt?: string;
+  amount?: number; // Para compatibilidad con la vista de tareas
 }
 
 export interface Pagination {
@@ -107,6 +107,22 @@ export async function getQuotationById(id: string): Promise<Quotation> {
   return httpClient<Quotation>(`/quotations/${id}`);
 }
 
+// Obtener cotizaciones por cliente
+export async function getQuotationsByClient(
+  clientId: number
+): Promise<Quotation[]> {
+  try {
+    return await httpClient<Quotation[]>(`/quotations/client/${clientId}`);
+  } catch (error) {
+    console.error(
+      `Error al obtener cotizaciones del cliente ${clientId}:`,
+      error
+    );
+    // En caso de error, devolver un array vacío para manejar mejor el error en los componentes
+    return [];
+  }
+}
+
 export async function createQuotation(
   quotation: Quotation
 ): Promise<QuotationResponse> {
@@ -174,7 +190,7 @@ export async function updateQuotationStatus(
   status: string
 ): Promise<QuotationResponse> {
   return httpClient<QuotationResponse>(`/quotations/${id}/status`, {
-    method: "PATCH",
+    method: "PUT", // Cambiado de PATCH a PUT para coincidir con el backend
     body: JSON.stringify({ status }),
   });
 }

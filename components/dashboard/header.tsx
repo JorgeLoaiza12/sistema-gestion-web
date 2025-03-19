@@ -42,7 +42,7 @@ export function Header({
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden text-primary-foreground hover:bg-primary-hover/20"
+          className="lg:hidden hover:text-white hover:bg-primary-hover"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           {isMobileMenuOpen ? (
@@ -57,7 +57,7 @@ export function Header({
         <Link
           href="/dashboard"
           className={cn(
-            "flex items-between space-x-2 text-primary-foreground",
+            "flex items-between space-x-2 text-primary-foreground hover:text-white",
             showMobileSearch && "hidden md:flex"
           )}
         >

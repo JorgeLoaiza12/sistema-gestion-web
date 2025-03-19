@@ -1,6 +1,6 @@
 // services/serviceReports.ts
 import { httpClient } from "@/lib/httpClient";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/utils/session";
 
 export interface ServiceReport {
   id?: number;

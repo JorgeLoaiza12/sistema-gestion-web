@@ -1,11 +1,14 @@
-// app/(dashboard)/layout.tsx
 "use client";
 
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileSidebar } from "@/components/dashboard/mobile-sidebar";
 import { Header } from "@/components/dashboard/header";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { SessionMonitor } from "@/components/session-monitor";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -14,10 +17,48 @@ export default function DashboardLayout({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { status } = useSession();
+  const router = useRouter();
+
+  // Obtener valor de sidebar colapsado de localStorage (solo en cliente)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedState = localStorage.getItem("sidebarCollapsed");
+      if (savedState !== null) {
+        setIsCollapsed(JSON.parse(savedState));
+      }
+    }
+  }, []);
 
   const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    // Guardar estado en localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebarCollapsed", JSON.stringify(newState));
+    }
   };
+
+  // Redireccionar a login si no hay sesión
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  // Mostrar pantalla de carga mientras se verifica la sesión
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // No mostrar nada si no está autenticado (mientras se redirecciona)
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
     <div
@@ -26,6 +67,9 @@ export default function DashboardLayout({
         isMobileMenuOpen && "h-screen overflow-hidden"
       )}
     >
+      {/* Componente para monitorear la sesión */}
+      <SessionMonitor />
+
       {/* Header Fixed */}
       <Header
         isMobileMenuOpen={isMobileMenuOpen}
@@ -57,10 +101,10 @@ export default function DashboardLayout({
             "flex-1",
             "lg:pl-64",
             isCollapsed && "lg:pl-16",
-            "overflow-auto" // Añadido para permitir scroll
+            "overflow-y-auto h-full container p-6" // Añadido para permitir scroll
           )}
         >
-          <div className="container p-6 h-full">{children}</div>
+          {children}
         </main>
       </div>
     </div>

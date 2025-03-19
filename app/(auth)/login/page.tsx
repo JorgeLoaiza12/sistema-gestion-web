@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { AuthForm } from "@/components/auth/auth-form";
 import { FormField, FormLabel } from "@/components/ui/form";
@@ -13,12 +13,23 @@ import { Suspense } from "react";
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { status } = useSession();
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "CredentialsSignin"
       ? "Credenciales inválidas"
       : null
   );
   const [isLoading, setIsLoading] = useState(false);
+
+  // Redireccionar si ya está autenticado
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/dashboard");
+    }
+  }, [status, router]);
+
+  // Checkear callbackUrl para redireccionar después de login exitoso
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,9 +53,11 @@ function LoginPageContent() {
         return;
       }
 
-      router.push("/dashboard");
+      // Redireccionar a la URL de callback o al dashboard
+      router.push(callbackUrl);
       router.refresh();
     } catch (error) {
+      console.error("Error durante el inicio de sesión:", error);
       setError("Ocurrió un error al intentar iniciar sesión");
     } finally {
       setIsLoading(false);
@@ -61,7 +74,6 @@ function LoginPageContent() {
         error={error}
         isLoading={isLoading}
         submitText="Iniciar sesión"
-        footerContent="O continúa con"
       >
         <FormField>
           <FormLabel>Correo electrónico</FormLabel>
@@ -110,7 +122,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div>Cargando...</div>}>
       <LoginPageContent />
     </Suspense>
   );

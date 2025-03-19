@@ -7,6 +7,7 @@ import { QuotationCategory, QuotationItem } from "@/services/quotations";
 import { Product } from "@/services/products";
 import ProductItemForm from "./ProductItemForm";
 import { formatCurrency, roundUp } from "@/utils/number-format";
+import { useEffect, useState } from "react";
 
 interface CategoryFormProps {
   category: QuotationCategory;
@@ -36,6 +37,30 @@ export default function CategoryForm({
   onUpdateItem,
   onAddNewProduct,
 }: CategoryFormProps) {
+  // Estado local para seguimiento de productos
+  const [localProducts, setLocalProducts] = useState<Product[]>(products);
+
+  // Actualizamos los productos locales cuando cambia la prop products
+  useEffect(() => {
+    setLocalProducts(products);
+  }, [products]);
+
+  // Función para manejar la adición de nuevos productos
+  const handleAddNewProduct = (product: Product) => {
+    // Agregar el producto a la lista global
+    onAddNewProduct(product);
+
+    // También actualizar nuestra lista local para evitar problemas de sincronización
+    setLocalProducts((prevProducts) => {
+      // Comprobar si el producto ya existe para evitar duplicados
+      const exists = prevProducts.some((p) => p.id === product.id);
+      if (exists) {
+        return prevProducts;
+      }
+      return [...prevProducts, product];
+    });
+  };
+
   // Calcular el total de la categoría
   const calculateCategoryTotal = (): number => {
     return roundUp(
@@ -76,16 +101,29 @@ export default function CategoryForm({
 
       <div className="space-y-4">
         {category.items.map((item, itemIndex) => (
-          <ProductItemForm
-            key={itemIndex}
-            categoryIndex={categoryIndex}
-            itemIndex={itemIndex}
-            item={item}
-            products={products}
-            onUpdate={onUpdateItem}
-            onRemove={onRemoveItem}
-            onAddNewProduct={onAddNewProduct}
-          />
+          <div
+            key={`item-${categoryIndex}-${itemIndex}`}
+            className={
+              !item.productId || item.productId === 0
+                ? "border border-red-300 rounded-md p-2 bg-red-50"
+                : ""
+            }
+          >
+            {(!item.productId || item.productId === 0) && (
+              <p className="text-red-500 text-xs mb-2">
+                ⚠️ Seleccione un producto o elimine esta fila
+              </p>
+            )}
+            <ProductItemForm
+              categoryIndex={categoryIndex}
+              itemIndex={itemIndex}
+              item={item}
+              products={localProducts}
+              onUpdate={onUpdateItem}
+              onRemove={onRemoveItem}
+              onAddNewProduct={handleAddNewProduct}
+            />
+          </div>
         ))}
 
         <Button

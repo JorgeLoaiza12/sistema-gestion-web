@@ -1,342 +1,249 @@
-// app/(dashboard)/dashboard/team/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { FormTextarea } from "@/components/ui/form-textarea";
+import { DataTable, type ColumnDef } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Search,
-  User as UserIcon,
-  UserPlus,
-  Users,
-  Shield,
+  Plus,
   Edit,
   Trash,
-  Star,
+  Shield,
+  User as UserIcon,
   Calendar,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useNotification } from "@/contexts/NotificationContext";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { FormInput } from "@/components/ui/form-input";
-import { User } from "@/lib/definitions";
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  User,
+} from "@/services/users";
+import UserForm from "@/components/users/UserForm";
 
-export default function TeamPage() {
-  const [members, setMembers] = useState<(typeof User)[]>([]);
-
-  const [isCreating, setIsCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState<string | null>(null);
+export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const { addNotification } = useNotification();
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    role: "",
-  });
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  const departments = [
-    "Engineering",
-    "Design",
-    "Marketing",
-    "Sales",
-    "Customer Support",
-  ];
-
-  const roles = ["ADMIN", "WORKER"];
-
-  const filteredMembers = members
-    .filter(
-      (member) =>
-        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .filter((member) =>
-      selectedDepartment === "all"
-        ? true
-        : member.department === selectedDepartment
+  useEffect(() => {
+    // Filtrar usuarios por término de búsqueda con validación
+    const filtered = users.filter(
+      (user) =>
+        (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (user.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
     );
+    setFilteredUsers(filtered);
+  }, [searchTerm, users]);
 
-  const handleSave = () => {
-    const newMember = {
-      id: isEditing || Date.now().toString(),
-      ...formData,
-      status: "active" as const,
-      joinedAt: new Date().toISOString().split("T")[0],
-    };
-
-    if (isEditing) {
-      setMembers(members.map((m) => (m.id === isEditing ? newMember : m)));
-    } else {
-      setMembers([...members, newMember]);
-    }
-
-    setIsCreating(false);
-    setIsEditing(null);
-    resetForm();
-  };
-
-  const handleEdit = (member: User) => {
-    setIsEditing(member.id);
-    setFormData({
-      name: member.name,
-      email: member.email,
-      role: member.role,
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    if (
-      confirm("¿Estás seguro de que deseas eliminar este miembro del equipo?")
-    ) {
-      setMembers(members.filter((m) => m.id !== id));
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getUsers();
+      console.log("Usuarios cargados:", data); // Para depuración
+      setUsers(data);
+      setFilteredUsers(data);
+    } catch (err) {
+      console.error("Error al cargar usuarios:", err);
+      addNotification("error", "Error al cargar los usuarios");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      email: "",
-      role: "",
-    });
+  const handleAddUser = () => {
+    setCurrentUser(null);
+    setIsEditing(true);
   };
+
+  const handleEditUser = (user: User) => {
+    setCurrentUser(user);
+    setIsEditing(true);
+  };
+
+  const handleDeleteConfirm = (user: User) => {
+    setUserToDelete(user);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleSaveUser = async (userData: User) => {
+    try {
+      if (currentUser && currentUser.id) {
+        // Actualizar usuario existente
+        const response = await updateUser(currentUser.id.toString(), userData);
+        setUsers(
+          users.map((u) => (u.id === currentUser.id ? response.user : u))
+        );
+        addNotification("success", "Usuario actualizado correctamente");
+      } else {
+        // Crear nuevo usuario
+        const response = await createUser(userData);
+        setUsers([...users, response.user]);
+        addNotification("success", "Usuario creado correctamente");
+      }
+      setIsEditing(false);
+      setCurrentUser(null);
+    } catch (err) {
+      console.error("Error al guardar usuario:", err);
+      addNotification("error", "Error al guardar el usuario");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setIsDeletingUser(true);
+      await deleteUser(userToDelete.id.toString());
+      setUsers(users.filter((user) => user.id !== userToDelete.id));
+      addNotification("success", "Usuario eliminado correctamente");
+    } catch (err) {
+      console.error("Error al eliminar usuario:", err);
+      addNotification("error", "Error al eliminar el usuario");
+    } finally {
+      setIsDeletingUser(false);
+      setIsDeleteConfirmOpen(false);
+      setUserToDelete(null);
+    }
+  };
+
+  // Columnas para la tabla de usuarios
+  const columns: ColumnDef<User>[] = [
+    {
+      accessorKey: "name",
+      header: "Nombre",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <UserIcon className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium">{row.original.name || "Sin nombre"}</p>
+            <p className="text-sm text-content-subtle">
+              {row.original.email || "Sin email"}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "role",
+      header: "Rol",
+      cell: ({ row }) => (
+        <Badge variant={row.original.role === "ADMIN" ? "primary" : "outline"}>
+          <div className="flex items-center gap-1">
+            {row.original.role === "ADMIN" && <Shield className="h-3 w-3" />}
+            {row.original.role === "ADMIN" ? "Administrador" : "Técnico"}
+          </div>
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Fecha de registro",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-content-subtle" />
+          {row.original.createdAt
+            ? new Date(row.original.createdAt).toLocaleDateString()
+            : "N/A"}
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Acciones",
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleEditUser(row.original)}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDeleteConfirm(row.original)}
+          >
+            <Trash className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-content-emphasis">Usuarios</h1>
         <p className="text-content-subtle mt-2">
-          Gestiona los miembros de tu equipo y sus roles
+          Gestiona los usuarios y técnicos de la plataforma
         </p>
       </div>
+
       <Card className="p-6">
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="flex flex-1 gap-4">
-            <FormInput
-              icon={Search}
-              placeholder="Buscar miembro..."
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h2 className="text-xl font-semibold">Lista de Usuarios</h2>
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <Input
+              placeholder="Buscar por nombre o email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
-            <Select
-              value={selectedDepartment}
-              onValueChange={setSelectedDepartment}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filtrar por departamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los departamentos</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Button onClick={handleAddUser}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Usuario
+            </Button>
           </div>
-          <Button onClick={() => setIsCreating(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Agregar Miembro
-          </Button>
         </div>
+
+        {isLoading ? (
+          <div className="text-center h-96 flex items-center justify-center">
+            <p>Cargando usuarios...</p>
+          </div>
+        ) : (
+          <DataTable columns={columns} data={filteredUsers} />
+        )}
       </Card>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredMembers.map((member) => (
-          <Card key={member.id} className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserIcon className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-medium flex items-center gap-2">
-                    {member.name}
-                    {member.isAdmin && (
-                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                    )}
-                  </h3>
-                  <p className="text-sm text-content-subtle">{member.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEdit(member)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(member.id)}
-                >
-                  <Trash className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Shield className="h-4 w-4 text-content-subtle" />
-                <span>{member.role}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Users className="h-4 w-4 text-content-subtle" />
-                <span>{member.department}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-content-subtle" />
-                <span>
-                  Se unió el {new Date(member.joinedAt).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-content-subtle">{member.bio}</p>
-          </Card>
-        ))}
-      </div>
-      <Dialog
-        open={isCreating || Boolean(isEditing)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsCreating(false);
-            setIsEditing(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Editar Miembro" : "Nuevo Miembro"}
-            </DialogTitle>
-          </DialogHeader>
-          <form
-            className="space-y-6"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSave();
-            }}
-          >
-            <FormField>
-              <FormLabel>Nombre completo</FormLabel>
-              <Input
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
-              />
-            </FormField>
-            <FormField>
-              <FormLabel>Correo electrónico</FormLabel>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                required
-              />
-            </FormField>
-            <FormField>
-              <FormLabel>Departamento</FormLabel>
-              <Select
-                value={formData.department}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, department: value, role: "" })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField>
-              <FormLabel>Rol</FormLabel>
-              <Select
-                value={formData.role}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, role: value })
-                }
-                disabled={!formData.department}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {formData.department &&
-                    roles[formData.department as keyof typeof roles].map(
-                      (role) => (
-                        <SelectItem key={role} value={role}>
-                          {role}
-                        </SelectItem>
-                      )
-                    )}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField>
-              <FormLabel>Biografía</FormLabel>
-              <FormTextarea
-                value={formData.bio}
-                onChange={(e) =>
-                  setFormData({ ...formData, bio: e.target.value })
-                }
-              />
-            </FormField>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="isAdmin"
-                checked={formData.isAdmin}
-                onChange={(e) =>
-                  setFormData({ ...formData, isAdmin: e.target.checked })
-                }
-                className="rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <label htmlFor="isAdmin" className="text-sm font-medium">
-                Dar permisos de administrador
-              </label>
-            </div>
-            <DialogFooter className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsCreating(false);
-                  setIsEditing(null);
-                  resetForm();
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">Guardar cambios</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+
+      {/* Formulario para crear/editar usuario */}
+      <UserForm
+        isOpen={isEditing}
+        user={currentUser}
+        onSave={handleSaveUser}
+        onClose={() => setIsEditing(false)}
+      />
+
+      {/* Diálogo de confirmación para eliminar */}
+      <ConfirmDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        title="Eliminar Usuario"
+        description={`¿Estás seguro que deseas eliminar al usuario "${
+          userToDelete?.name || "seleccionado"
+        }"? Esta acción no se puede deshacer.`}
+        onConfirm={handleDeleteUser}
+        confirmLabel="Eliminar"
+        isLoading={isDeletingUser}
+      />
     </div>
   );
 }

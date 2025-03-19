@@ -1,14 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -20,6 +13,7 @@ import { Trash, Plus } from "lucide-react";
 import { createProduct, type Product } from "@/services/products";
 import { QuotationItem } from "@/services/quotations";
 import { formatCurrency, roundUp } from "@/utils/number-format";
+import ProductForm from "@/components/products/ProductForm";
 
 interface ProductItemFormProps {
   categoryIndex: number;
@@ -46,13 +40,18 @@ export default function ProductItemForm({
   onAddNewProduct,
 }: ProductItemFormProps) {
   const [isNewProductDialogOpen, setIsNewProductDialogOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: "",
-    description: "",
-    price: 0,
-  });
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado para el formulario de producto
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    unitPrice: "",
+    markup: "35",
+    imageUrl: "",
+  });
 
   // Calcular el precio de proveedor y ganancia
   const providerPrice = roundUp(
@@ -62,8 +61,31 @@ export default function ProductItemForm({
   const finalPrice = providerPrice + profit;
   const lineTotal = Math.ceil(finalPrice * item.quantity);
 
-  const handleCreateNewProduct = async () => {
-    if (!newProduct.name || !newProduct.price) {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+
+    try {
+      // Mostrar vista previa de la imagen inmediatamente
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target && event.target.result) {
+          setFormData({
+            ...formData,
+            imageUrl: event.target.result.toString(),
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Error al previsualizar la imagen:", error);
+    }
+  };
+
+  const handleSaveProduct = async () => {
+    if (!formData.name || !formData.unitPrice) {
       setError("Nombre y precio son obligatorios");
       return;
     }
@@ -72,28 +94,42 @@ export default function ProductItemForm({
       setIsCreatingProduct(true);
 
       // Asegurarse de que el precio sea un número y redondearlo hacia arriba
-      const price = roundUp(newProduct.price);
+      const unitPrice = roundUp(parseFloat(formData.unitPrice));
+      const markup = parseFloat(formData.markup);
+
+      // Calcular el precio final con el markup
+      const markupAmount = Math.ceil((unitPrice * markup) / 100);
+      const finalPrice = unitPrice + markupAmount;
+
       const result = await createProduct({
-        ...newProduct,
-        price: price,
-        unitPrice: price,
-        markup: 35,
+        name: formData.name,
+        description: formData.description,
+        unitPrice: unitPrice,
+        markup: markup,
+        price: finalPrice,
+        imageUrl: formData.imageUrl,
       } as Product);
 
-      // Agregar el nuevo producto a la lista local
-      onAddNewProduct(result.product);
+      // Agregar el nuevo producto a la lista global de productos
+      const newProduct = result.product;
+      onAddNewProduct(newProduct);
 
-      // Seleccionar el nuevo producto en el ítem actual
-      onUpdate(categoryIndex, itemIndex, "productId", result.product.id);
-      onUpdate(categoryIndex, itemIndex, "price", result.product.price);
-      onUpdate(categoryIndex, itemIndex, "product", result.product);
+      // Importante: Se debe actualizar primero el productId antes de actualizar price o product
+      // para evitar que los componentes se vuelvan a renderizar de forma incorrecta
 
-      // Cerrar el diálogo
+      // Actualizar el producto en el ítem actual
+      onUpdate(categoryIndex, itemIndex, "productId", newProduct.id);
+      onUpdate(categoryIndex, itemIndex, "price", newProduct.price);
+      onUpdate(categoryIndex, itemIndex, "product", newProduct);
+
+      // Cerrar el diálogo y resetear el formulario
       setIsNewProductDialogOpen(false);
-      setNewProduct({
+      setFormData({
         name: "",
         description: "",
-        price: 0,
+        unitPrice: "",
+        markup: "35",
+        imageUrl: "",
       });
       setError(null);
     } catch (err) {
@@ -107,7 +143,12 @@ export default function ProductItemForm({
   return (
     <div className="grid grid-cols-12 gap-3 items-end">
       <div className="col-span-5">
-        <FormLabel>Producto</FormLabel>
+        <FormLabel>
+          Producto{" "}
+          {(!item.productId || item.productId === 0) && (
+            <span className="text-red-500 text-xs ml-1">*Requerido</span>
+          )}
+        </FormLabel>
         <div className="flex space-x-2">
           <Select
             value={item.productId ? item.productId.toString() : "0"}
@@ -115,14 +156,37 @@ export default function ProductItemForm({
               if (value === "new") {
                 setIsNewProductDialogOpen(true);
               } else {
-                onUpdate(
-                  categoryIndex,
-                  itemIndex,
-                  "productId",
-                  parseInt(value)
+                const productId = parseInt(value);
+
+                // Buscar el producto seleccionado
+                const selectedProduct = products.find(
+                  (p) => p.id === productId
                 );
+
+                // Actualizar todos los campos relacionados
+                onUpdate(categoryIndex, itemIndex, "productId", productId);
+
+                if (selectedProduct) {
+                  onUpdate(
+                    categoryIndex,
+                    itemIndex,
+                    "price",
+                    selectedProduct.price
+                  );
+                  onUpdate(
+                    categoryIndex,
+                    itemIndex,
+                    "product",
+                    selectedProduct
+                  );
+                }
               }
             }}
+            className={
+              !item.productId || item.productId === 0
+                ? "border-red-300 focus:ring-red-500"
+                : ""
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar producto" />
@@ -145,6 +209,11 @@ export default function ProductItemForm({
             </SelectContent>
           </Select>
         </div>
+        {(!item.productId || item.productId === 0) && (
+          <p className="text-red-500 text-xs mt-1">
+            Por favor, seleccione un producto o elimine esta fila
+          </p>
+        )}
       </div>
 
       <div className="col-span-1">
@@ -210,78 +279,28 @@ export default function ProductItemForm({
         </Button>
       </div>
 
-      {/* Diálogo para crear nuevo producto */}
-      <Dialog
-        open={isNewProductDialogOpen}
-        onOpenChange={setIsNewProductDialogOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Crear Nuevo Producto</DialogTitle>
-          </DialogHeader>
+      {/* Usar el ProductForm reutilizable */}
+      {isNewProductDialogOpen && (
+        <ProductForm
+          currentProduct={null}
+          formData={formData}
+          setFormData={setFormData}
+          onSave={handleSaveProduct}
+          onCancel={() => setIsNewProductDialogOpen(false)}
+          onUploadImage={handleImageUpload}
+          fileInputRef={fileInputRef}
+          isUploading={isCreatingProduct}
+        />
+      )}
 
-          <div className="space-y-4 py-4">
-            <FormField>
-              <FormLabel>Nombre del Producto</FormLabel>
-              <Input
-                value={newProduct.name}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, name: e.target.value })
-                }
-                placeholder="Nombre del producto"
-                required
-              />
-            </FormField>
-
-            <FormField>
-              <FormLabel>Descripción (opcional)</FormLabel>
-              <Input
-                value={newProduct.description}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, description: e.target.value })
-                }
-                placeholder="Descripción del producto"
-              />
-            </FormField>
-
-            <FormField>
-              <FormLabel>Precio</FormLabel>
-              <Input
-                type="number"
-                value={newProduct.price}
-                onChange={(e) =>
-                  setNewProduct({
-                    ...newProduct,
-                    price: parseFloat(e.target.value || "0"),
-                  })
-                }
-                placeholder="Precio"
-                min="0"
-                step="1"
-                required
-              />
-            </FormField>
-
-            {error && <div className="text-red-500 text-sm">{error}</div>}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsNewProductDialogOpen(false)}
-              disabled={isCreatingProduct}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleCreateNewProduct}
-              disabled={isCreatingProduct}
-            >
-              {isCreatingProduct ? "Creando..." : "Crear Producto"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Input oculto para subir archivos */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleImageUpload}
+      />
     </div>
   );
 }

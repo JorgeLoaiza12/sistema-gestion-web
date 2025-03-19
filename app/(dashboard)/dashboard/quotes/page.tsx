@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -124,13 +125,19 @@ export default function QuotesPage() {
     }
   };
 
-  // Efecto inicial para cargar datos
   useEffect(() => {
-    fetchQuotations(filters);
+    setFilters({
+      page: 1,
+      limit: 10,
+      search: "",
+      clientId: undefined,
+      status: undefined,
+    });
   }, []);
 
-  // Efecto para recargar cuando cambian los filtros
   useEffect(() => {
+    if (Object.keys(filters).length === 0) return;
+
     fetchQuotations(filters);
   }, [filters]);
 
@@ -226,6 +233,27 @@ export default function QuotesPage() {
       console.error(err);
     }
   };
+
+  // Componente de carga (loading)
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-content-emphasis">
+            Cotizaciones
+          </h1>
+          <p className="text-content-subtle mt-2">
+            Gestiona tus cotizaciones para clientes
+          </p>
+        </div>
+
+        <div className="h-[500px] w-full flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+          <p>Cargando cotizaciones...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

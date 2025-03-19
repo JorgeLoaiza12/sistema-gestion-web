@@ -1,47 +1,63 @@
-// components/dashboard/mobile-sidebar.tsx
 "use client";
 
 import { cn } from "@/lib/utils";
 import { navigation } from "@/config/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useScrollLock } from "@/hooks/useScrollLock";
+import { useSession, signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface MobileSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  headerHeight?: string;
 }
 
-export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
+export function MobileSidebar({
+  isOpen,
+  onClose,
+  headerHeight = "h-14",
+}: MobileSidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
-  // Controlar el scroll del body cuando el sidebar está abierto
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
+  // Usar nuestro hook personalizado
+  useScrollLock(isOpen);
 
-    // Cleanup: restaurar el scroll cuando el componente se desmonte
-    return () => {
-      document.body.style.overflow = "auto";
-    };
-  }, [isOpen]);
+  const userRole = session?.user?.role || "WORKER";
+
+  // Filtrar elementos según el rol del usuario
+  const filteredNavigation = navigation
+    .map((group) => {
+      const items = group.items.filter((item) => {
+        if (!item.requiredRole || item.requiredRole === "ALL") return true;
+        if (Array.isArray(item.requiredRole)) {
+          return item.requiredRole.includes(userRole);
+        }
+        return item.requiredRole === userRole;
+      });
+      return { ...group, items };
+    })
+    .filter((group) => group.items.length > 0);
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: "/login" });
+    onClose();
+  };
 
   return (
     <>
-      {/* Overlay */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-300",
-          "mt-14", // Espacio para el header
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
-        onClick={onClose}
-      />
+      {/* Overlay - solo se renderiza si isOpen es true */}
+      {isOpen && (
+        <div
+          className={`fixed inset-0 z-40 bg-black/50 lg:hidden ${headerHeight}`}
+          onClick={onClose}
+        />
+      )}
 
-      {/* Sidebar Mobile Container */}
+      {/* Sidebar Mobile Container - siempre se renderiza pero con diferente transformación */}
       <div
         className={cn(
           "fixed left-0 z-40 w-64 bg-background transform transition-transform duration-300 ease-in-out lg:hidden border-r border-border",
@@ -54,7 +70,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
           {/* Área de navegación scrolleable */}
           <div className="flex-1 overflow-y-auto">
             <nav className="px-3 py-4">
-              {navigation.map((group) => (
+              {filteredNavigation.map((group) => (
                 <div key={group.title} className="mb-6">
                   <h3 className="px-4 text-sm font-semibold text-content-subtle mb-2">
                     {group.title}
@@ -93,6 +109,18 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                 </div>
               ))}
             </nav>
+          </div>
+
+          {/* Botón de cerrar sesión */}
+          <div className="mt-auto p-4 border-t border-border">
+            <Button
+              variant="ghost"
+              className="w-full flex items-center justify-start text-content-subtle hover:bg-accent hover:text-error"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              <span>Cerrar sesión</span>
+            </Button>
           </div>
         </div>
       </div>

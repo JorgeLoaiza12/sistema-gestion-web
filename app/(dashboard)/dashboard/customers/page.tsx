@@ -5,23 +5,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
-import { FormField, FormLabel } from "@/components/ui/form";
 import { Plus, Trash, Edit } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { FormTextarea } from "@/components/ui/form-textarea";
 import {
   getClients,
   createClient,
   updateClient,
   deleteClient,
 } from "@/services/clients";
+import { CustomerForm } from "@/components/clients/CustomerForm";
 
 interface Customer {
   id: string;
@@ -48,6 +40,7 @@ export default function CustomersPage() {
     null
   );
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Obtener clientes del backend al cargar el componente
   useEffect(() => {
@@ -68,11 +61,13 @@ export default function CustomersPage() {
   const handleAddCustomer = () => {
     setIsEditing(true);
     setCurrentCustomer(null);
+    setError(null);
   };
 
   const handleEditCustomer = (customer: Customer) => {
     setIsEditing(true);
     setCurrentCustomer(customer);
+    setError(null);
   };
 
   const openDeleteConfirm = (customer: Customer) => {
@@ -101,6 +96,7 @@ export default function CustomersPage() {
 
   const handleSaveCustomer = async (customer: Customer) => {
     try {
+      setIsSubmitting(true);
       if (currentCustomer) {
         // Editar cliente existente
         const updatedCustomer = await updateClient(customer.id, customer);
@@ -117,6 +113,8 @@ export default function CustomersPage() {
     } catch (err) {
       setError("Error al guardar el cliente");
       console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -193,10 +191,10 @@ export default function CustomersPage() {
           customer={currentCustomer}
           onSave={handleSaveCustomer}
           onCancel={() => setIsEditing(false)}
+          isSubmitting={isSubmitting}
+          error={error}
         />
       )}
-
-      {error && <div className="text-center text-red-500">{error}</div>}
 
       <ConfirmDialog
         open={isDeleteConfirmOpen}
@@ -208,128 +206,5 @@ export default function CustomersPage() {
         isLoading={isDeletingCustomer}
       />
     </div>
-  );
-}
-
-interface CustomerFormProps {
-  customer: Customer | null;
-  onSave: (customer: Customer) => void;
-  onCancel: () => void;
-}
-
-function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) {
-  const [name, setName] = useState(customer?.name || "");
-  const [email, setEmail] = useState(customer?.email || "");
-  const [phone, setPhone] = useState(customer?.phone || "");
-  const [address, setAddress] = useState(customer?.address || "");
-  const [commune, setCommune] = useState(customer?.commune || "");
-  const [rut, setRut] = useState(customer?.rut || "");
-  const [administrator, setAdministrator] = useState(
-    customer?.administrator || ""
-  );
-  const [butler, setButler] = useState(customer?.butler || "");
-  const [notes, setNotes] = useState(customer?.notes || "");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onSave({
-      id: customer?.id || "",
-      name,
-      email,
-      phone,
-      rut,
-      address,
-      commune,
-      administrator,
-      butler,
-      notes,
-    });
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onCancel();
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {customer ? "Editar Cliente" : "Agregar Cliente"}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField>
-            <FormLabel>Nombre</FormLabel>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>Email</FormLabel>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>Teléfono</FormLabel>
-            <Input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>RUT</FormLabel>
-            <Input value={rut} onChange={(e) => setRut(e.target.value)} />
-          </FormField>
-          <FormField>
-            <FormLabel>Dirección</FormLabel>
-            <Input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>Comuna</FormLabel>
-            <Input
-              value={commune}
-              onChange={(e) => setCommune(e.target.value)}
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>Administrador</FormLabel>
-            <Input
-              value={administrator}
-              onChange={(e) => setAdministrator(e.target.value)}
-            />
-          </FormField>
-          <FormField>
-            <FormLabel>Conserje</FormLabel>
-            <Input value={butler} onChange={(e) => setButler(e.target.value)} />
-          </FormField>
-          <FormField>
-            <FormLabel>Notas</FormLabel>
-            <FormTextarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </FormField>
-          <DialogFooter className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit">Guardar</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

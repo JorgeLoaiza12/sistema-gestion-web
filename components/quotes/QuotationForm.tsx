@@ -28,23 +28,27 @@ import { getClients, Client } from "@/services/clients";
 import { getProducts, Product } from "@/services/products";
 import CategoryForm from "./CategoryForm";
 import ClientForm from "./ClientForm";
+import { formatCurrency } from "@/utils/number-format";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
   onSave: () => void;
   onCancel: () => void;
+  statusOptions: Array<{ value: string; label: string; icon: React.ReactNode }>;
 }
 
 export default function QuotationForm({
   quotation,
   onSave,
   onCancel,
+  statusOptions,
 }: QuotationFormProps) {
   const [title, setTitle] = useState(quotation?.title || "");
   const [description, setDescription] = useState(quotation?.description || "");
   const [clientId, setClientId] = useState<string>(
     quotation?.clientId.toString() || ""
   );
+  const [status, setStatus] = useState(quotation?.status || "DRAFT");
   const [validUntil, setValidUntil] = useState(
     quotation?.validUntil
       ? new Date(quotation.validUntil).toISOString().split("T")[0]
@@ -71,16 +75,8 @@ export default function QuotationForm({
           getProducts(),
         ]);
 
-        // Convertir los datos de productos al formato que necesitamos
-        const formattedProducts = productsData.map((product) => ({
-          id: parseInt(product.id as string),
-          name: product.name,
-          description: product.description,
-          price: product.price,
-        }));
-
         setClients(clientsData);
-        setProducts(formattedProducts);
+        setProducts(productsData);
         setError(null);
       } catch (err) {
         console.error("Error loading form data:", err);
@@ -112,11 +108,8 @@ export default function QuotationForm({
     newCategories[categoryIndex].items.push({
       productId: 0,
       quantity: 1,
-      product: {
-        id: 0,
-        name: "",
-        price: 0,
-      },
+      price: 0,
+      product: null,
     });
     setCategories(newCategories);
   };
@@ -134,11 +127,27 @@ export default function QuotationForm({
     value: any
   ) => {
     const newCategories = [...categories];
+
+    // Verificar que las categorías y sus items existen
+    if (
+      !newCategories[categoryIndex] ||
+      !newCategories[categoryIndex].items ||
+      !newCategories[categoryIndex].items[itemIndex]
+    ) {
+      console.error("Índices inválidos:", {
+        categoryIndex,
+        itemIndex,
+        categories: newCategories,
+      });
+      return;
+    }
+
+    // Actualizar el campo específico del item
     // @ts-ignore: Field assignment is dynamic
     newCategories[categoryIndex].items[itemIndex][field] = value;
 
     // Si se actualiza el productId, también actualizamos el precio y el objeto product
-    if (field === "productId") {
+    if (field === "productId" && value) {
       const product = products.find((p) => p.id === value);
       if (product) {
         newCategories[categoryIndex].items[itemIndex].price = product.price;
@@ -150,7 +159,10 @@ export default function QuotationForm({
   };
 
   const handleAddNewProduct = (product: Product) => {
-    setProducts([...products, product]);
+    // Verificar que no exista ya un producto con el mismo ID
+    if (!products.some((p) => p.id === product.id)) {
+      setProducts((prevProducts) => [...prevProducts, product]);
+    }
   };
 
   const handleAddNewClient = (client: Client) => {
@@ -161,10 +173,10 @@ export default function QuotationForm({
       return;
     }
 
-    console.log("Cliente creado correctamente:", client);
-
-    // Agregar el cliente a la lista local
-    setClients([...clients, client]);
+    // Agregar el cliente a la lista local solo si no existe ya
+    if (!clients.some((c) => c.id === client.id)) {
+      setClients((prevClients) => [...prevClients, client]);
+    }
 
     // Seleccionar el cliente recién creado
     setClientId(client.id.toString());
@@ -180,7 +192,7 @@ export default function QuotationForm({
         category.items.reduce((categoryTotal, item) => {
           const providerPrice =
             item.price || (item.product ? item.product.price : 0);
-          const finalPrice = providerPrice + providerPrice * 0.35; // Agregar ganancia del 35%
+          const finalPrice = Math.ceil(providerPrice + providerPrice * 0.35); // Redondear hacia arriba
           return categoryTotal + finalPrice * item.quantity;
         }, 0)
       );
@@ -195,11 +207,19 @@ export default function QuotationForm({
       return;
     }
 
+    // Filtrar las categorías que no tienen productos válidos seleccionados
+    const validCategories = categories.map((category) => ({
+      ...category,
+      items: category.items.filter(
+        (item) => item.productId && item.productId !== 0
+      ),
+    }));
+
     if (
-      categories.length === 0 ||
-      categories.some((cat) => cat.items.length === 0)
+      validCategories.length === 0 ||
+      validCategories.some((cat) => cat.items.length === 0)
     ) {
-      setError("Debe agregar al menos un producto a la cotización");
+      setError("Debe agregar al menos un producto válido a la cotización");
       return;
     }
 
@@ -223,15 +243,39 @@ export default function QuotationForm({
         return;
       }
 
-      console.log("Enviando cotización con clientId:", clientIdNum);
+      // Asegurarse de que todos los items tengan sus productos correctamente asociados
+      // y filtrar los items con productId = 0 (no seleccionados)
+      const processedCategories = categories.map((category) => ({
+        ...category,
+        items: category.items
+          .filter((item) => item.productId && item.productId !== 0) // Filtrar items sin producto seleccionado
+          .map((item) => {
+            // Si tiene productId pero no tiene el objeto product, intentar buscarlo
+            if (
+              item.productId &&
+              (!item.product || item.product.id !== item.productId)
+            ) {
+              const product = products.find((p) => p.id === item.productId);
+              if (product) {
+                return {
+                  ...item,
+                  product,
+                  price: item.price || product.price,
+                };
+              }
+            }
+            return item;
+          }),
+      }));
 
       const quotationData: Quotation = {
         id: quotation?.id,
         clientId: clientIdNum,
         title,
         description,
+        status,
         validUntil: validUntil || undefined,
-        categories,
+        categories: processedCategories,
         client: {
           id: clientId,
           name: client.name,
@@ -329,35 +373,50 @@ export default function QuotationForm({
             </FormField>
           </div>
 
-          <FormField>
-            <FormLabel>Descripción</FormLabel>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </FormField>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField>
+              <FormLabel>Descripción</FormLabel>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </FormField>
 
-          <FormField>
-            <FormLabel>Válido hasta</FormLabel>
-            <Input
-              type="date"
-              value={validUntil}
-              onChange={(e) => setValidUntil(e.target.value)}
-            />
-          </FormField>
+            <FormField>
+              <FormLabel>Válido hasta</FormLabel>
+              <Input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </FormField>
+          </div>
+
+          {quotation && (
+            <FormField>
+              <FormLabel>Estado</FormLabel>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center">
+                        {option.icon}
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
 
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Productos y Servicios</h3>
-              <Button type="button" variant="outline" onClick={addCategory}>
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar Categoría
-              </Button>
-            </div>
-
             {categories.map((category, categoryIndex) => (
               <CategoryForm
-                key={categoryIndex}
+                key={`category-${categoryIndex}`}
                 category={category}
                 categoryIndex={categoryIndex}
                 products={products}
@@ -370,11 +429,19 @@ export default function QuotationForm({
               />
             ))}
 
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Productos y Servicios</h3>
+              <Button type="button" variant="outline" onClick={addCategory}>
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar Categoría
+              </Button>
+            </div>
+
             <div className="flex justify-end mt-6">
               <div className="bg-primary/10 px-6 py-3 rounded-lg">
                 <span className="text-lg">Total de la cotización: </span>
                 <span className="text-lg font-bold">
-                  ${calculateQuotationTotal().toFixed(2)}
+                  {formatCurrency(calculateQuotationTotal().toFixed(2))}
                 </span>
               </div>
             </div>
