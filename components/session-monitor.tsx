@@ -22,7 +22,7 @@ export function SessionMonitor() {
       try {
         // Obtener la sesión actual del endpoint /api/auth/session
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/session`
+          `${process.env.NEXTAUTH_URL}/api/auth/session`
         );
         const sessionData = await response.json();
 
