@@ -21,7 +21,9 @@ export function SessionMonitor() {
     const checkTokenExpiration = async () => {
       try {
         // Obtener la sesión actual del endpoint /api/auth/session
-        const response = await fetch("/api/auth/session");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/session`
+        );
         const sessionData = await response.json();
 
         if (!sessionData || !sessionData.user) {
