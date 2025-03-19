@@ -14,7 +14,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const checkSessionInterval = setInterval(async () => {
       try {
         // Obtener el token JWT de localStorage o cookies (dependiendo de la configuración)
-        const session = await fetch("/api/auth/session");
+        const session = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/session`);
         const data = await session.json();
 
         // Si no hay sesión y estamos en una ruta protegida (dashboard)
