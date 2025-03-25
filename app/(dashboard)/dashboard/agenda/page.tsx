@@ -690,7 +690,7 @@ export default function AgendaPage() {
             }
           }}
         >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalles de la Tarea</DialogTitle>
             </DialogHeader>

@@ -28,7 +28,7 @@ import { getClients, Client } from "@/services/clients";
 import { getProducts, Product } from "@/services/products";
 import CategoryForm from "./CategoryForm";
 import ClientForm from "./ClientForm";
-import { formatCurrency } from "@/utils/number-format";
+import { formatCurrency, roundUp } from "@/utils/number-format";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
@@ -36,6 +36,9 @@ interface QuotationFormProps {
   onCancel: () => void;
   statusOptions: Array<{ value: string; label: string; icon: React.ReactNode }>;
 }
+
+// Constante para el IVA (19%)
+const IVA_RATE = 0.19;
 
 export default function QuotationForm({
   quotation,
@@ -46,7 +49,7 @@ export default function QuotationForm({
   const [title, setTitle] = useState(quotation?.title || "");
   const [description, setDescription] = useState(quotation?.description || "");
   const [clientId, setClientId] = useState<string>(
-    quotation?.clientId.toString() || ""
+    quotation?.clientId?.toString() || ""
   );
   const [status, setStatus] = useState(quotation?.status || "DRAFT");
   const [validUntil, setValidUntil] = useState(
@@ -190,13 +193,55 @@ export default function QuotationForm({
       return (
         total +
         category.items.reduce((categoryTotal, item) => {
+          if (!item.product && !item.productId) return categoryTotal;
+
           const providerPrice =
             item.price || (item.product ? item.product.price : 0);
-          const finalPrice = Math.ceil(providerPrice + providerPrice * 0.35); // Redondear hacia arriba
+          const markup = item.product?.markup || 35;
+          const finalPrice = Math.ceil(
+            providerPrice + (providerPrice * markup) / 100
+          );
           return categoryTotal + finalPrice * item.quantity;
         }, 0)
       );
     }, 0);
+  };
+
+  const calculateQuotationTotalRevenue = (): number => {
+    return categories.reduce((total, category) => {
+      return (
+        total +
+        category.items.reduce((categoryTotal, item) => {
+          // Verificamos que exista un producto asociado
+          if (!item.product) {
+            return categoryTotal;
+          }
+
+          // Obtenemos el unitPrice y el markup del producto
+          const unitPrice = item.product.unitPrice || 0;
+          const markupPercentage = item.product.markup || 0;
+
+          // Calculamos el monto del markup (la ganancia) por unidad
+          const markupAmount = Math.round((unitPrice * markupPercentage) / 100);
+
+          // Multiplicamos por la cantidad y sumamos al total de la categoría
+          return categoryTotal + markupAmount * item.quantity;
+        }, 0)
+      );
+    }, 0);
+  };
+
+  // Calcular el IVA (19%)
+  const calculateIVA = (): number => {
+    const subtotal = calculateQuotationTotal();
+    return Math.round(subtotal * IVA_RATE);
+  };
+
+  // Calcular el total con IVA
+  const calculateTotalWithIVA = (): number => {
+    const subtotal = calculateQuotationTotal();
+    const iva = calculateIVA();
+    return subtotal + iva;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -319,14 +364,15 @@ export default function QuotationForm({
         if (!open) onCancel();
       }}
     >
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {quotation ? "Editar Cotización" : "Nueva Cotización"}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Sección de información básica */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField>
               <FormLabel>Título</FormLabel>
@@ -413,6 +459,7 @@ export default function QuotationForm({
             </FormField>
           )}
 
+          {/* Sección de Categorías */}
           <div className="space-y-4">
             {categories.map((category, categoryIndex) => (
               <CategoryForm
@@ -429,31 +476,85 @@ export default function QuotationForm({
               />
             ))}
 
-            <div className="flex justify-between items-center">
+            {/* Encabezado de productos y servicios con botón para agregar categoría */}
+            <div className="flex justify-between items-center mt-6">
               <h3 className="text-lg font-medium">Productos y Servicios</h3>
-              <Button type="button" variant="outline" onClick={addCategory}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addCategory}
+                className="flex items-center"
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Agregar Categoría
+                <span className="hidden sm:inline">Agregar Categoría</span>
+                <span className="sm:hidden">Categoría</span>
               </Button>
             </div>
 
-            <div className="flex justify-end mt-6">
-              <div className="bg-primary/10 px-6 py-3 rounded-lg">
-                <span className="text-lg">Total de la cotización: </span>
-                <span className="text-lg font-bold">
-                  {formatCurrency(calculateQuotationTotal().toFixed(2))}
-                </span>
+            {/* Resumen financiero - Responsive para móvil */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="bg-green-600/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">Total ganancia:</span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(
+                      calculateQuotationTotalRevenue().toFixed(2)
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-blue-600/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">Subtotal:</span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(calculateQuotationTotal().toFixed(2))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-600/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">IVA (19%):</span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(calculateIVA().toFixed(2))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-primary/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">Total con IVA:</span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(calculateTotalWithIVA().toFixed(2))}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {error && <div className="text-red-500 text-center">{error}</div>}
+          {error && (
+            <div className="text-red-500 text-center p-2 border border-red-200 rounded-md bg-red-50">
+              {error}
+            </div>
+          )}
 
-          <DialogFooter className="flex justify-end space-x-2">
-            <Button variant="outline" type="button" onClick={onCancel}>
+          {/* Botones de acción - Stack en móvil, inline en desktop */}
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={onCancel}
+              className="w-full sm:w-auto"
+            >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button
+              type="submit"
+              disabled={isSaving}
+              className="w-full sm:w-auto"
+            >
               {isSaving
                 ? "Guardando..."
                 : quotation

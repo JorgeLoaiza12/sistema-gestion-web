@@ -10,6 +10,8 @@ export interface QuotationItem {
     id: number;
     name: string;
     price: number;
+    markup: number;
+    unitPrice: number;
   };
 }
 
