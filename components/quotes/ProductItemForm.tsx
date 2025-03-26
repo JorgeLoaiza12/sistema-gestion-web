@@ -43,28 +43,31 @@ export default function ProductItemForm({
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Estados locales para manejar los inputs
   const [quantityInput, setQuantityInput] = useState<string>(
     item.quantity ? item.quantity.toString() : "1"
   );
   const [priceInput, setPriceInput] = useState<string>(
-    (item.price || (item.product ? item.product.price : 0)).toString()
+    (item.price || (item.product ? item.product.price : 0))
+      .toString()
+      .split(".")[0] 
   );
 
   // Asegurarse de que tengamos acceso a los datos del producto
-  const selectedProduct = item.product || 
-    (item.productId ? products.find(p => p.id === item.productId) : null);
+  const selectedProduct =
+    item.product ||
+    (item.productId ? products.find((p) => p.id === item.productId) : null);
 
-  // Calcular el precio de proveedor y ganancia
-  const providerPrice = parseFloat(priceInput) || 0;
-  
+  // Calcular el precio de proveedor y ganancia (sin decimales)
+  const providerPrice = parseInt(priceInput) || 0;
+
   // Obtener el markup del producto seleccionado o usar 35% por defecto
   const markupPercentage = selectedProduct?.markup || 35;
-  
+
   // Calcular la ganancia basada en el precio del proveedor y el markup
-  const profit = Math.ceil(providerPrice * markupPercentage / 100);
-  
+  const profit = Math.ceil((providerPrice * markupPercentage) / 100);
+
   // Calcular el precio final y el total
   const finalPrice = providerPrice + profit;
   const quantity = parseInt(quantityInput) || 1;
@@ -79,7 +82,9 @@ export default function ProductItemForm({
     // Solo actualizamos el precio de entrada si no ha sido modificado manualmente
     // o si ha cambiado el producto seleccionado
     if (selectedProduct) {
-      setPriceInput(item.price?.toString() || selectedProduct.price?.toString() || "0");
+      const price = item.price || selectedProduct.price || 0;
+      // Asegurar que no haya decimales
+      setPriceInput(Math.floor(price).toString());
     }
   }, [item.productId, selectedProduct]);
 
@@ -124,8 +129,8 @@ export default function ProductItemForm({
     try {
       setIsCreatingProduct(true);
 
-      // Asegurarse de que el precio sea un número y redondearlo hacia arriba
-      const unitPrice = roundUp(parseFloat(formData.unitPrice));
+      // Asegurarse de que el precio sea un número entero
+      const unitPrice = Math.floor(parseFloat(formData.unitPrice));
       const markup = parseFloat(formData.markup);
 
       // Calcular el precio final con el markup
@@ -186,15 +191,17 @@ export default function ProductItemForm({
   };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPriceInput(e.target.value);
+    // Solo permitir números enteros (sin decimales)
+    const value = e.target.value.replace(/\D/g, "");
+    setPriceInput(value);
   };
 
   const handlePriceBlur = () => {
     // Si está vacío, establecer un valor predeterminado de 0
-    const newValue = priceInput === "" ? 0 : parseFloat(priceInput);
-    // Asegurarse de que sea un número válido
+    const newValue = priceInput === "" ? 0 : parseInt(priceInput);
+    // Asegurarse de que sea un número válido entero
     const validValue = isNaN(newValue) || newValue < 0 ? 0 : newValue;
-    
+
     // Actualizar el precio en el estado global
     onUpdate(categoryIndex, itemIndex, "price", validValue);
     setPriceInput(validValue.toString());
@@ -232,17 +239,28 @@ export default function ProductItemForm({
               setIsNewProductDialogOpen(true);
             } else {
               const productId = parseInt(value);
-              const selectedProduct = products.find(p => p.id === productId);
+              const selectedProduct = products.find((p) => p.id === productId);
               onUpdate(categoryIndex, itemIndex, "productId", productId);
 
               if (selectedProduct) {
-                onUpdate(categoryIndex, itemIndex, "price", selectedProduct.price);
+                // Asegurar que el precio no tenga decimales
+                const priceWithoutDecimals = Math.floor(
+                  selectedProduct.price || 0
+                );
+                onUpdate(
+                  categoryIndex,
+                  itemIndex,
+                  "price",
+                  priceWithoutDecimals
+                );
                 onUpdate(categoryIndex, itemIndex, "product", selectedProduct);
-                setPriceInput(selectedProduct.price.toString());
+                setPriceInput(priceWithoutDecimals.toString());
               }
             }
           }}
-          className={!item.productId || item.productId === 0 ? "border-red-300" : ""}
+          className={
+            !item.productId || item.productId === 0 ? "border-red-300" : ""
+          }
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Seleccionar producto" />
@@ -294,6 +312,7 @@ export default function ProductItemForm({
             onBlur={handlePriceBlur}
             min="0"
             className="h-9"
+            placeholder="Solo números enteros"
             required
           />
         </div>

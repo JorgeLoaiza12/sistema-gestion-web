@@ -32,7 +32,7 @@ export const navigation: Navigation[] = [
         href: "/dashboard",
         icon: LayoutDashboard,
         description: "Vista general de tu cuenta",
-        requiredRole: "Admin",
+        requiredRole: ["ADMIN"],
       },
     ],
   },
