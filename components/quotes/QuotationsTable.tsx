@@ -118,11 +118,7 @@ export default function QuotationsTable({
   };
 
   const getStatusBadge = (status?: string) => {
-    if (!status) return <Badge variant="outline">Borrador</Badge>;
-
     switch (status) {
-      case "DRAFT":
-        return <Badge variant="outline">Borrador</Badge>;
       case "SENT":
         return <Badge variant="primary">Enviada</Badge>;
       case "APPROVED":

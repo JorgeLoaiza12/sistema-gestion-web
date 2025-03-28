@@ -5,7 +5,6 @@ import { MobileSidebar } from "@/components/dashboard/mobile-sidebar";
 import { Header } from "@/components/dashboard/header";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { SessionMonitor } from "@/components/session-monitor";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -67,9 +66,6 @@ export default function DashboardLayout({
         isMobileMenuOpen && "h-screen overflow-hidden"
       )}
     >
-      {/* Componente para monitorear la sesión */}
-      <SessionMonitor />
-
       {/* Header Fixed */}
       <Header
         isMobileMenuOpen={isMobileMenuOpen}

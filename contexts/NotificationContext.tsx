@@ -1,88 +1,92 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
 type NotificationType = "success" | "error" | "warning" | "info";
 
-interface Notification {
-  id: string;
-  type: NotificationType;
-  message: string;
-}
-
 interface NotificationContextProps {
-  notifications: Notification[];
-  addNotification: (type: NotificationType, message: string) => void;
-  removeNotification: (id: string) => void;
+  addNotification: (
+    type: NotificationType,
+    message: string,
+    action?: {
+      label: string;
+      onClick: () => void;
+    }
+  ) => void;
 }
 
 const NotificationContext = createContext<NotificationContextProps | undefined>(
   undefined
 );
 
-export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+export function NotificationProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { toast } = useToast();
 
-  const addNotification = (type: NotificationType, message: string) => {
-    const id = Date.now().toString();
-    setNotifications((prev) => [...prev, { id, type, message }]);
+  const addNotification = (
+    type: NotificationType,
+    message: string,
+    action?: {
+      label: string;
+      onClick: () => void;
+    }
+  ) => {
+    const icon = getNotificationIcon(type);
 
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      removeNotification(id);
-    }, 5000);
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications((prev) =>
-      prev.filter((notification) => notification.id !== id)
-    );
+    toast({
+      variant: type === "error" ? "destructive" : "default",
+      title: getNotificationTitle(type),
+      description: message,
+      action: action ? (
+        <ToastAction altText={action.label} onClick={action.onClick}>
+          {action.label}
+        </ToastAction>
+      ) : undefined,
+      icon,
+      duration: 5000,
+    });
   };
 
   return (
-    <NotificationContext.Provider
-      value={{ notifications, addNotification, removeNotification }}
-    >
+    <NotificationContext.Provider value={{ addNotification }}>
       {children}
-      {/* Mostrar notificaciones */}
-      {notifications.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-4 rounded-md shadow-md max-w-md ${getNotificationStyle(
-                notification.type
-              )}`}
-            >
-              <div className="flex justify-between items-center">
-                <p className="font-medium">{notification.message}</p>
-                <button
-                  onClick={() => removeNotification(notification.id)}
-                  className="text-xs opacity-70 hover:opacity-100"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </NotificationContext.Provider>
   );
 }
 
-function getNotificationStyle(type: NotificationType): string {
+function getNotificationIcon(type: NotificationType) {
   switch (type) {
     case "success":
-      return "bg-green-100 border-l-4 border-green-500 text-green-700";
+      return <CheckCircle className="h-5 w-5 text-green-500" />;
     case "error":
-      return "bg-red-100 border-l-4 border-red-500 text-red-700";
+      return <AlertCircle className="h-5 w-5 text-red-500" />;
     case "warning":
-      return "bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700";
+      return <AlertTriangle className="h-5 w-5 text-amber-500" />;
     case "info":
-      return "bg-blue-100 border-l-4 border-blue-500 text-blue-700";
+      return <Info className="h-5 w-5 text-blue-500" />;
     default:
-      return "bg-gray-100 border-l-4 border-gray-500 text-gray-700";
+      return <Info className="h-5 w-5" />;
+  }
+}
+
+function getNotificationTitle(type: NotificationType): string {
+  switch (type) {
+    case "success":
+      return "Éxito";
+    case "error":
+      return "Error";
+    case "warning":
+      return "Advertencia";
+    case "info":
+      return "Información";
+    default:
+      return "";
   }
 }
 
@@ -90,7 +94,7 @@ export function useNotification() {
   const context = useContext(NotificationContext);
   if (!context) {
     throw new Error(
-      "useNotification must be used within a NotificationProvider"
+      "useNotification debe ser usado dentro de un NotificationProvider"
     );
   }
   return context;

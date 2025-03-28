@@ -65,52 +65,6 @@ export function Header({
         </Link>
 
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          {/* Búsqueda móvil expandida */}
-          {showMobileSearch ? (
-            <div className="absolute inset-x-0 top-0 bg-background px-4 py-2 md:hidden">
-              <div className="relative flex items-center space-x-2">
-                <Input
-                  type="search"
-                  placeholder="Buscar..."
-                  className="w-full pl-8"
-                />
-                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowMobileSearch(false)}
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Botón de búsqueda móvil */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden text-primary-foreground hover:bg-primary-hover/20"
-                onClick={() => setShowMobileSearch(true)}
-              >
-                <Search className="h-5 w-5" />
-                <span className="sr-only">Buscar</span>
-              </Button>
-
-              {/* Búsqueda desktop */}
-              <div className="hidden md:block">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-content-subtle" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar..."
-                    className="w-[200px] pl-8 bg-white/10 border-white/20 text-primary-foreground placeholder:text-primary-foreground/50 focus:bg-white focus:text-content focus:placeholder:text-content-subtle"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
           {/*  perfil */}
           <div
             className={cn(

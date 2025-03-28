@@ -70,11 +70,6 @@ export default function QuotesPage() {
   // Estados disponibles para las cotizaciones
   const QUOTATION_STATUSES = [
     {
-      value: "DRAFT",
-      label: "Borrador",
-      icon: <Clock className="h-4 w-4 mr-2" />,
-    },
-    {
       value: "SENT",
       label: "Enviada",
       icon: <Calendar className="h-4 w-4 mr-2" />,

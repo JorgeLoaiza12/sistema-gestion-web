@@ -1,6 +1,7 @@
 // services/reports.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
+import { QuotationsParams } from "./quotations";
 
 export interface ReportFilter {
   startDate: string;
@@ -99,9 +100,45 @@ export async function downloadReportExcel(filter: ReportFilter) {
 
 // Obtener las estadísticas de ventas para el dashboard
 export async function getSalesStats(
-  period: "week" | "month" | "year" = "month"
+  period: "week" | "month" | "year" = "month",
+  startDate?: string,
+  endDate?: string
 ) {
-  return httpClient(`/reports/sales-stats?period=${period}`);
+  try {
+    const params = new URLSearchParams();
+    params.append("period", period);
+
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    console.log("getSalesStats URL params:", params.toString());
+
+    const url = `/reports/sales-stats?${params.toString()}`;
+    console.log("Petición URL:", url);
+
+    return httpClient(url);
+  } catch (error) {
+    console.error("Error en getSalesStats:", error);
+    throw error;
+  }
+}
+
+// Actualización para el servicio getQuotationStats
+export async function getQuotationStats(
+  params: QuotationsParams = {}
+): Promise<any> {
+  const queryParams = new URLSearchParams();
+
+  if (params.startDate) queryParams.append("startDate", params.startDate);
+  if (params.endDate) queryParams.append("endDate", params.endDate);
+  if (params.status) queryParams.append("status", params.status);
+  if (params.clientId !== undefined)
+    queryParams.append("clientId", params.clientId.toString());
+
+  const queryString = queryParams.toString();
+  const url = `/quotations/stats${queryString ? `?${queryString}` : ""}`;
+
+  return httpClient<any>(url);
 }
 
 // Obtener las métricas de rendimiento para un trabajador específico

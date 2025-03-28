@@ -4,7 +4,6 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SessionProvider } from "@/components/session-provider";
 import { ErrorProvider } from "@/components/error-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
-import AuthRefreshProvider from "@/components/auth/auth-refresh-provider";
 import { ReactNode } from "react";
 
 /**
@@ -16,9 +15,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <SessionProvider>
         <NotificationProvider>
           <ErrorProvider>
-            <AuthRefreshProvider>
               {children}
-            </AuthRefreshProvider>
           </ErrorProvider>
         </NotificationProvider>
       </SessionProvider>

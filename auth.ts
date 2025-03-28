@@ -1,13 +1,12 @@
 // auth.ts
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { signInSchema } from "./lib/zod";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET as string,
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 horas (en segundos)
+    // maxAge: 24 * 60 * 60, // 24 hours
   },
   providers: [
     Credentials({

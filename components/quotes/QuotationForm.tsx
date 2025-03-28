@@ -51,7 +51,7 @@ export default function QuotationForm({
   const [clientId, setClientId] = useState<string>(
     quotation?.clientId?.toString() || ""
   );
-  const [status, setStatus] = useState(quotation?.status || "DRAFT");
+  const [status, setStatus] = useState(quotation?.status || "SENT");
   const [validUntil, setValidUntil] = useState(
     quotation?.validUntil
       ? new Date(quotation.validUntil).toISOString().split("T")[0]

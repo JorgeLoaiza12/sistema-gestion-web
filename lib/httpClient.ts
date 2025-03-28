@@ -17,6 +17,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 interface SessionCache {
   session: Session | null;
   timestamp: number;
+  promise?: Promise<Session | null>;
 }
 
 // Cache para sesión y token
@@ -52,21 +53,25 @@ function getCsrfToken(): string {
 async function getCachedSession(): Promise<Session | null> {
   const now = Date.now();
 
-  // Verificar si hay una sesión en caché y si aún es válida
+  // Si existe caché válida, retornarla. Si además hay una promesa en curso, la retornamos.
   if (sessionCache && now - sessionCache.timestamp < CACHE_EXPIRY) {
+    if (sessionCache.promise) {
+      return sessionCache.promise;
+    }
     return sessionCache.session;
   }
 
-  // Si no hay caché o ha expirado, obtener una nueva sesión
-  const session = await getSession();
+  // Si no hay caché o ha expirado, creamos una nueva promesa para obtener la sesión
+  const sessionPromise = getSession().then((session) => {
+    // Actualizamos la caché sin la promesa (ya que se resolvió)
+    sessionCache = { session, timestamp: now };
+    return session;
+  });
 
-  // Actualizar la caché
-  sessionCache = {
-    session,
-    timestamp: now,
-  };
+  // Almacenamos la promesa en la caché para que las llamadas concurrentes la usen
+  sessionCache = { session: null, timestamp: now, promise: sessionPromise };
 
-  return session;
+  return sessionPromise;
 }
 
 /**

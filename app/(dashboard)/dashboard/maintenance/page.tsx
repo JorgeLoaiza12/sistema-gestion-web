@@ -41,12 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSession } from "next-auth/react";
+// import { useSession } from "next-auth/react";
 import { formatDate } from "@/utils/date-format";
 import { calculateNextMaintenanceDate } from "@/utils/maintenance-utils";
 
 export default function MaintenancePage() {
-  const { data: session } = useSession();
+  // const { data: session } = useSession();
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [filteredMaintenances, setFilteredMaintenances] = useState<
     Maintenance[]
@@ -438,7 +438,7 @@ export default function MaintenancePage() {
   };
 
   // Verificar si el usuario tiene permisos de administrador
-  const isAdmin = session?.user?.role === "ADMIN";
+  // const isAdmin = session?.user?.role === "ADMIN";
 
   // Componente de carga (loading)
   if (isLoading) {
@@ -469,12 +469,12 @@ export default function MaintenancePage() {
           </p>
         </div>
 
-        {isAdmin && (
+        {/* {isAdmin && (
           <Button onClick={() => openModal()}>
             <Plus className="mr-2 h-4 w-4" />
             Agregar Mantenimiento
           </Button>
-        )}
+        )} */}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 justify-between">

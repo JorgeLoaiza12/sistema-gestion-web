@@ -131,7 +131,7 @@ export async function createQuotation(
   // Calcular los totales de items con ganancia del 35% antes de enviar
   const calculatedQuotation = {
     ...quotation,
-    status: quotation.status || "DRAFT", // Estado por defecto
+    status: quotation.status || "SENT", // Estado por defecto
     categories: quotation.categories.map((category) => ({
       ...category,
       items: category.items.map((item) => {

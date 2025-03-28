@@ -405,8 +405,6 @@ export default function ReportsPage() {
   // Función auxiliar para mapear estados a nombres legibles
   const getStatusName = (status: string) => {
     switch (status) {
-      case "DRAFT":
-        return "Borrador";
       case "SENT":
         return "Enviada";
       case "APPROVED":
