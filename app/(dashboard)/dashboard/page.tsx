@@ -69,6 +69,9 @@ export default function DashboardPage() {
   const [tasksToday, setTasksToday] = useState(0);
   const [tasksThisWeek, setTasksThisWeek] = useState(0);
   const [tasksCompleted, setTasksCompleted] = useState(0);
+  const [weeklyTasks, setWeeklyTasks] = useState<Task[]>([]);
+  const [pendingMonthTasks, setPendingMonthTasks] = useState<Task[]>([]);
+  const [completedMonthTasks, setCompletedMonthTasks] = useState<Task[]>([]);
 
   // Estados para la vista de administradores
   const monthStart = new Date();
@@ -90,6 +93,33 @@ export default function DashboardPage() {
   // Obtener la fecha actual para mostrar
   const today = new Date();
   const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM yyyy");
+
+  // Función para obtener el primer y último día de la semana actual
+  const getWeekDates = () => {
+    const curr = new Date();
+    const first = curr.getDate() - curr.getDay() + 1; // Primer día es lunes
+    const last = first + 6; // Último día es domingo
+
+    const firstDay = new Date(curr.setDate(first));
+    firstDay.setHours(0, 0, 0, 0);
+
+    const lastDay = new Date(curr.setDate(last));
+    lastDay.setHours(23, 59, 59, 999);
+
+    return { firstDay, lastDay };
+  };
+
+  // Función para obtener el primer y último día del mes actual
+  const getMonthDates = () => {
+    const curr = new Date();
+    const firstDay = new Date(curr.getFullYear(), curr.getMonth(), 1);
+    firstDay.setHours(0, 0, 0, 0);
+
+    const lastDay = new Date(curr.getFullYear(), curr.getMonth() + 1, 0);
+    lastDay.setHours(23, 59, 59, 999);
+
+    return { firstDay, lastDay };
+  };
 
   // Cargar datos para dashboard de técnicos
   useEffect(() => {
@@ -311,6 +341,12 @@ export default function DashboardPage() {
         view: "weekly",
       });
 
+      // Obtener tareas del mes
+      const monthResponse = await getTasksByDate({
+        date: new Date().toISOString().split("T")[0],
+        view: "monthly",
+      });
+
       if (todayResponse?.tasks) {
         // Tareas para hoy
         const todayTasksFiltered = todayResponse.tasks.filter(
@@ -327,10 +363,11 @@ export default function DashboardPage() {
 
       if (weekResponse?.tasks) {
         // Tareas de la semana
-        setTasksThisWeek(
-          weekResponse.tasks.filter((task) => task.state !== "FINALIZADO")
-            .length
+        const weeklyTasksFiltered = weekResponse.tasks.filter(
+          (task) => task.state !== "FINALIZADO"
         );
+        setTasksThisWeek(weeklyTasksFiltered.length);
+        setWeeklyTasks(weekResponse.tasks);
 
         // Tareas vencidas
         const overdue = weekResponse.tasks.filter((task) => {
@@ -346,6 +383,20 @@ export default function DashboardPage() {
           (task) => task.state === "FINALIZADO"
         );
         setTasksCompleted(completed.length);
+      }
+
+      if (monthResponse?.tasks) {
+        // Tareas pendientes del mes actual
+        const pendingTasks = monthResponse.tasks.filter(
+          (task) => task.state !== "FINALIZADO"
+        );
+        setPendingMonthTasks(pendingTasks);
+
+        // Tareas completadas del mes actual
+        const completedTasks = monthResponse.tasks.filter(
+          (task) => task.state === "FINALIZADO"
+        );
+        setCompletedMonthTasks(completedTasks);
       }
     } catch (error) {
       console.error("Error al cargar tareas:", error);
@@ -740,38 +791,188 @@ export default function DashboardPage() {
             href="/dashboard/agenda"
             className="text-primary text-sm mt-auto font-medium flex items-center"
           >
-            Ver historial <ChevronRight className="h-4 w-4 ml-1" />
+            Ver agenda <ChevronRight className="h-4 w-4 ml-1" />
           </Link>
+        </Card>
+
+        <Card className="p-6 flex flex-col">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+              <CalendarClock className="h-5 w-5 text-green-600" />
+            </div>
+            <span className="font-medium text-content-subtle">Esta semana</span>
+          </div>
+          <span className="text-3xl font-bold mt-2">{tasksThisWeek}</span>
+          <span className="text-xs text-content-subtle mt-1">
+            {getWeekDates().firstDay.toLocaleDateString()} -{" "}
+            {getWeekDates().lastDay.toLocaleDateString()}
+          </span>
+        </Card>
+
+        <Card className="p-6 flex flex-col">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <span className="font-medium text-content-subtle">Vencidas</span>
+          </div>
+          <span className="text-3xl font-bold mt-2">{overdueItems}</span>
+          <span className="text-xs text-content-subtle mt-1">
+            Tareas con fecha pasada
+          </span>
+        </Card>
+
+        <Card className="p-6 flex flex-col">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <CheckCircle className="h-5 w-5 text-purple-600" />
+            </div>
+            <span className="font-medium text-content-subtle">Completadas</span>
+          </div>
+          <span className="text-3xl font-bold mt-2">{tasksCompleted}</span>
+          <span className="text-xs text-content-subtle mt-1">
+            En la semana actual
+          </span>
         </Card>
       </div>
 
-      {/* Próximas tareas */}
+      {/* Tareas de la semana actual */}
+      <Card className="overflow-hidden">
+  <div className="p-6 border-b">
+    <h2 className="text-xl font-semibold flex items-center">
+      <CalendarClock className="mr-2 h-5 w-5 text-primary" />
+      Tareas para esta semana
+    </h2>
+  </div>
+  <div className="p-0">
+    {tasksThisWeek > 0 ? (
+      <div className="divide-y">
+        {/* Vista de escritorio: Grid de 7 columnas */}
+        <div className="hidden md:block">
+          <div className="grid grid-cols-7 p-2 bg-accent/10 border-b">
+            <div className="text-center font-semibold">Lunes</div>
+            <div className="text-center font-semibold">Martes</div>
+            <div className="text-center font-semibold">Miércoles</div>
+            <div className="text-center font-semibold">Jueves</div>
+            <div className="text-center font-semibold">Viernes</div>
+            <div className="text-center font-semibold">Sábado</div>
+            <div className="text-center font-semibold">Domingo</div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 p-2 min-h-32">
+            {Array(7).fill(0).map((_, index) => (
+              <div key={index} className="border rounded p-2 min-h-full">
+                {weeklyTasks.filter(task => {
+                  const taskDate = new Date(task.startDate);
+                  const dayOfWeek = taskDate.getDay();
+                  const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                  return adjustedDayOfWeek === index;
+                }).map(task => (
+                  <div key={task.id} className="mb-2 bg-accent/5 p-2 rounded text-sm">
+                    <p className="font-medium truncate">{task.title}</p>
+                    <p className="text-xs text-content-subtle">
+                      {formatDate(new Date(task.startDate), "HH:mm")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Vista móvil: Lista simple agrupada por día */}
+        <div className="md:hidden">
+          {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, idx) => {
+            const tasksForDay = weeklyTasks.filter(task => {
+              const taskDate = new Date(task.startDate);
+              const dayOfWeek = taskDate.getDay();
+              const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+              return adjustedDayOfWeek === idx;
+            });
+
+            if (tasksForDay.length === 0) return null;
+
+            // Determinar si es hoy para resaltarlo
+            const today = new Date().getDay();
+            const adjustedToday = today === 0 ? 6 : today - 1;
+            const isToday = adjustedToday === idx;
+
+            return (
+              <div key={idx} className={`p-3 ${isToday ? 'bg-accent/10' : ''}`}>
+                <h4 className={`font-medium text-sm mb-2 ${isToday ? 'text-primary font-semibold' : 'text-content-subtle'}`}>
+                  {day} {isToday && <span className="text-xs ml-1 bg-primary text-white px-1.5 py-0.5 rounded-full">Hoy</span>}
+                </h4>
+                <div className="space-y-2">
+                  {tasksForDay.map(task => (
+                    <div key={task.id} className="bg-accent/5 p-3 rounded">
+                      <p className="font-medium">{task.title}</p>
+                      <p className="text-xs text-content-subtle mt-1">
+                        {formatDate(new Date(task.startDate), "HH:mm")}
+                        {task.client && ` - ${task.client.name}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ) : (
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+        <h3 className="text-lg font-medium">¡Semana sin tareas pendientes!</h3>
+        <p className="text-content-subtle mt-2">
+          No tienes tareas asignadas para esta semana
+        </p>
+      </div>
+    )}
+  </div>
+  <div className="p-4 border-t bg-accent/5">
+    <Link href="/dashboard/agenda">
+      <Button variant="outline" className="w-full">
+        Ver agenda completa
+      </Button>
+    </Link>
+  </div>
+</Card>
+
+      {/* Secciones de Tareas Pendientes y Trabajos Realizados */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="col-span-1">
+        {/* Tareas pendientes del mes */}
+        <Card className="overflow-hidden">
           <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold flex items-center">
-              <CalendarClock className="mr-2 h-5 w-5 text-primary" />
-              Próximas Tareas
-            </h2>
+            <h3 className="text-lg font-semibold flex items-center">
+              <Calendar className="h-5 w-5 mr-2 text-primary" />
+              Tareas pendientes del mes
+            </h3>
           </div>
           <div className="p-0">
-            {upcomingTasks.length > 0 ? (
-              <div className="divide-y">
-                {upcomingTasks.map((task) => (
+            {pendingMonthTasks.length > 0 ? (
+              <div className="divide-y max-h-80 overflow-y-auto">
+                {pendingMonthTasks.map((task) => (
                   <div key={task.id} className="p-4 hover:bg-accent/5">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-medium">{task.title}</h3>
+                        <h4 className="font-medium">{task.title}</h4>
                         <p className="text-sm text-content-subtle mt-1">
-                          {formatDate(new Date(task.startDate), "HH:mm")} -
-                          {task.client && ` ${task.client.name}`}
+                          {formatDate(
+                            new Date(task.startDate),
+                            "dd MMM - HH:mm"
+                          )}
+                          {task.client && ` - ${task.client.name}`}
                         </p>
                       </div>
-                      <Link href={`/dashboard/agenda?taskId=${task.id}`}>
-                        <Button size="sm" variant="outline">
-                          Ver detalles
-                        </Button>
-                      </Link>
+                      <Badge
+                        className={
+                          new Date(task.startDate) < new Date()
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                        }
+                      >
+                        {new Date(task.startDate) < new Date()
+                          ? "Vencida"
+                          : "Pendiente"}
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -779,83 +980,71 @@ export default function DashboardPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                 <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-                <h3 className="text-lg font-medium">¡Todo al día!</h3>
+                <h3 className="text-lg font-medium">Sin tareas pendientes</h3>
                 <p className="text-content-subtle mt-2">
-                  No tienes tareas pendientes para hoy
+                  No tienes tareas pendientes para este mes
                 </p>
               </div>
             )}
           </div>
           <div className="p-4 border-t bg-accent/5">
-            <Link href="/dashboard/agenda">
+            <Link href="/dashboard/agenda?filter=pending">
               <Button variant="outline" className="w-full">
-                Ver toda la agenda
+                Ver todas las tareas pendientes
               </Button>
             </Link>
           </div>
         </Card>
 
-        {/* Enlaces rápidos y recursos */}
-        <Card className="col-span-1">
+        {/* Trabajos realizados en el mes */}
+        <Card className="overflow-hidden">
           <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">Enlaces rápidos</h2>
+            <h3 className="text-lg font-semibold flex items-center">
+              <CheckCircle className="h-5 w-5 mr-2 text-primary" />
+              Trabajos realizados este mes
+            </h3>
           </div>
-          <div className="p-4 space-y-2">
-            <Link href="/dashboard/customers" className="block">
-              <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent/5 transition-colors">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                      <Users className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Clientes</h3>
-                      <p className="text-sm text-content-subtle">
-                        Consulta información de clientes
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-content-subtle" />
-                </div>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/products" className="block">
-              <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent/5 transition-colors">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
-                      <PackageIcon className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Productos</h3>
-                      <p className="text-sm text-content-subtle">
-                        Catálogo de productos
-                      </p>
+          <div className="p-0">
+            {completedMonthTasks.length > 0 ? (
+              <div className="divide-y max-h-80 overflow-y-auto">
+                {completedMonthTasks.map((task) => (
+                  <div key={task.id} className="p-4 hover:bg-accent/5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-medium">{task.title}</h4>
+                        <p className="text-sm text-content-subtle mt-1">
+                          Completado el{" "}
+                          {formatDate(
+                            new Date(task.endDate || task.startDate),
+                            "dd MMM - HH:mm"
+                          )}
+                          {task.client && ` - ${task.client.name}`}
+                        </p>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800">
+                        Completado
+                      </Badge>
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-content-subtle" />
-                </div>
+                ))}
               </div>
-            </Link>
-
-            <Link href="/dashboard/profile" className="block">
-              <div className="p-4 border rounded-lg hover:border-primary hover:bg-accent/5 transition-colors">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
-                      <UserCircle className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Mi Perfil</h3>
-                      <p className="text-sm text-content-subtle">
-                        Actualiza tus datos personales
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-content-subtle" />
-                </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                <h3 className="text-lg font-medium">
+                  Sin trabajos completados
+                </h3>
+                <p className="text-content-subtle mt-2">
+                  No has completado tareas este mes
+                </p>
               </div>
+            )}
+          </div>
+          <div className="p-4 border-t bg-accent/5">
+            <Link href="/dashboard/agenda?filter=completed">
+              <Button variant="outline" className="w-full">
+                Ver todos los trabajos completados
+              </Button>
             </Link>
           </div>
         </Card>
