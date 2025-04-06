@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
 import {
@@ -7,6 +8,7 @@ import {
   AlertTriangle,
   Edit,
   Trash,
+  Loader2,
 } from "lucide-react";
 import { Task } from "@/services/tasks";
 
@@ -27,6 +29,11 @@ export default function TaskList({
   onDelete,
   onFinalize,
 }: TaskListProps) {
+  const [loadingTaskAction, setLoadingTaskAction] = useState<{
+    id: number | null;
+    action: "edit" | "delete" | "finalize" | null;
+  }>({ id: null, action: null });
+
   // Obtener estado formateado para mostrar
   const getStateDisplay = (state: string) => {
     switch (state) {
@@ -54,6 +61,37 @@ export default function TaskList({
       default:
         return state;
     }
+  };
+
+  const handleActionStart = (
+    taskId: number,
+    action: "edit" | "delete" | "finalize"
+  ) => {
+    setLoadingTaskAction({ id: taskId, action });
+
+    // Simular una pequeña demora antes de ejecutar la acción real
+    // Esto es opcional, pero proporciona retroalimentación visual al usuario
+    setTimeout(() => {
+      switch (action) {
+        case "edit":
+          const taskToEdit = tasks.find((task) => task.id === taskId);
+          if (taskToEdit) onEdit(taskToEdit);
+          break;
+        case "delete":
+          const taskToDelete = tasks.find((task) => task.id === taskId);
+          if (taskToDelete) onDelete(taskToDelete);
+          break;
+        case "finalize":
+          const taskToFinalize = tasks.find((task) => task.id === taskId);
+          if (taskToFinalize) onFinalize(taskToFinalize);
+          break;
+      }
+
+      // Limpiar el estado de carga
+      setTimeout(() => {
+        setLoadingTaskAction({ id: null, action: null });
+      }, 300);
+    }, 300);
   };
 
   // Columnas para la tabla de tareas
@@ -146,16 +184,28 @@ export default function TaskList({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onEdit(row.original)}
+                onClick={() => handleActionStart(row.original.id, "edit")}
+                disabled={loadingTaskAction.id === row.original.id}
               >
-                <Edit className="h-4 w-4" />
+                {loadingTaskAction.id === row.original.id &&
+                loadingTaskAction.action === "edit" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Edit className="h-4 w-4" />
+                )}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onDelete(row.original)}
+                onClick={() => handleActionStart(row.original.id, "delete")}
+                disabled={loadingTaskAction.id === row.original.id}
               >
-                <Trash className="h-4 w-4" />
+                {loadingTaskAction.id === row.original.id &&
+                loadingTaskAction.action === "delete" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash className="h-4 w-4" />
+                )}
               </Button>
             </>
           )}
@@ -163,9 +213,15 @@ export default function TaskList({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onFinalize(row.original)}
+              onClick={() => handleActionStart(row.original.id, "finalize")}
+              disabled={loadingTaskAction.id === row.original.id}
             >
-              <CheckCircle className="h-4 w-4" />
+              {loadingTaskAction.id === row.original.id &&
+              loadingTaskAction.action === "finalize" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
             </Button>
           )}
         </div>
@@ -175,8 +231,20 @@ export default function TaskList({
 
   if (isLoading) {
     return (
-      <div className="text-center h-96 flex items-center justify-center">
+      <div className="text-center h-96 flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 mb-4 text-primary animate-spin" />
         <p>Cargando tareas...</p>
+      </div>
+    );
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="text-center h-60 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-2">No hay tareas disponibles</p>
+        <p className="text-sm text-gray-400">
+          Prueba a cambiar los filtros o crear una nueva tarea
+        </p>
       </div>
     );
   }

@@ -1,4 +1,3 @@
-// components/ui/confirm-dialog.tsx
 "use client";
 
 import React from "react";
@@ -10,7 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -34,7 +33,15 @@ export function ConfirmDialog({
   isLoading = false,
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(newOpen) => {
+        // Solo permitir cerrar el diálogo si no está en estado de carga
+        if (!isLoading || !newOpen) {
+          onOpenChange(newOpen);
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-4">
@@ -58,12 +65,24 @@ export function ConfirmDialog({
           <Button
             variant="destructive"
             onClick={async () => {
-              await onConfirm();
-              onOpenChange(false);
+              try {
+                await onConfirm();
+                onOpenChange(false);
+              } catch (error) {
+                console.error("Error en la acción de confirmación:", error);
+                // Mantener el diálogo abierto en caso de error
+              }
             }}
             disabled={isLoading}
           >
-            {isLoading ? "Procesando..." : confirmLabel}
+            {isLoading ? (
+              <span className="flex items-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Procesando...
+              </span>
+            ) : (
+              confirmLabel
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

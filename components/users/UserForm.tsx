@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
-import { FormField, FormLabel } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EntityForm } from "@/components/ui/entity-form";
+import { FormField, FormLabel } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -10,12 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { User } from "@/services/users";
+import { Loader2 } from "lucide-react";
 
 interface UserFormProps {
   isOpen: boolean;
   user: User | null;
   onSave: (user: User) => Promise<void>;
   onClose: () => void;
+  isLoading?: boolean;
 }
 
 export default function UserForm({
@@ -23,155 +32,157 @@ export default function UserForm({
   user,
   onSave,
   onClose,
+  isLoading = false,
 }: UserFormProps) {
-  const [formData, setFormData] = useState<User>({
-    id: 0,
+  const [userForm, setUserForm] = useState<User & { password?: string }>({
     name: "",
     email: "",
     role: "WORKER",
     password: "",
   });
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setFormData({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        password: "", // No se muestra la contraseña actual
+      setUserForm({
+        ...user,
+        password: "", // Siempre vacío por seguridad
       });
-      setConfirmPassword("");
+      setPasswordConfirm("");
     } else {
-      // Resetear el formulario para un nuevo usuario
-      setFormData({
-        id: 0,
+      // Reset form for new user
+      setUserForm({
         name: "",
         email: "",
         role: "WORKER",
         password: "",
       });
-      setConfirmPassword("");
+      setPasswordConfirm("");
     }
     setError(null);
   }, [user, isOpen]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Validación básica
-    if (!formData.name.trim()) {
-      setError("El nombre es obligatorio");
+    setError(null);
+
+    // Validaciones básicas
+    if (!userForm.name || !userForm.email) {
+      setError("Nombre y email son obligatorios");
       return;
     }
 
-    if (!formData.email.trim()) {
-      setError("El correo electrónico es obligatorio");
+    // Si es un nuevo usuario o si se está cambiando la contraseña
+    if (!user?.id && (!userForm.password || userForm.password.length < 6)) {
+      setError("La contraseña debe tener al menos 6 caracteres");
       return;
     }
 
-    if (!user && !formData.password) {
-      setError("La contraseña es obligatoria para nuevos usuarios");
-      return;
-    }
-
-    if (formData.password && formData.password !== confirmPassword) {
+    if (userForm.password && userForm.password !== passwordConfirm) {
       setError("Las contraseñas no coinciden");
       return;
     }
 
-    setIsSubmitting(true);
+    // Enviar datos
     try {
-      // Si se está editando y no se cambió la contraseña, se omite su envío
-      if (user && !formData.password) {
-        const { password, ...userData } = formData;
-        await onSave(userData as User);
-      } else {
-        await onSave(formData);
-      }
+      await onSave(userForm);
     } catch (err) {
-      console.error("Error al guardar usuario:", err);
       setError("Error al guardar el usuario");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
-    <EntityForm
-      isOpen={isOpen}
-      onClose={onClose}
-      onSubmit={handleSubmit}
-      title={user ? "Editar Usuario" : "Nuevo Usuario"}
-      isLoading={isSubmitting}
-      error={error}
-    >
-      <FormField>
-        <FormLabel>Nombre completo</FormLabel>
-        <Input
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          required
-        />
-      </FormField>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{user ? "Editar Técnico" : "Nuevo Técnico"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormField>
+            <FormLabel>Nombre</FormLabel>
+            <Input
+              value={userForm.name}
+              onChange={(e) =>
+                setUserForm({ ...userForm, name: e.target.value })
+              }
+              required
+              disabled={isLoading}
+            />
+          </FormField>
 
-      <FormField>
-        <FormLabel>Correo electrónico</FormLabel>
-        <Input
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          required
-        />
-      </FormField>
+          <FormField>
+            <FormLabel>Email</FormLabel>
+            <Input
+              type="email"
+              value={userForm.email}
+              onChange={(e) =>
+                setUserForm({ ...userForm, email: e.target.value })
+              }
+              required
+              disabled={isLoading}
+            />
+          </FormField>
 
-      <FormField>
-        <FormLabel>Rol</FormLabel>
-        <Select
-          value={formData.role}
-          onValueChange={(value: "ADMIN" | "WORKER") =>
-            setFormData({ ...formData, role: value })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ADMIN">Administrador</SelectItem>
-            <SelectItem value="WORKER">Técnico</SelectItem>
-          </SelectContent>
-        </Select>
-      </FormField>
+          {/* Mostrar campos de contraseña solo para nuevos usuarios */}
+          {!user?.id && (
+            <>
+              <FormField>
+                <FormLabel>Contraseña</FormLabel>
+                <Input
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, password: e.target.value })
+                  }
+                  required={!user?.id}
+                  disabled={isLoading}
+                />
+              </FormField>
 
-      <FormField>
-        <FormLabel>
-          {user ? "Nueva contraseña (opcional)" : "Contraseña"}
-        </FormLabel>
-        <Input
-          type="password"
-          value={formData.password}
-          onChange={(e) =>
-            setFormData({ ...formData, password: e.target.value })
-          }
-          required={!user}
-          placeholder={user ? "Dejar en blanco para mantener" : ""}
-          minLength={!user ? 8 : undefined}
-        />
-      </FormField>
+              <FormField>
+                <FormLabel>Confirmar Contraseña</FormLabel>
+                <Input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  required={!user?.id}
+                  disabled={isLoading}
+                />
+              </FormField>
+            </>
+          )}
 
-      <FormField>
-        <FormLabel>Confirmar contraseña</FormLabel>
-        <Input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required={!user || !!formData.password}
-          placeholder={user ? "Dejar en blanco para mantener" : ""}
-          minLength={!user || formData.password ? 8 : undefined}
-        />
-      </FormField>
-    </EntityForm>
+          {error && (
+            <div className="text-red-500 text-sm p-2 bg-red-50 border border-red-200 rounded">
+              {error}
+            </div>
+          )}
+
+          <DialogFooter className="pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {user ? "Guardando..." : "Creando..."}
+                </div>
+              ) : user ? (
+                "Guardar cambios"
+              ) : (
+                "Crear técnico"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

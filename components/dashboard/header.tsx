@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, X, Menu } from "lucide-react";
-import { UserNav } from "./user-nav";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -63,18 +62,6 @@ export function Header({
         >
           <span className="font-bold">RG Electronica</span>
         </Link>
-
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          {/*  perfil */}
-          <div
-            className={cn(
-              "flex items-center space-x-2",
-              showMobileSearch && "hidden md:flex"
-            )}
-          >
-            <UserNav />
-          </div>
-        </div>
       </div>
     </header>
   );

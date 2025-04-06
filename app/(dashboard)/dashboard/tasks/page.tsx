@@ -19,7 +19,7 @@ import {
 } from "@/services/tasks";
 import { Loader2 } from "lucide-react";
 
-// Componentes refactorizados
+// Componentes refactorizados con loaders
 import TaskFilters from "@/components/tasks/TaskFilters";
 import TaskList from "@/components/tasks/TaskList";
 import TaskForm from "@/components/tasks/TaskForm";
@@ -38,9 +38,12 @@ export default function TasksPage() {
   const { addNotification } = useNotification();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingTask, setIsSavingTask] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isFinalizingTask, setIsFinalizingTask] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<TasksFilterOptions>({
@@ -53,6 +56,8 @@ export default function TasksPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [workers, setWorkers] = useState<User[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
 
   // Verificar si el usuario tiene el rol ADMIN
   const isAdmin = () => {
@@ -68,40 +73,54 @@ export default function TasksPage() {
   useEffect(() => {
     const fetchData = async () => {
       setIsLoadingData(true);
+      setIsLoadingClients(true);
+      setIsLoadingWorkers(true);
       try {
-        // Cargar clientes y trabajadores en paralelo
-        const [clientsData, workersData] = await Promise.all([
-          getClients(),
-          getUsers(),
-        ]);
-
-        if (!clientsData || !Array.isArray(clientsData)) {
-          console.error("Datos de clientes inválidos:", clientsData);
-          addNotification("error", "Error al cargar los datos de clientes");
-        } else {
-          console.log("Clientes cargados:", clientsData);
-          setClients(clientsData);
+        // Cargar clientes
+        try {
+          const clientsData = await getClients();
+          if (!clientsData || !Array.isArray(clientsData)) {
+            console.error("Datos de clientes inválidos:", clientsData);
+            addNotification("error", "Error al cargar los datos de clientes");
+          } else {
+            console.log("Clientes cargados:", clientsData);
+            setClients(clientsData);
+          }
+        } catch (error) {
+          console.error("Error al cargar clientes:", error);
+          addNotification("error", "Error al cargar los clientes");
+        } finally {
+          setIsLoadingClients(false);
         }
 
-        if (!workersData || !Array.isArray(workersData)) {
-          console.error("Datos de trabajadores inválidos:", workersData);
+        // Cargar trabajadores
+        try {
+          const workersData = await getUsers();
+          if (!workersData || !Array.isArray(workersData)) {
+            console.error("Datos de trabajadores inválidos:", workersData);
+            addNotification("error", "Error al cargar los trabajadores");
+            setWorkers([]);
+          } else {
+            console.log("Usuarios recibidos del API:", workersData);
+
+            // Procesar los datos de trabajadores para asegurar que tengan todos los campos necesarios
+            const processedWorkers = workersData.map((worker) => ({
+              ...worker,
+              // Asegurar que exista un nombre (usar email si no hay nombre)
+              name: worker.name || worker.email || `Técnico ${worker.id}`,
+              // Asegurar que tenga un rol (asumir WORKER si no es ADMIN explícitamente)
+              role: worker.role === "ADMIN" ? "ADMIN" : "WORKER",
+              // Asegurar que tenga un email
+              email: worker.email || "",
+            }));
+
+            setWorkers(processedWorkers);
+          }
+        } catch (error) {
+          console.error("Error al cargar trabajadores:", error);
           addNotification("error", "Error al cargar los trabajadores");
-          setWorkers([]);
-        } else {
-          console.log("Usuarios recibidos del API:", workersData);
-
-          // Procesar los datos de trabajadores para asegurar que tengan todos los campos necesarios
-          const processedWorkers = workersData.map((worker) => ({
-            ...worker,
-            // Asegurar que exista un nombre (usar email si no hay nombre)
-            name: worker.name || worker.email || `Técnico ${worker.id}`,
-            // Asegurar que tenga un rol (asumir WORKER si no es ADMIN explícitamente)
-            role: worker.role === "ADMIN" ? "ADMIN" : "WORKER",
-            // Asegurar que tenga un email
-            email: worker.email || "",
-          }));
-
-          setWorkers(processedWorkers);
+        } finally {
+          setIsLoadingWorkers(false);
         }
       } catch (err) {
         console.error("Error al cargar datos:", err);
@@ -118,6 +137,7 @@ export default function TasksPage() {
   // Función para cargar tareas según filtros
   const fetchTasks = async () => {
     setIsLoading(true);
+    setIsLoadingFilters(true);
     try {
       let tasksData;
       if (filters.view) {
@@ -148,7 +168,11 @@ export default function TasksPage() {
       setError("Error al cargar las tareas. Intente nuevamente.");
       setTasks([]);
     } finally {
-      setIsLoading(false);
+      // Agregamos un pequeño retraso para mostrar el loader
+      setTimeout(() => {
+        setIsLoading(false);
+        setIsLoadingFilters(false);
+      }, 500);
     }
   };
 
@@ -213,6 +237,7 @@ export default function TasksPage() {
 
   const handleSaveTask = async (taskData: Task) => {
     try {
+      setIsSavingTask(true);
       if (currentTask && currentTask.id) {
         // Actualizar tarea existente
         const updatedTask = await updateTask(
@@ -250,11 +275,14 @@ export default function TasksPage() {
       console.error("Error al guardar la tarea:", err);
       setError("Error al guardar la tarea");
       addNotification("error", "Error al guardar la tarea");
+    } finally {
+      setIsSavingTask(false);
     }
   };
 
   const handleFinalizeSubmit = async (data: FinalizeTaskData) => {
     try {
+      setIsFinalizingTask(true);
       const result = await finalizeTask(data);
 
       if (result && result.task) {
@@ -274,6 +302,8 @@ export default function TasksPage() {
       console.error("Error al finalizar la tarea:", err);
       setError("Error al finalizar la tarea");
       addNotification("error", "Error al finalizar la tarea");
+    } finally {
+      setIsFinalizingTask(false);
     }
   };
 
@@ -310,24 +340,28 @@ export default function TasksPage() {
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
           <p>Cargando datos necesarios...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Mostrar pantalla de carga mientras se cargan las tareas
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-content-emphasis">Tareas</h1>
-          <p className="text-content-subtle mt-2">
-            Gestiona las tareas y trabajos del equipo técnico
-          </p>
-        </div>
-        <div className="h-[500px] w-full flex flex-col items-center justify-center">
-          <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
-          <p>Cargando tareas...</p>
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isLoadingClients
+                    ? "bg-yellow-400 animate-pulse"
+                    : "bg-green-500"
+                }`}
+              ></div>
+              <span className="text-sm">Clientes</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isLoadingWorkers
+                    ? "bg-yellow-400 animate-pulse"
+                    : "bg-green-500"
+                }`}
+              ></div>
+              <span className="text-sm">Técnicos</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -350,6 +384,7 @@ export default function TasksPage() {
           onSearchChange={handleSearchChange}
           onAddTask={handleAddTask}
           isAdmin={isAdmin()}
+          isLoading={isLoadingFilters}
         />
 
         <TaskList
@@ -362,7 +397,14 @@ export default function TasksPage() {
         />
       </Card>
 
-      {error && <div className="text-center text-red-500">{error}</div>}
+      {error && (
+        <div className="text-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
+          {error}
+          <button className="ml-2 underline" onClick={() => fetchTasks()}>
+            Reintentar
+          </button>
+        </div>
+      )}
 
       {/* Formulario para crear/editar tarea */}
       <TaskForm
@@ -374,6 +416,9 @@ export default function TasksPage() {
         onClose={() => setIsEditing(false)}
         onUserCreated={handleUserCreated}
         onClientCreated={handleClientCreated}
+        isLoading={isSavingTask}
+        isLoadingClients={isLoadingClients}
+        isLoadingWorkers={isLoadingWorkers}
       />
 
       {/* Formulario para finalizar tarea */}
@@ -382,6 +427,7 @@ export default function TasksPage() {
         task={currentTask}
         onSave={handleFinalizeSubmit}
         onClose={() => setIsFinalizing(false)}
+        isLoading={isFinalizingTask}
       />
 
       <ConfirmDialog

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,7 @@ interface UserSelectProps {
   onValueChange: (value: string, worker?: User) => void;
   onUserCreated?: (user: User) => void;
   placeholder?: string;
+  isLoading?: boolean;
 }
 
 export default function UserSelect({
@@ -27,8 +28,10 @@ export default function UserSelect({
   onValueChange,
   onUserCreated,
   placeholder = "Seleccionar técnico",
+  isLoading = false,
 }: UserSelectProps) {
   const [isAddingUser, setIsAddingUser] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const { addNotification } = useNotification();
   const [processedWorkers, setProcessedWorkers] = useState<User[]>([]);
 
@@ -54,6 +57,7 @@ export default function UserSelect({
 
   const handleAddUser = async (userData: User) => {
     try {
+      setIsCreatingUser(true);
       // Asegurar que el rol sea WORKER
       userData.role = "WORKER";
 
@@ -90,6 +94,8 @@ export default function UserSelect({
     } catch (error) {
       console.error("Error al crear técnico:", error);
       addNotification("error", "Error al crear el técnico");
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -117,9 +123,17 @@ export default function UserSelect({
             onValueChange(val, selectedWorker);
           }}
           className="flex-1"
+          disabled={isLoading || isCreatingUser}
         >
           <SelectTrigger>
-            <SelectValue placeholder={placeholder} />
+            {isLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <span>Cargando técnicos...</span>
+              </div>
+            ) : (
+              <SelectValue placeholder={placeholder} />
+            )}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="-">Sin asignar</SelectItem>
@@ -150,6 +164,7 @@ export default function UserSelect({
         user={null}
         onSave={handleAddUser}
         onClose={() => setIsAddingUser(false)}
+        isLoading={isCreatingUser}
       />
     </>
   );

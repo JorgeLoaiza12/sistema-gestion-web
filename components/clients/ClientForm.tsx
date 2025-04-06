@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { FormField, FormLabel } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FormTextarea } from "@/components/ui/form-textarea";
+import { Input } from "@/components/ui/input";
+import { FormField, FormLabel } from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +9,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { FormTextarea } from "@/components/ui/form-textarea";
 import { Client } from "@/services/clients";
+import { Loader2 } from "lucide-react";
 
 interface ClientFormProps {
   isOpen: boolean;
   customer: Client | null;
   onSave: (client: Client) => Promise<void>;
   onCancel: () => void;
+  isLoading?: boolean;
 }
 
 export default function ClientForm({
@@ -24,63 +26,57 @@ export default function ClientForm({
   customer,
   onSave,
   onCancel,
+  isLoading = false,
 }: ClientFormProps) {
-  const [formData, setFormData] = useState<Client>({
-    id: "",
+  const [clientForm, setClientForm] = useState<Client>({
     name: "",
     email: "",
     phone: "",
-    rut: "",
     address: "",
-    commune: "",
-    administrator: "",
-    butler: "",
     notes: "",
   });
 
   useEffect(() => {
     if (customer) {
-      setFormData({
+      setClientForm({
         ...customer,
       });
     } else {
       // Reset form for new client
-      setFormData({
-        id: "",
+      setClientForm({
         name: "",
         email: "",
         phone: "",
-        rut: "",
         address: "",
-        commune: "",
-        administrator: "",
-        butler: "",
         notes: "",
       });
     }
   }, [customer, isOpen]);
 
-  const handleSubmit = async () => {
-    await onSave(formData);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSave(clientForm);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {customer ? "Editar Cliente" : "Nuevo Cliente"}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <FormField>
             <FormLabel>Nombre</FormLabel>
             <Input
-              value={formData.name}
+              value={clientForm.name}
               onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
+                setClientForm({ ...clientForm, name: e.target.value })
               }
               required
+              disabled={isLoading}
+              className="relative"
             />
           </FormField>
 
@@ -88,92 +84,70 @@ export default function ClientForm({
             <FormLabel>Email</FormLabel>
             <Input
               type="email"
-              value={formData.email}
+              value={clientForm.email || ""}
               onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
+                setClientForm({ ...clientForm, email: e.target.value })
               }
-              required
+              disabled={isLoading}
             />
           </FormField>
 
           <FormField>
             <FormLabel>Teléfono</FormLabel>
             <Input
-              type="tel"
-              value={formData.phone}
+              value={clientForm.phone || ""}
               onChange={(e) =>
-                setFormData({ ...formData, phone: e.target.value })
+                setClientForm({ ...clientForm, phone: e.target.value })
               }
-              required
-            />
-          </FormField>
-
-          <FormField>
-            <FormLabel>RUT</FormLabel>
-            <Input
-              value={formData.rut || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, rut: e.target.value })
-              }
+              disabled={isLoading}
             />
           </FormField>
 
           <FormField>
             <FormLabel>Dirección</FormLabel>
             <Input
-              value={formData.address || ""}
+              value={clientForm.address || ""}
               onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
+                setClientForm({ ...clientForm, address: e.target.value })
               }
-            />
-          </FormField>
-
-          <FormField>
-            <FormLabel>Comuna</FormLabel>
-            <Input
-              value={formData.commune || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, commune: e.target.value })
-              }
-            />
-          </FormField>
-
-          <FormField>
-            <FormLabel>Administrador</FormLabel>
-            <Input
-              value={formData.administrator || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, administrator: e.target.value })
-              }
-            />
-          </FormField>
-
-          <FormField>
-            <FormLabel>Conserje</FormLabel>
-            <Input
-              value={formData.butler || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, butler: e.target.value })
-              }
+              disabled={isLoading}
             />
           </FormField>
 
           <FormField>
             <FormLabel>Notas</FormLabel>
             <FormTextarea
-              value={formData.notes || ""}
+              value={clientForm.notes || ""}
               onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
+                setClientForm({ ...clientForm, notes: e.target.value })
               }
+              disabled={isLoading}
             />
           </FormField>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSubmit}>Guardar</Button>
-        </DialogFooter>
+
+          <DialogFooter className="pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {customer ? "Guardando..." : "Creando..."}
+                </div>
+              ) : customer ? (
+                "Guardar cambios"
+              ) : (
+                "Crear cliente"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

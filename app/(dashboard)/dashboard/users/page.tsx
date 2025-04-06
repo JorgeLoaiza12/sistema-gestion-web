@@ -5,14 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
-import {
-  Plus,
-  Edit,
-  Trash,
-  Shield,
-  User as UserIcon,
-  Calendar,
-} from "lucide-react";
+import { Plus, Edit, Trash, Shield, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -129,9 +122,6 @@ export default function UsersPage() {
       header: "Nombre",
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <UserIcon className="h-4 w-4 text-primary" />
-          </div>
           <div>
             <p className="font-medium">{row.original.name || "Sin nombre"}</p>
             <p className="text-sm text-content-subtle">

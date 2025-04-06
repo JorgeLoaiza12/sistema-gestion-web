@@ -25,6 +25,7 @@ import { Quotation, getQuotationsByClient } from "@/services/quotations";
 import ClientSelect from "@/components/clients/ClientSelect";
 import UserSelect from "@/components/tasks/UserSelect";
 import { useNotification } from "@/contexts/NotificationContext";
+import { Loader2 } from "lucide-react";
 
 interface TaskFormProps {
   isOpen: boolean;
@@ -35,6 +36,9 @@ interface TaskFormProps {
   onClose: () => void;
   onUserCreated?: (user: User) => void;
   onClientCreated?: (client: Client) => void;
+  isLoading?: boolean;
+  isLoadingClients?: boolean;
+  isLoadingWorkers?: boolean;
 }
 
 // Constantes para tipos y estados de tareas
@@ -59,6 +63,9 @@ export default function TaskForm({
   onClose,
   onUserCreated,
   onClientCreated,
+  isLoading = false,
+  isLoadingClients = false,
+  isLoadingWorkers = false,
 }: TaskFormProps) {
   const { addNotification } = useNotification();
   const [taskForm, setTaskForm] = useState<Task>({
@@ -72,6 +79,10 @@ export default function TaskForm({
   const [clientQuotations, setClientQuotations] = useState<Quotation[]>([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
+  const [isSavingInProgress, setIsSavingInProgress] = useState(false);
+  const [formValidationError, setFormValidationError] = useState<string | null>(
+    null
+  );
 
   // Para depuración
   useEffect(() => {
@@ -114,6 +125,9 @@ export default function TaskForm({
       setSelectedWorkerId("");
       setClientQuotations([]);
     }
+
+    // Limpiar errores de validación
+    setFormValidationError(null);
   }, [task, isOpen]);
 
   // Función para cargar cotizaciones del cliente seleccionado
@@ -128,36 +142,51 @@ export default function TaskForm({
       addNotification("error", "Error al cargar cotizaciones del cliente");
       setClientQuotations([]);
     } finally {
-      setIsLoadingQuotations(false);
+      // Pequeño retraso para mostrar el estado de carga
+      setTimeout(() => {
+        setIsLoadingQuotations(false);
+      }, 400);
     }
   };
 
   const handleSave = async () => {
+    // Limpiar errores previos
+    setFormValidationError(null);
+
     // Validación básica
     if (!taskForm.title) {
-      addNotification("error", "El título es obligatorio");
+      setFormValidationError("El título es obligatorio");
       return;
     }
 
     if (!taskForm.startDate) {
-      addNotification("error", "La fecha de inicio es obligatoria");
+      setFormValidationError("La fecha de inicio es obligatoria");
       return;
     }
 
-    // Preparar datos para enviar
-    const taskData: Task = {
-      ...taskForm,
-      // Convertir explícitamente a undefined si es necesario
-      quotationId: taskForm.quotationId || undefined,
-      // Asegurar que se envíen arrays vacíos en lugar de undefined
-      types: taskForm.types || [],
-      categories: taskForm.categories || [],
-      // Asignar el trabajador seleccionado si existe
-      assignedWorkerIds: selectedWorkerId ? [parseInt(selectedWorkerId)] : [],
-    };
+    setIsSavingInProgress(true);
 
-    console.log("Datos de tarea a guardar:", taskData);
-    await onSave(taskData);
+    try {
+      // Preparar datos para enviar
+      const taskData: Task = {
+        ...taskForm,
+        // Convertir explícitamente a undefined si es necesario
+        quotationId: taskForm.quotationId || undefined,
+        // Asegurar que se envíen arrays vacíos en lugar de undefined
+        types: taskForm.types || [],
+        categories: taskForm.categories || [],
+        // Asignar el trabajador seleccionado si existe
+        assignedWorkerIds: selectedWorkerId ? [parseInt(selectedWorkerId)] : [],
+      };
+
+      console.log("Datos de tarea a guardar:", taskData);
+      await onSave(taskData);
+    } catch (error) {
+      console.error("Error al guardar la tarea:", error);
+      setFormValidationError("Ha ocurrido un error al guardar la tarea");
+    } finally {
+      setIsSavingInProgress(false);
+    }
   };
 
   const handleTypeToggle = (type: string) => {
@@ -249,12 +278,33 @@ export default function TaskForm({
     setSelectedWorkerId(value);
   };
 
+  // Mostrar estado de carga al abrir el formulario
+  if (!isOpen) return null;
+
+  // Indicador de carga para el formulario completo
+  const isFormLoading =
+    isLoading || isLoadingClients || isLoadingWorkers || isSavingInProgress;
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => !open && !isFormLoading && onClose()}
+    >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{task ? "Editar Tarea" : "Nueva Tarea"}</DialogTitle>
         </DialogHeader>
+
+        {/* Barra de progreso para guardado */}
+        {isSavingInProgress && (
+          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary animate-pulse"
+              style={{ width: "100%" }}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <FormField>
             <FormLabel>Título</FormLabel>
@@ -264,6 +314,7 @@ export default function TaskForm({
                 setTaskForm({ ...taskForm, title: e.target.value })
               }
               required
+              disabled={isFormLoading}
             />
           </FormField>
 
@@ -274,6 +325,8 @@ export default function TaskForm({
               value={taskForm.clientId?.toString() || ""}
               onValueChange={handleClientChange}
               onClientCreated={onClientCreated}
+              isLoading={isLoadingClients}
+              placeholder="Seleccionar cliente"
             />
           </FormField>
 
@@ -281,37 +334,55 @@ export default function TaskForm({
           {taskForm.clientId && (
             <FormField>
               <FormLabel>Cotización</FormLabel>
-              <Select
-                value={taskForm.quotationId?.toString() || "-"}
-                onValueChange={handleQuotationChange}
-                disabled={isLoadingQuotations || clientQuotations.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cotización" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="-">Sin cotización</SelectItem>
-                  {isLoadingQuotations ? (
-                    <SelectItem value="loading" disabled>
-                      Cargando cotizaciones...
-                    </SelectItem>
-                  ) : clientQuotations.length > 0 ? (
-                    clientQuotations.map((quotation) => (
-                      <SelectItem
-                        key={quotation.id}
-                        value={quotation.id.toString()}
-                      >
-                        {quotation.title} - $
-                        {quotation.amount?.toLocaleString()}
+              <div className="relative">
+                <Select
+                  value={taskForm.quotationId?.toString() || "-"}
+                  onValueChange={handleQuotationChange}
+                  disabled={
+                    isLoadingQuotations ||
+                    clientQuotations.length === 0 ||
+                    isFormLoading
+                  }
+                >
+                  <SelectTrigger>
+                    {isLoadingQuotations ? (
+                      <div className="flex items-center">
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <span>Cargando cotizaciones...</span>
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="Seleccionar cotización" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="-">Sin cotización</SelectItem>
+                    {isLoadingQuotations ? (
+                      <SelectItem value="loading" disabled>
+                        Cargando cotizaciones...
                       </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="empty" disabled>
-                      No hay cotizaciones para este cliente
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+                    ) : clientQuotations.length > 0 ? (
+                      clientQuotations.map((quotation) => (
+                        <SelectItem
+                          key={quotation.id}
+                          value={quotation.id.toString()}
+                        >
+                          {quotation.title} - $
+                          {quotation.amount?.toLocaleString()}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="empty" disabled>
+                        No hay cotizaciones para este cliente
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {isLoadingQuotations && (
+                  <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
             </FormField>
           )}
 
@@ -322,6 +393,7 @@ export default function TaskForm({
               onChange={(e) =>
                 setTaskForm({ ...taskForm, description: e.target.value })
               }
+              disabled={isFormLoading}
             />
           </FormField>
 
@@ -332,6 +404,7 @@ export default function TaskForm({
               onValueChange={(value) =>
                 setTaskForm({ ...taskForm, state: value })
               }
+              disabled={isFormLoading}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -359,6 +432,7 @@ export default function TaskForm({
                 setTaskForm({ ...taskForm, startDate: e.target.value })
               }
               required
+              disabled={isFormLoading}
             />
           </div>
 
@@ -373,6 +447,7 @@ export default function TaskForm({
                   endDate: e.target.value || undefined,
                 })
               }
+              disabled={isFormLoading}
             />
           </div>
 
@@ -385,6 +460,7 @@ export default function TaskForm({
                     id={`type-${type}`}
                     checked={(taskForm.types || []).includes(type)}
                     onCheckedChange={() => handleTypeToggle(type)}
+                    disabled={isFormLoading}
                   />
                   <label
                     htmlFor={`type-${type}`}
@@ -406,6 +482,7 @@ export default function TaskForm({
                     id={`category-${category}`}
                     checked={(taskForm.categories || []).includes(category)}
                     onCheckedChange={() => handleCategoryToggle(category)}
+                    disabled={isFormLoading}
                   />
                   <label
                     htmlFor={`category-${category}`}
@@ -425,6 +502,7 @@ export default function TaskForm({
               value={selectedWorkerId}
               onValueChange={handleWorkerChange}
               onUserCreated={onUserCreated}
+              isLoading={isLoadingWorkers}
             />
           </div>
         </div>
@@ -444,11 +522,27 @@ export default function TaskForm({
           </div>
         )}
 
+        {/* Mensaje de error de validación */}
+        {formValidationError && (
+          <div className="border border-red-300 rounded-md p-3 mb-4 bg-red-50 text-red-800 animate-fadeIn">
+            <p className="text-sm font-medium">{formValidationError}</p>
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isFormLoading}>
             Cancelar
           </Button>
-          <Button onClick={handleSave}>Guardar</Button>
+          <Button onClick={handleSave} disabled={isFormLoading}>
+            {isSavingInProgress ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <span>{task ? "Actualizando..." : "Creando..."}</span>
+              </div>
+            ) : (
+              <span>{task ? "Guardar cambios" : "Crear tarea"}</span>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2, CalendarIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,7 @@ interface TaskFiltersProps {
   onSearchChange: (value: string) => void;
   onAddTask: () => void;
   isAdmin: boolean;
+  isLoading?: boolean;
 }
 
 export default function TaskFilters({
@@ -34,6 +35,7 @@ export default function TaskFilters({
   onSearchChange,
   onAddTask,
   isAdmin,
+  isLoading = false,
 }: TaskFiltersProps) {
   return (
     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -45,9 +47,17 @@ export default function TaskFilters({
             onValueChange={(value: "daily" | "weekly" | "monthly") =>
               onFilterChange({ ...filters, view: value })
             }
+            disabled={isLoading}
           >
             <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Vista" />
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>Cargando</span>
+                </div>
+              ) : (
+                <SelectValue placeholder="Vista" />
+              )}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="daily">Diaria</SelectItem>
@@ -56,23 +66,39 @@ export default function TaskFilters({
             </SelectContent>
           </Select>
 
-          <Input
-            type="date"
-            value={filters.date}
-            onChange={(e) =>
-              onFilterChange({ ...filters, date: e.target.value })
-            }
-            className="w-[150px]"
-          />
+          <div className="relative">
+            <Input
+              type="date"
+              value={filters.date}
+              onChange={(e) =>
+                onFilterChange({ ...filters, date: e.target.value })
+              }
+              className="w-[150px]"
+              disabled={isLoading}
+            />
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
 
           <Select
             value={filters.state || ""}
             onValueChange={(value) =>
               onFilterChange({ ...filters, state: value || undefined })
             }
+            disabled={isLoading}
           >
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Estado" />
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>Cargando</span>
+                </div>
+              ) : (
+                <SelectValue placeholder="Estado" />
+              )}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">Todos</SelectItem>
@@ -89,16 +115,32 @@ export default function TaskFilters({
           </Select>
         </div>
 
-        <Input
-          placeholder="Buscar tareas..."
-          value={searchTerm}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="md:w-60"
-        />
+        <div className="relative">
+          <Input
+            placeholder="Buscar tareas..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="md:w-60"
+            disabled={isLoading}
+          />
+          {isLoading && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            </div>
+          )}
+        </div>
 
         {isAdmin && (
-          <Button onClick={onAddTask} className="whitespace-nowrap">
-            <Plus className="mr-2 h-4 w-4" />
+          <Button
+            onClick={onAddTask}
+            className="whitespace-nowrap"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
             Nueva Tarea
           </Button>
         )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
-import { Plus } from "lucide-react";
+import { Plus, Loader2, Save } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,9 @@ import { getProducts, Product } from "@/services/products";
 import CategoryForm from "./CategoryForm";
 import ClientForm from "./ClientForm";
 import { formatCurrency, roundUp } from "@/utils/number-format";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
@@ -66,20 +69,46 @@ export default function QuotationForm({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [savingProgress, setSavingProgress] = useState(0);
 
   // Al montar el componente, cargar los datos necesarios para el formulario
   useEffect(() => {
     const fetchFormData = async () => {
       try {
         setIsLoading(true);
+        setLoadingClients(true);
+        setLoadingProducts(true);
 
-        const [clientsData, productsData] = await Promise.all([
-          getClients(),
-          getProducts(),
-        ]);
+        // Cargar clientes y productos en paralelo
+        const clientsPromise = getClients()
+          .then((data) => {
+            setClients(data);
+            setLoadingClients(false);
+            return data;
+          })
+          .catch((error) => {
+            console.error("Error al cargar clientes:", error);
+            setError("Error al cargar los clientes");
+            setLoadingClients(false);
+            return [];
+          });
 
-        setClients(clientsData);
-        setProducts(productsData);
+        const productsPromise = getProducts()
+          .then((data) => {
+            setProducts(data);
+            setLoadingProducts(false);
+            return data;
+          })
+          .catch((error) => {
+            console.error("Error al cargar productos:", error);
+            setError("Error al cargar los productos");
+            setLoadingProducts(false);
+            return [];
+          });
+
+        await Promise.all([clientsPromise, productsPromise]);
         setError(null);
       } catch (err) {
         console.error("Error loading form data:", err);
@@ -244,8 +273,25 @@ export default function QuotationForm({
     return subtotal + iva;
   };
 
+  // Simulación del progreso de guardado
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (isSaving && savingProgress < 95) {
+      interval = setInterval(() => {
+        setSavingProgress((prev) => {
+          const increment = (95 - prev) * 0.2;
+          return Math.min(prev + increment, 95);
+        });
+      }, 300);
+    }
+
+    return () => clearInterval(interval);
+  }, [isSaving, savingProgress]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     if (!clientId || clientId === "new") {
       setError("Debe seleccionar un cliente");
@@ -279,12 +325,14 @@ export default function QuotationForm({
 
     try {
       setIsSaving(true);
+      setSavingProgress(10);
 
       // Asegurarnos de que clientId sea un número válido
       const clientIdNum = parseInt(clientId);
       if (isNaN(clientIdNum)) {
         setError(`ID de cliente inválido: ${clientId}`);
         setIsSaving(false);
+        setSavingProgress(0);
         return;
       }
 
@@ -313,6 +361,8 @@ export default function QuotationForm({
           }),
       }));
 
+      setSavingProgress(30);
+
       const quotationData: Quotation = {
         id: quotation?.id,
         clientId: clientIdNum,
@@ -328,6 +378,8 @@ export default function QuotationForm({
         },
       };
 
+      setSavingProgress(50);
+
       if (quotation?.id) {
         // Actualizar cotización existente
         await updateQuotation(quotation.id, quotationData);
@@ -336,21 +388,34 @@ export default function QuotationForm({
         await createQuotation(quotationData);
       }
 
-      onSave();
+      setSavingProgress(100);
+      setTimeout(() => {
+        onSave();
+      }, 500); // Pequeña pausa para mostrar el 100% del progreso
     } catch (err) {
       console.error("Error al guardar la cotización:", err);
       setError("Error al guardar la cotización");
+      setSavingProgress(0);
     } finally {
-      setIsSaving(false);
+      if (!error) {
+        // Solo resetear si no hay error
+        setIsSaving(false);
+      }
     }
   };
 
-  if (isLoading) {
+  // Renderizar un loader de carga inicial
+  if (isLoading && loadingClients && loadingProducts) {
     return (
       <Dialog open onOpenChange={() => onCancel()}>
         <DialogContent>
-          <div className="text-center py-10">
-            <p>Cargando datos del formulario...</p>
+          <div className="space-y-4 py-6">
+            <div className="flex justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+            <p className="text-center text-muted-foreground">
+              Cargando datos del formulario...
+            </p>
           </div>
         </DialogContent>
       </Dialog>
@@ -361,7 +426,7 @@ export default function QuotationForm({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onCancel();
+        if (!open && !isSaving) onCancel();
       }}
     >
       <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
@@ -370,6 +435,16 @@ export default function QuotationForm({
             {quotation ? "Editar Cotización" : "Nueva Cotización"}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Barra de progreso de guardado */}
+        {isSaving && (
+          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300 ease-in-out"
+              style={{ width: `${savingProgress}%` }}
+            />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Sección de información básica */}
@@ -380,41 +455,47 @@ export default function QuotationForm({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+                disabled={isSaving}
               />
             </FormField>
 
             <FormField>
               <FormLabel>Cliente</FormLabel>
               <div className="flex space-x-2">
-                <Select
-                  value={clientId}
-                  onValueChange={(value) => {
-                    setClientId(value);
-                    if (value === "new") {
-                      setIsNewClientDialogOpen(true);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="flex-grow">
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">
-                      <div className="flex items-center">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Crear nuevo cliente
-                      </div>
-                    </SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem
-                        key={client.id}
-                        value={client.id?.toString() || ""}
-                      >
-                        {client.name}
+                {loadingClients ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={clientId}
+                    onValueChange={(value) => {
+                      setClientId(value);
+                      if (value === "new") {
+                        setIsNewClientDialogOpen(true);
+                      }
+                    }}
+                    disabled={isSaving}
+                  >
+                    <SelectTrigger className="flex-grow">
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">
+                        <div className="flex items-center">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Crear nuevo cliente
+                        </div>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {clients.map((client) => (
+                        <SelectItem
+                          key={client.id}
+                          value={client.id?.toString() || ""}
+                        >
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </FormField>
           </div>
@@ -425,6 +506,7 @@ export default function QuotationForm({
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={isSaving}
               />
             </FormField>
 
@@ -434,6 +516,7 @@ export default function QuotationForm({
                 type="date"
                 value={validUntil}
                 onChange={(e) => setValidUntil(e.target.value)}
+                disabled={isSaving}
               />
             </FormField>
           </div>
@@ -441,7 +524,11 @@ export default function QuotationForm({
           {quotation && (
             <FormField>
               <FormLabel>Estado</FormLabel>
-              <Select value={status} onValueChange={setStatus}>
+              <Select
+                value={status}
+                onValueChange={setStatus}
+                disabled={isSaving}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
@@ -461,20 +548,28 @@ export default function QuotationForm({
 
           {/* Sección de Categorías */}
           <div className="space-y-4">
-            {categories.map((category, categoryIndex) => (
-              <CategoryForm
-                key={`category-${categoryIndex}`}
-                category={category}
-                categoryIndex={categoryIndex}
-                products={products}
-                onUpdateCategoryName={updateCategoryName}
-                onRemoveCategory={removeCategory}
-                onAddItem={addItem}
-                onRemoveItem={removeItem}
-                onUpdateItem={updateItem}
-                onAddNewProduct={handleAddNewProduct}
-              />
-            ))}
+            {loadingProducts ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              categories.map((category, categoryIndex) => (
+                <CategoryForm
+                  key={`category-${categoryIndex}`}
+                  category={category}
+                  categoryIndex={categoryIndex}
+                  products={products}
+                  onUpdateCategoryName={updateCategoryName}
+                  onRemoveCategory={removeCategory}
+                  onAddItem={addItem}
+                  onRemoveItem={removeItem}
+                  onUpdateItem={updateItem}
+                  onAddNewProduct={handleAddNewProduct}
+                  disabled={isSaving}
+                />
+              ))
+            )}
 
             {/* Encabezado de productos y servicios con botón para agregar categoría */}
             <div className="flex justify-between items-center mt-6">
@@ -485,6 +580,7 @@ export default function QuotationForm({
                 size="sm"
                 onClick={addCategory}
                 className="flex items-center"
+                disabled={isSaving || loadingProducts}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Agregar Categoría</span>
@@ -535,9 +631,10 @@ export default function QuotationForm({
           </div>
 
           {error && (
-            <div className="text-red-500 text-center p-2 border border-red-200 rounded-md bg-red-50">
-              {error}
-            </div>
+            <Alert variant="destructive" className="mt-4 animate-fadeIn">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {/* Botones de acción - Stack en móvil, inline en desktop */}
@@ -547,19 +644,26 @@ export default function QuotationForm({
               type="button"
               onClick={onCancel}
               className="w-full sm:w-auto"
+              disabled={isSaving}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || loadingClients || loadingProducts}
               className="w-full sm:w-auto"
             >
-              {isSaving
-                ? "Guardando..."
-                : quotation
-                ? "Guardar Cambios"
-                : "Crear Cotización"}
+              {isSaving ? (
+                <span className="flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {savingProgress < 50 ? "Procesando..." : "Guardando..."}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Save className="mr-2 h-4 w-4" />
+                  {quotation ? "Guardar Cambios" : "Crear Cotización"}
+                </span>
+              )}
             </Button>
           </DialogFooter>
         </form>

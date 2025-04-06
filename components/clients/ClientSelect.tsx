@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,6 +18,7 @@ interface ClientSelectProps {
   onValueChange: (value: string, client?: Client) => void;
   onClientCreated?: (client: Client) => void;
   placeholder?: string;
+  isLoading?: boolean;
 }
 
 export default function ClientSelect({
@@ -26,12 +27,15 @@ export default function ClientSelect({
   onValueChange,
   onClientCreated,
   placeholder = "Seleccionar cliente",
+  isLoading = false,
 }: ClientSelectProps) {
   const [isAddingClient, setIsAddingClient] = useState(false);
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
   const { addNotification } = useNotification();
 
   const handleAddClient = async (clientData: Client) => {
     try {
+      setIsCreatingClient(true);
       const newClient = await createClient(clientData);
 
       // Notificar al componente padre sobre el nuevo cliente
@@ -47,6 +51,8 @@ export default function ClientSelect({
     } catch (error) {
       console.error("Error al crear cliente:", error);
       addNotification("error", "Error al crear el cliente");
+    } finally {
+      setIsCreatingClient(false);
     }
   };
 
@@ -60,12 +66,26 @@ export default function ClientSelect({
               setIsAddingClient(true);
               return;
             }
-            onValueChange(val);
+
+            // Encontrar el cliente seleccionado
+            const selectedClient = clients.find(
+              (client) => client.id.toString() === val
+            );
+
+            onValueChange(val, selectedClient);
           }}
           className="flex-1"
+          disabled={isLoading || isCreatingClient}
         >
           <SelectTrigger>
-            <SelectValue placeholder={placeholder} />
+            {isLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <span>Cargando clientes...</span>
+              </div>
+            ) : (
+              <SelectValue placeholder={placeholder} />
+            )}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="-">Sin cliente</SelectItem>
@@ -75,11 +95,17 @@ export default function ClientSelect({
                 Crear nuevo cliente
               </div>
             </SelectItem>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id.toString()}>
-                {client.name}
+            {clients.length > 0 ? (
+              clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="empty" disabled>
+                No hay clientes disponibles
               </SelectItem>
-            ))}
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -90,6 +116,7 @@ export default function ClientSelect({
         customer={null}
         onSave={handleAddClient}
         onCancel={() => setIsAddingClient(false)}
+        isLoading={isCreatingClient}
       />
     </>
   );

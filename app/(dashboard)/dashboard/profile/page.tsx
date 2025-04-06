@@ -30,7 +30,6 @@ import {
   getProfile,
   updateProfile,
   updatePassword,
-  uploadAvatar,
   ProfileUpdateData,
   PasswordUpdateData,
 } from "@/services/profile";
@@ -39,7 +38,6 @@ export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [avatarLoading, setAvatarLoading] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordData, setPasswordData] = useState<PasswordUpdateData>({
     currentPassword: "",
@@ -59,7 +57,6 @@ export default function ProfilePage() {
     website: "",
     bio: "",
     role: "",
-    avatarUrl: "",
   });
 
   useEffect(() => {
@@ -77,7 +74,6 @@ export default function ProfilePage() {
           website: profileData.website || "",
           bio: profileData.bio || "",
           role: profileData.role || "WORKER",
-          avatarUrl: profileData.avatarUrl || "",
         });
       } catch (error) {
         console.error("Error al cargar el perfil:", error);
@@ -128,58 +124,6 @@ export default function ProfilePage() {
       addNotification("error", "Error al actualizar el perfil");
     } finally {
       setIsUpdating(false);
-    }
-  }
-
-  async function handleAvatarUpload(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-    setAvatarLoading(true);
-
-    try {
-      // Validación de tipo y tamaño
-      if (!file.type.startsWith("image/")) {
-        throw new Error("El archivo debe ser una imagen (JPEG, PNG, etc.)");
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        // 5MB
-        throw new Error("La imagen no debe exceder los 5MB");
-      }
-
-      const result = await uploadAvatar(file);
-
-      // Actualizar el perfil con la nueva URL de avatar
-      setProfile((prev) => ({
-        ...prev,
-        avatarUrl: result.imageUrl,
-      }));
-
-      // Actualizar la sesión si está disponible
-      if (session) {
-        await updateSession({
-          ...session,
-          user: {
-            ...session.user,
-            image: result.imageUrl,
-          },
-        });
-      }
-
-      addNotification("success", "Avatar actualizado correctamente");
-    } catch (error: any) {
-      console.error("Error al subir el avatar:", error);
-      addNotification("error", error.message || "Error al subir el avatar");
-    } finally {
-      setAvatarLoading(false);
-      // Resetear el input de archivo para permitir seleccionar el mismo archivo nuevamente
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   }
 
@@ -242,50 +186,6 @@ export default function ProfilePage() {
         {/* Información Personal */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-6">Información Personal</h2>
-
-          <div className="flex items-center gap-6 mb-6 pb-6 border-b">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                {profile.avatarUrl ? (
-                  <img
-                    src={profile.avatarUrl}
-                    alt="Avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User className="h-12 w-12 text-gray-400" />
-                )}
-                {avatarLoading && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-white" />
-                  </div>
-                )}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                className="absolute bottom-0 right-0"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={avatarLoading}
-              >
-                <Upload className="h-4 w-4" />
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                disabled={avatarLoading}
-              />
-            </div>
-            <div>
-              <h3 className="font-medium text-content">Foto de Perfil</h3>
-              <p className="text-sm text-content-subtle mt-1">
-                Esta foto se mostrará en tu perfil y notificaciones
-              </p>
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField>

@@ -11,8 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Mail,
-  Check,
-  X,
+  Loader2,
 } from "lucide-react";
 import {
   downloadQuotationPDF,
@@ -20,15 +19,11 @@ import {
   type Quotation,
   type QuotationsParams,
 } from "@/services/quotations";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useNotification } from "@/contexts/NotificationContext";
 import { Badge } from "../ui/badge";
 import { formatCurrency, roundUp } from "@/utils/number-format";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface QuotationsTableProps {
   quotations: Quotation[];
@@ -54,7 +49,6 @@ export default function QuotationsTable({
   quotations,
   pagination,
   isLoading,
-  filters,
   searchTerm,
   statusOptions,
   onEdit,
@@ -62,8 +56,15 @@ export default function QuotationsTable({
   onPageChange,
   onStatusChange,
 }: QuotationsTableProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState<string | null>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(
+    null
+  );
+  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(
+    null
+  );
   const { addNotification } = useNotification();
 
   // Calcular el total de una cotización
@@ -84,7 +85,7 @@ export default function QuotationsTable({
 
   const handleDownloadPDF = async (id: string) => {
     try {
-      setIsDownloading(true);
+      setIsDownloading(id);
       const blob = await downloadQuotationPDF(id);
 
       // Crear un enlace para descargar el archivo
@@ -96,24 +97,43 @@ export default function QuotationsTable({
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      addNotification("success", "PDF descargado correctamente");
     } catch (err) {
       console.error("Error al descargar el PDF:", err);
       addNotification("error", "Error al descargar el PDF");
     } finally {
-      setIsDownloading(false);
+      setTimeout(() => {
+        setIsDownloading(null);
+      }, 500); // Pequeña pausa para mostrar el estado de éxito
     }
   };
 
-  const handleSendEmail = async (id: string) => {
+  const handleEmailButtonClick = (quotation: Quotation) => {
+    if (quotation.id) {
+      setSelectedQuotationId(quotation.id);
+      setSelectedQuotation(quotation);
+      setEmailDialogOpen(true);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedQuotationId) return;
+
     try {
-      setIsSendingEmail(id);
-      await sendQuotationEmail(id);
+      setIsSendingEmail(selectedQuotationId);
+      await sendQuotationEmail(selectedQuotationId);
       addNotification("success", "Correo enviado correctamente");
     } catch (err) {
       console.error("Error al enviar el correo:", err);
       addNotification("error", "Error al enviar el correo");
+      throw err; // Re-lanzar el error para que el diálogo siga abierto
     } finally {
-      setIsSendingEmail(null);
+      setTimeout(() => {
+        setIsSendingEmail(null);
+        setSelectedQuotationId(null);
+        setSelectedQuotation(null);
+      }, 500); // Pequeña pausa para mostrar el estado de éxito
     }
   };
 
@@ -136,10 +156,7 @@ export default function QuotationsTable({
       id: "title",
       header: "Título",
       cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
-            <FileText className="h-5 w-5 text-primary" />
-          </div>
+        <div className="flex items-center">
           <div>
             <p className="font-medium">{row.original.title}</p>
             {row.original.description && (
@@ -209,45 +226,38 @@ export default function QuotationsTable({
             onClick={() =>
               row.original.id && handleDownloadPDF(row.original.id)
             }
-            disabled={isDownloading}
+            disabled={!!isDownloading}
+            className="relative"
           >
-            <Download className="h-4 w-4" />
+            {isDownloading === row.original.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {isDownloading === row.original.id && (
+              <span className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              </span>
+            )}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => row.original.id && handleSendEmail(row.original.id)}
-            disabled={isSendingEmail === row.original.id}
+            onClick={() => handleEmailButtonClick(row.original)}
+            disabled={!!isSendingEmail}
+            className="relative"
           >
-            <Mail className="h-4 w-4" />
+            {isSendingEmail === row.original.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            {isSendingEmail === row.original.id && (
+              <span className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              </span>
+            )}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                {getStatusIcon(row.original.status)}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {statusOptions.map((status) => (
-                <DropdownMenuItem
-                  key={status.value}
-                  onClick={() =>
-                    row.original.id &&
-                    row.original.status !== status.value &&
-                    onStatusChange(row.original.id, status.value)
-                  }
-                  disabled={row.original.status === status.value}
-                  className="flex items-center"
-                >
-                  {status.icon}
-                  {status.label}
-                  {row.original.status === status.value && (
-                    <Check className="h-4 w-4 ml-auto" />
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             variant="ghost"
             size="sm"
@@ -260,17 +270,18 @@ export default function QuotationsTable({
     },
   ];
 
-  function getStatusIcon(status?: string) {
-    const statusOption = statusOptions.find(
-      (option) => option.value === status
-    );
-    return statusOption?.icon || statusOptions[0].icon;
-  }
-
   if (isLoading) {
     return (
-      <div className="text-center h-96 flex items-center justify-center">
-        <p>Cargando cotizaciones...</p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -322,6 +333,20 @@ export default function QuotationsTable({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Diálogo de confirmación para enviar email */}
+      {selectedQuotation && (
+        <ConfirmDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          title="Enviar cotización por correo"
+          description={`¿Estás seguro de enviar la cotización "${selectedQuotation.title}" por correo electrónico a ${selectedQuotation.client.name}? Se adjuntará un PDF con los detalles de la cotización.`}
+          onConfirm={handleSendEmail}
+          confirmLabel="Enviar correo"
+          cancelLabel="Cancelar"
+          isLoading={isSendingEmail === selectedQuotationId}
+        />
       )}
     </>
   );
