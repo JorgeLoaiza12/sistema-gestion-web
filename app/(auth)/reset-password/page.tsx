@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { AuthForm } from "@/components/auth/auth-form";
@@ -14,11 +14,47 @@ function ResetPasswordPageContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidatingToken, setIsValidatingToken] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Validar token (ejemplo simple)
+  // Obtener token de la URL
   const token = searchParams.get("token");
-  const isValidToken = token?.length === 32;
+
+  // Validar token al cargar la página
+  useEffect(() => {
+    const validateToken = async () => {
+      if (!token) {
+        setIsValidatingToken(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/validate-reset-token/${token}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          setIsTokenValid(true);
+        } else {
+          setIsTokenValid(false);
+        }
+      } catch (error) {
+        console.error("Error validando token:", error);
+        setIsTokenValid(false);
+      } finally {
+        setIsValidatingToken(false);
+      }
+    };
+
+    validateToken();
+  }, [token]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,20 +70,57 @@ function ResetPasswordPageContent() {
     }
 
     try {
-      // Simulación de delay para resetear contraseña
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Añadir await aquí para esperar la respuesta
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Error al restablecer la contraseña");
+      }
+
       setSuccess(true);
+      // Redirección automática después de 3 segundos
       setTimeout(() => {
         router.push("/login");
       }, 3000);
-    } catch (error) {
-      setError("Ocurrió un error al intentar restablecer la contraseña");
+    } catch (error: any) {
+      console.error("Error al restablecer contraseña:", error);
+      setError(
+        error.message ||
+          "Ocurrió un error al intentar restablecer la contraseña"
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
-  if (!isValidToken) {
+  // Mostrar pantalla de carga mientras se valida el token
+  if (isValidatingToken) {
+    return (
+      <AuthLayout
+        title="Validando enlace"
+        subtitle="Por favor espera mientras validamos tu enlace"
+        showDemoAlert={false}
+      >
+        <div className="flex justify-center items-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  // Mostrar error si el token no es válido
+  if (!isTokenValid) {
     return (
       <AuthLayout
         title="Enlace inválido"
@@ -72,6 +145,7 @@ function ResetPasswordPageContent() {
     );
   }
 
+  // Mostrar pantalla de éxito después de cambiar la contraseña
   if (success) {
     return (
       <AuthLayout
@@ -97,6 +171,7 @@ function ResetPasswordPageContent() {
     );
   }
 
+  // Formulario para resetear contraseña
   return (
     <AuthLayout
       title="Restablecer contraseña"
@@ -142,7 +217,7 @@ function ResetPasswordPageContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div>Cargando...</div>}>
       <ResetPasswordPageContent />
     </Suspense>
   );

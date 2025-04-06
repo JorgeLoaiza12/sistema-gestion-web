@@ -52,6 +52,8 @@ export default function RegisterPage() {
     }
   }
 
+  return <>Registro deshabilitados</>;
+
   return (
     <AuthLayout
       title="Crear cuenta"

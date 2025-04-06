@@ -21,15 +21,16 @@ function LoginPageContent() {
   );
   const [isLoading, setIsLoading] = useState(false);
 
+  // Obtener y decodificar correctamente la URL de callback
+  const encodedCallbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = decodeURIComponent(encodedCallbackUrl);
+
   // Redireccionar si ya está autenticado
   useEffect(() => {
     if (status === "authenticated") {
-      router.push("/dashboard");
+      router.push(callbackUrl);
     }
-  }, [status, router]);
-
-  // Checkear callbackUrl para redireccionar después de login exitoso
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  }, [status, router, callbackUrl]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,7 +54,7 @@ function LoginPageContent() {
         return;
       }
 
-      // Redireccionar a la URL de callback o al dashboard
+      // Redireccionar a la URL de callback decodificada
       router.push(callbackUrl);
       router.refresh();
     } catch (error) {
@@ -108,12 +109,12 @@ function LoginPageContent() {
           >
             ¿Olvidaste tu contraseña?
           </Link>
-          <Link
+          {/* <Link
             href="/register"
             className="text-sm font-medium text-primary hover:text-primary-hover"
           >
             Crear cuenta
-          </Link>
+          </Link> */}
         </div>
       </AuthForm>
     </AuthLayout>
