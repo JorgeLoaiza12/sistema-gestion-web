@@ -220,6 +220,7 @@ export default function UsersPage() {
         user={currentUser}
         onSave={handleSaveUser}
         onClose={() => setIsEditing(false)}
+        showRoleSelector={true} // Activamos el selector de rol en esta página
       />
 
       {/* Diálogo de confirmación para eliminar */}

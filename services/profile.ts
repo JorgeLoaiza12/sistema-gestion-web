@@ -7,10 +7,6 @@ export interface ProfileUser {
   name: string;
   phone?: string;
   role: string;
-  location?: string;
-  company?: string;
-  website?: string;
-  bio?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -23,10 +19,6 @@ export interface ProfileResponse {
 export interface ProfileUpdateData {
   name?: string;
   phone?: string;
-  location?: string;
-  company?: string;
-  website?: string;
-  bio?: string;
 }
 
 export interface PasswordUpdateData {
@@ -64,10 +56,17 @@ export async function updateProfile(
 export async function updatePassword(
   data: PasswordUpdateData
 ): Promise<{ message: string }> {
+  // Convertimos los datos al formato que espera el backend
+  const passwordData = {
+    currentPassword: data.currentPassword,
+    newPassword: data.newPassword,
+    confirmPassword: data.confirmPassword,
+  };
+
   try {
     return await httpClient<{ message: string }>("/users/me/password", {
       method: "PUT",
-      body: JSON.stringify(data),
+      body: JSON.stringify(passwordData),
     });
   } catch (error) {
     console.error("Error al actualizar contraseña:", error);

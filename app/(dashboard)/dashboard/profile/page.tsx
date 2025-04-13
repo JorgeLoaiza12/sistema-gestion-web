@@ -18,6 +18,7 @@ import {
   Upload,
   Lock,
   Loader2,
+  FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -52,10 +53,6 @@ export default function ProfilePage() {
     name: "",
     email: "",
     phone: "",
-    location: "",
-    company: "",
-    website: "",
-    bio: "",
     role: "",
   });
 
@@ -69,10 +66,6 @@ export default function ProfilePage() {
           name: profileData.name || "",
           email: profileData.email || "",
           phone: profileData.phone || "",
-          location: profileData.location || "",
-          company: profileData.company || "",
-          website: profileData.website || "",
-          bio: profileData.bio || "",
           role: profileData.role || "WORKER",
         });
       } catch (error) {
@@ -94,10 +87,6 @@ export default function ProfilePage() {
       const updateData: ProfileUpdateData = {
         name: profile.name,
         phone: profile.phone,
-        location: profile.location,
-        company: profile.company,
-        website: profile.website,
-        bio: profile.bio,
       };
 
       const result = await updateProfile(updateData);
@@ -231,23 +220,10 @@ export default function ProfilePage() {
                 }
               />
             </FormField>
-
-            <FormField>
-              <FormLabel>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Ubicación
-                </div>
-              </FormLabel>
-              <Input
-                value={profile.location}
-                onChange={(e) =>
-                  setProfile({ ...profile, location: e.target.value })
-                }
-              />
-            </FormField>
           </div>
         </Card>
+
+        {/* Información Profesional */}
 
         <div className="flex justify-between">
           <Button

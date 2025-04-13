@@ -1,3 +1,4 @@
+// web\components\users\UserForm.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ interface UserFormProps {
   onSave: (user: User) => Promise<void>;
   onClose: () => void;
   isLoading?: boolean;
+  showRoleSelector?: boolean; // Nueva propiedad para controlar si se muestra el selector de rol
 }
 
 export default function UserForm({
@@ -33,6 +35,7 @@ export default function UserForm({
   onSave,
   onClose,
   isLoading = false,
+  showRoleSelector = false, // Por defecto no se muestra
 }: UserFormProps) {
   const [userForm, setUserForm] = useState<User & { password?: string }>({
     name: "",
@@ -96,7 +99,7 @@ export default function UserForm({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{user ? "Editar Técnico" : "Nuevo Técnico"}</DialogTitle>
+          <DialogTitle>{user ? "Editar Usuario" : "Nuevo Usuario"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField>
@@ -123,6 +126,31 @@ export default function UserForm({
               disabled={isLoading}
             />
           </FormField>
+
+          {/* Selector de Rol - Solo se muestra si showRoleSelector es true */}
+          {showRoleSelector && (
+            <FormField>
+              <FormLabel>Rol</FormLabel>
+              <Select
+                value={userForm.role}
+                onValueChange={(value) =>
+                  setUserForm({
+                    ...userForm,
+                    role: value as "ADMIN" | "WORKER",
+                  })
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ADMIN">Administrador</SelectItem>
+                  <SelectItem value="WORKER">Técnico</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+          )}
 
           {/* Mostrar campos de contraseña solo para nuevos usuarios */}
           {!user?.id && (
@@ -177,7 +205,7 @@ export default function UserForm({
               ) : user ? (
                 "Guardar cambios"
               ) : (
-                "Crear técnico"
+                "Crear usuario"
               )}
             </Button>
           </DialogFooter>

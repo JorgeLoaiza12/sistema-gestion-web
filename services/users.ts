@@ -1,3 +1,4 @@
+// web\services\users.ts
 import { httpClient } from "@/lib/httpClient";
 
 export interface User {
@@ -6,6 +7,7 @@ export interface User {
   email: string;
   role: "ADMIN" | "WORKER";
   password?: string;
+  phone?: string;
   createdAt?: string;
   updatedAt?: string;
 }
