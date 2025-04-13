@@ -35,29 +35,21 @@ export function calculateNextMaintenanceDate(
 }
 
 /**
- * Calcula el estado de un mantenimiento basado en su fecha
- *
- * @param nextMaintenanceDate - Fecha del próximo mantenimiento
- * @returns Estado del mantenimiento: 'overdue', 'urgent', 'upcoming', 'scheduled'
+ * Obtiene la etiqueta de estado de un mantenimiento según su fecha
+ * @param {Date} nextDate - Fecha del próximo mantenimiento
+ * @returns {string} - Estado: overdue, urgent, upcoming, scheduled
  */
-export function getMaintenanceStatus(
-  nextMaintenanceDate: Date | string
-): "overdue" | "urgent" | "upcoming" | "scheduled" {
+export const getMaintenanceStatus = (nextDate) => {
   const now = new Date();
-  const nextDate = new Date(nextMaintenanceDate);
-
-  // Resetear horas para comparar solo fechas
-  now.setHours(0, 0, 0, 0);
-  nextDate.setHours(0, 0, 0, 0);
-
-  const diffTime = nextDate.getTime() - now.getTime();
+  const maintenanceDate = new Date(nextDate);
+  const diffTime = maintenanceDate.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) return "overdue"; // Vencido
   if (diffDays <= 7) return "urgent"; // Urgente (próximos 7 días)
   if (diffDays <= 30) return "upcoming"; // Próximo (próximos 30 días)
   return "scheduled"; // Programado (más de 30 días)
-}
+};
 
 /**
  * Verifica si un mantenimiento está vencido

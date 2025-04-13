@@ -24,7 +24,7 @@ interface ProductFormProps {
       imageUrl: string;
     }>
   >;
-  onSave: () => void;
+  onSave: () => boolean | Promise<boolean>;
   onCancel: () => void;
   onUploadImage: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -53,7 +53,9 @@ export default function ProductForm({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation(); // Muy importante para evitar la propagación
     onSave();
+    return false; // Prevenir comportamiento por defecto
   };
 
   // Input oculto para cargar imágenes
@@ -70,12 +72,19 @@ export default function ProductForm({
   return (
     <EntityForm
       isOpen={true}
-      onClose={onCancel}
+      onClose={(e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        onCancel();
+      }}
       onSubmit={handleSubmit}
       title={currentProduct ? "Editar Producto" : "Agregar Producto"}
       isLoading={isSubmitting}
       error={error}
       maxWidth="max-w-md"
+      preventClose={true} // Esto previene el cierre accidental
     >
       {fileInput}
 
@@ -159,7 +168,11 @@ export default function ProductForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
             disabled={isUploading}
             className="w-full"
           >

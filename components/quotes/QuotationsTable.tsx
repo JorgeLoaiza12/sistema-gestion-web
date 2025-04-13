@@ -1,3 +1,4 @@
+// web\components\quotes\QuotationsTable.tsx
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/ui/table";

@@ -13,7 +13,7 @@ import { CSRFProtectedForm } from "@/components/ui/csrf-protected-form";
 
 interface EntityFormProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (e?: React.MouseEvent) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   title: string;
   children: ReactNode;
@@ -22,6 +22,7 @@ interface EntityFormProps {
   footerContent?: ReactNode;
   formClassName?: string;
   maxWidth?: string;
+  preventClose?: boolean;
 }
 
 export function EntityForm({
@@ -35,21 +36,27 @@ export function EntityForm({
   footerContent,
   formClassName,
   maxWidth = "max-w-md",
+  preventClose = false,
 }: EntityFormProps) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !preventClose) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open: unknown) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className={maxWidth}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className={maxWidth} onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <CSRFProtectedForm
-          onSubmit={onSubmit}
+          onSubmit={(e) => {
+            e.stopPropagation();
+            onSubmit(e);
+            return false;
+          }}
           className={formClassName}
           isLoading={isLoading}
           error={error}
@@ -60,10 +67,22 @@ export function EntityForm({
           <DialogFooter className="flex justify-end space-x-2 pt-4">
             {footerContent || (
               <>
-                <Button variant="outline" onClick={onClose} type="button">
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose(e);
+                  }}
+                  type="button"
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {isLoading ? "Guardando..." : "Guardar"}
                 </Button>
               </>

@@ -43,7 +43,11 @@ import {
 } from "@/components/ui/select";
 // import { useSession } from "next-auth/react";
 import { formatDate } from "@/utils/date-format";
-import { calculateNextMaintenanceDate } from "@/utils/maintenance-utils";
+import {
+  calculateNextMaintenanceDate,
+  getMaintenanceStatus,
+} from "@/utils/maintenance-utils";
+import { getClients } from "@/services/clients";
 
 export default function MaintenancePage() {
   // const { data: session } = useSession();
@@ -62,6 +66,21 @@ export default function MaintenancePage() {
   const [maintenanceToDelete, setMaintenanceToDelete] =
     useState<Maintenance | null>(null);
   const { addNotification } = useNotification();
+  const [clients, setClients] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Cargar clientes al abrir el modal de mantenimiento
+    const loadClients = async () => {
+      try {
+        const clients = await getClients();
+        setClients(clients);
+      } catch (error) {
+        console.error("Error al cargar clientes:", error);
+        addNotification("error", "Error al cargar clientes");
+      }
+    };
+    loadClients();
+  }, [isModalOpen]);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -166,19 +185,6 @@ export default function MaintenancePage() {
       console.error("Error al guardar mantenimiento:", error);
       addNotification("error", "Error al guardar mantenimiento");
     }
-  };
-
-  // Calcula el estado de urgencia basado en la fecha próxima de mantenimiento
-  const getMaintenanceStatus = (nextDate: string) => {
-    const now = new Date();
-    const nextMaintenanceDate = new Date(nextDate);
-    const diffTime = nextMaintenanceDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "overdue"; // Vencido
-    if (diffDays <= 7) return "urgent"; // Urgente (próximos 7 días)
-    if (diffDays <= 30) return "upcoming"; // Próximo (próximos 30 días)
-    return "scheduled"; // Programado (más de 30 días)
   };
 
   // Obtener el badge de estado
@@ -370,7 +376,7 @@ export default function MaintenancePage() {
         <div className="space-y-4">
           <div>
             <ClientSelect
-              clients={[]} // Los clientes se cargan dinámicamente en el componente ClientSelect
+              clients={clients} // Los clientes se cargan dinámicamente en el componente ClientSelect
               value={clientId}
               onValueChange={(val) => setClientId(val)}
               placeholder="Seleccionar cliente"
@@ -437,9 +443,6 @@ export default function MaintenancePage() {
     );
   };
 
-  // Verificar si el usuario tiene permisos de administrador
-  // const isAdmin = session?.user?.role === "ADMIN";
-
   // Componente de carga (loading)
   if (isLoading) {
     return (
@@ -469,12 +472,10 @@ export default function MaintenancePage() {
           </p>
         </div>
 
-        {/* {isAdmin && (
-          <Button onClick={() => openModal()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Agregar Mantenimiento
-          </Button>
-        )} */}
+        <Button onClick={() => openModal()}>
+          <Plus className="mr-2 h-4 w-4" />
+          Agregar Mantenimiento
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 justify-between">

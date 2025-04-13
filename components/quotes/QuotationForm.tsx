@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// web\components\quotes\QuotationForm.tsx
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
@@ -193,7 +194,11 @@ export default function QuotationForm({
   const handleAddNewProduct = (product: Product) => {
     // Verificar que no exista ya un producto con el mismo ID
     if (!products.some((p) => p.id === product.id)) {
+      // Usar una función de actualización para garantizar el estado más reciente
       setProducts((prevProducts) => [...prevProducts, product]);
+      console.log(`Producto agregado a la lista: ${product.name}`);
+    } else {
+      console.log(`Producto ya existe en la lista: ${product.name}`);
     }
   };
 

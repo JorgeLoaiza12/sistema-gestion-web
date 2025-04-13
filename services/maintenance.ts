@@ -1,4 +1,3 @@
-// services/maintenance.ts
 import { httpClient } from "@/lib/httpClient";
 
 export interface Maintenance {
@@ -30,7 +29,10 @@ export interface MaintenanceResponse {
  */
 export async function getAllMaintenances(): Promise<Maintenance[]> {
   try {
-    return await httpClient<Maintenance[]>("/maintenance");
+    console.log("Obteniendo todos los mantenimientos...");
+    const response = await httpClient<Maintenance[]>("/maintenance");
+    console.log(`Se encontraron ${response.length} mantenimientos`);
+    return response;
   } catch (error) {
     console.error("Error al obtener mantenimientos:", error);
     throw error;
@@ -42,7 +44,10 @@ export async function getAllMaintenances(): Promise<Maintenance[]> {
  */
 export async function getMaintenanceById(id: string): Promise<Maintenance> {
   try {
-    return await httpClient<Maintenance>(`/maintenance/${id}`);
+    console.log(`Obteniendo mantenimiento con ID: ${id}`);
+    const response = await httpClient<Maintenance>(`/maintenance/${id}`);
+    console.log(`Mantenimiento obtenido: ${JSON.stringify(response, null, 2)}`);
+    return response;
   } catch (error) {
     console.error(`Error al obtener mantenimiento ${id}:`, error);
     throw error;
@@ -56,7 +61,14 @@ export async function getMaintenancesByClient(
   clientId: string
 ): Promise<Maintenance[]> {
   try {
-    return await httpClient<Maintenance[]>(`/maintenance/client/${clientId}`);
+    console.log(`Obteniendo mantenimientos para cliente ID: ${clientId}`);
+    const response = await httpClient<Maintenance[]>(
+      `/maintenance/client/${clientId}`
+    );
+    console.log(
+      `Se encontraron ${response.length} mantenimientos para el cliente`
+    );
+    return response;
   } catch (error) {
     console.error(
       `Error al obtener mantenimientos del cliente ${clientId}:`,
@@ -73,9 +85,12 @@ export async function getUpcomingMaintenances(
   days: number = 30
 ): Promise<Maintenance[]> {
   try {
-    return await httpClient<Maintenance[]>(
+    console.log(`Obteniendo mantenimientos próximos (${days} días)...`);
+    const response = await httpClient<Maintenance[]>(
       `/maintenance/upcoming?days=${days}`
     );
+    console.log(`Se encontraron ${response.length} mantenimientos próximos`);
+    return response;
   } catch (error) {
     console.error(
       `Error al obtener mantenimientos próximos (${days} días):`,
@@ -92,10 +107,13 @@ export async function createMaintenance(
   data: Maintenance
 ): Promise<MaintenanceResponse> {
   try {
-    return await httpClient<MaintenanceResponse>("/maintenance", {
+    console.log("Creando nuevo mantenimiento:", data);
+    const response = await httpClient<MaintenanceResponse>("/maintenance", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    console.log(`Mantenimiento creado con ID: ${response.maintenance.id}`);
+    return response;
   } catch (error) {
     console.error("Error al crear mantenimiento:", error);
     throw error;
@@ -110,10 +128,16 @@ export async function updateMaintenance(
   data: Maintenance
 ): Promise<MaintenanceResponse> {
   try {
-    return await httpClient<MaintenanceResponse>(`/maintenance/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+    console.log(`Actualizando mantenimiento ID: ${id}`, data);
+    const response = await httpClient<MaintenanceResponse>(
+      `/maintenance/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }
+    );
+    console.log(`Mantenimiento actualizado: ${response.message}`);
+    return response;
   } catch (error) {
     console.error(`Error al actualizar mantenimiento ${id}:`, error);
     throw error;
@@ -127,11 +151,49 @@ export async function deleteMaintenance(
   id: string
 ): Promise<{ message: string }> {
   try {
-    return await httpClient<{ message: string }>(`/maintenance/${id}`, {
-      method: "DELETE",
-    });
+    console.log(`Eliminando mantenimiento ID: ${id}`);
+    const response = await httpClient<{ message: string }>(
+      `/maintenance/${id}`,
+      {
+        method: "DELETE",
+      }
+    );
+    console.log(`Mantenimiento eliminado: ${response.message}`);
+    return response;
   } catch (error) {
     console.error(`Error al eliminar mantenimiento ${id}:`, error);
     throw error;
   }
 }
+
+/**
+ * Verifica el estado de los mantenimientos atrasados y actualiza sus fechas
+ * Esta función sería útil para tests o para actualizar desde el frontend
+ */
+export async function checkExpiredMaintenances(): Promise<{ updated: number }> {
+  try {
+    console.log("Verificando mantenimientos vencidos...");
+    const response = await httpClient<{ updated: number }>(
+      "/maintenance/check-expired",
+      {
+        method: "POST",
+      }
+    );
+    console.log(`Se actualizaron ${response.updated} mantenimientos vencidos`);
+    return response;
+  } catch (error) {
+    console.error("Error al verificar mantenimientos vencidos:", error);
+    throw error;
+  }
+}
+
+export default {
+  getAllMaintenances,
+  getMaintenanceById,
+  getMaintenancesByClient,
+  getUpcomingMaintenances,
+  createMaintenance,
+  updateMaintenance,
+  deleteMaintenance,
+  checkExpiredMaintenances,
+};

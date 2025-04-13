@@ -161,66 +161,80 @@ export default function ProductsPage() {
   };
 
   const handleSaveProduct = async () => {
-    // Validar si el precio unitario es un número válido
-    if (
-      isNaN(parseFloat(formData.unitPrice)) ||
-      parseFloat(formData.unitPrice) <= 0
-    ) {
-      setError("El precio unitario debe ser un número mayor que cero");
+    // Validación básica
+    if (!formData.name || !formData.unitPrice) {
+      setError("El nombre y precio unitario son obligatorios");
       return;
     }
-
-    // Validar si el porcentaje de ganancia es un número válido
-    if (isNaN(parseFloat(formData.markup)) || parseFloat(formData.markup) < 0) {
-      setError("El porcentaje de ganancia debe ser un número no negativo");
-      return;
-    }
-
-    const unitPrice = roundUp(parseFloat(formData.unitPrice));
-    const markup = parseFloat(formData.markup);
-
-    // Calcular el precio final con el markup
-    const markupAmount = Math.ceil((unitPrice * markup) / 100);
-    const finalPrice = unitPrice + markupAmount;
 
     try {
+      // Convertir y validar valores numéricos
+      const unitPrice = roundUp(parseFloat(formData.unitPrice));
+      const markup = parseFloat(formData.markup);
+
+      if (isNaN(unitPrice) || unitPrice <= 0) {
+        setError("El precio unitario debe ser un número mayor que cero");
+        return;
+      }
+
+      if (isNaN(markup) || markup < 0) {
+        setError("El porcentaje de ganancia debe ser un número no negativo");
+        return;
+      }
+
+      // Calcular el precio final con el markup
+      const markupAmount = Math.ceil((unitPrice * markup) / 100);
+      const finalPrice = unitPrice + markupAmount;
+
+      // Crear un FormData para enviar los datos y la imagen
+      const productFormData = new FormData();
+      productFormData.append("name", formData.name);
+      productFormData.append("description", formData.description || "");
+      productFormData.append("unitPrice", unitPrice.toString());
+      productFormData.append("markup", markup.toString());
+      productFormData.append("price", finalPrice.toString());
+
+      // Manejar la imagen
+      if (selectedImageFile) {
+        // Si hay un archivo seleccionado, añadirlo directamente
+        productFormData.append("image", selectedImageFile);
+      } else if (
+        formData.imageUrl &&
+        formData.imageUrl.startsWith("data:image")
+      ) {
+        // Si hay una imagen en formato Base64, convertirla a Blob y File
+        const blob = await fetch(formData.imageUrl).then((r) => r.blob());
+        const imageFile = new File([blob], "product-image.png", {
+          type: "image/png",
+        });
+        productFormData.append("image", imageFile);
+      } else if (formData.imageUrl && currentProduct) {
+        // Si hay una URL de imagen existente y estamos editando, mantenerla
+        productFormData.append("imageUrl", formData.imageUrl);
+      }
+
       if (currentProduct) {
         // Actualizar producto existente
         const response = await updateProduct(
           currentProduct.id?.toString() || "",
-          {
-            ...currentProduct,
-            name: formData.name,
-            description: formData.description,
-            unitPrice: unitPrice,
-            markup: markup,
-            price: finalPrice,
-            imageUrl: formData.imageUrl,
-          },
-          selectedImageFile || undefined
+          productFormData,
+          undefined // Ya no pasamos el archivo por separado
         );
+
         const updatedProduct = response.product;
         setProducts(
           products.map((p) => (p.id === currentProduct.id ? updatedProduct : p))
         );
         addNotification("success", "Producto actualizado correctamente");
       } else {
-        // Crear nuevo producto
-        const response = await createProduct(
-          {
-            name: formData.name,
-            description: formData.description,
-            unitPrice: unitPrice,
-            markup: markup,
-            price: finalPrice,
-            imageUrl: formData.imageUrl,
-          },
-          selectedImageFile || undefined
-        );
+        // Crear nuevo producto usando FormData
+        const response = await createProduct(productFormData);
         const newProduct = response.product;
         setProducts([...products, newProduct]);
         addNotification("success", "Producto creado correctamente");
       }
+
+      // Limpiar estados y cerrar el formulario
       setIsEditing(false);
       setCurrentProduct(null);
       setSelectedImageFile(null);
