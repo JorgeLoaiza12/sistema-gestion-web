@@ -1,4 +1,3 @@
-// web\components\quotes\QuotationForm.tsx
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +55,12 @@ export default function QuotationForm({
     quotation?.clientId?.toString() || ""
   );
   const [status, setStatus] = useState(quotation?.status || "SENT");
+  // Estado para el porcentaje de abono, con valor predeterminado de 50% si no está definido
+  const [advancePercentage, setAdvancePercentage] = useState<number>(
+    quotation?.advancePercentage !== undefined
+      ? quotation.advancePercentage
+      : 50
+  );
   const [validUntil, setValidUntil] = useState(
     quotation?.validUntil
       ? new Date(quotation.validUntil).toISOString().split("T")[0]
@@ -222,6 +227,19 @@ export default function QuotationForm({
     setIsNewClientDialogOpen(false);
   };
 
+  // Manejar el cambio en el campo de porcentaje de abono
+  const handleAdvancePercentageChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    // Obtener el valor como número
+    const value = parseInt(e.target.value);
+
+    // Validar que el valor esté entre 0 y 100
+    if (!isNaN(value) && value >= 0 && value <= 100) {
+      setAdvancePercentage(value);
+    }
+  };
+
   const calculateQuotationTotal = (): number => {
     return categories.reduce((total, category) => {
       return (
@@ -276,6 +294,16 @@ export default function QuotationForm({
     const subtotal = calculateQuotationTotal();
     const iva = calculateIVA();
     return subtotal + iva;
+  };
+
+  // Calcular el monto de abono según el porcentaje de abono y el total con IVA
+  const calculateAdvanceAmount = (): number => {
+    return Math.round((calculateTotalWithIVA() * advancePercentage) / 100);
+  };
+
+  // Calcular el saldo pendiente (total con IVA menos abono)
+  const calculateRemainingAmount = (): number => {
+    return calculateTotalWithIVA() - calculateAdvanceAmount();
   };
 
   // Simulación del progreso de guardado
@@ -375,6 +403,7 @@ export default function QuotationForm({
         description,
         status,
         validUntil: validUntil || undefined,
+        advancePercentage: advancePercentage, // Incluir el porcentaje de abono
         categories: processedCategories,
         client: {
           id: clientId,
@@ -505,7 +534,7 @@ export default function QuotationForm({
             </FormField>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormField>
               <FormLabel>Descripción</FormLabel>
               <Input
@@ -522,6 +551,20 @@ export default function QuotationForm({
                 value={validUntil}
                 onChange={(e) => setValidUntil(e.target.value)}
                 disabled={isSaving}
+              />
+            </FormField>
+
+            {/* Nuevo campo para el porcentaje de abono */}
+            <FormField>
+              <FormLabel>Porcentaje de Abono (%)</FormLabel>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={advancePercentage}
+                onChange={handleAdvancePercentageChange}
+                disabled={isSaving}
+                className="w-full"
               />
             </FormField>
           </div>
@@ -594,7 +637,7 @@ export default function QuotationForm({
             </div>
 
             {/* Resumen financiero - Responsive para móvil */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-2">
               <div className="bg-green-600/10 p-3 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm md:text-base">Total ganancia:</span>
@@ -629,6 +672,28 @@ export default function QuotationForm({
                   <span className="text-sm md:text-base">Total con IVA:</span>
                   <span className="text-base md:text-lg font-bold">
                     {formatCurrency(calculateTotalWithIVA().toFixed(2))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Nuevo - Monto de abono */}
+              <div className="bg-purple-600/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">
+                    Abono ({advancePercentage}%):
+                  </span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(calculateAdvanceAmount().toFixed(2))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Nuevo - Saldo pendiente */}
+              <div className="bg-pink-600/10 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm md:text-base">Saldo pendiente:</span>
+                  <span className="text-base md:text-lg font-bold">
+                    {formatCurrency(calculateRemainingAmount().toFixed(2))}
                   </span>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+//web\services\quotations.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -36,6 +37,7 @@ export interface Quotation {
   createdAt?: string;
   updatedAt?: string;
   amount?: number; // Para compatibilidad con la vista de tareas
+  advancePercentage?: number; // Nuevo campo para el porcentaje de abono
 }
 
 export interface Pagination {
@@ -132,6 +134,10 @@ export async function createQuotation(
   const calculatedQuotation = {
     ...quotation,
     status: quotation.status || "SENT", // Estado por defecto
+    advancePercentage:
+      quotation.advancePercentage !== undefined
+        ? quotation.advancePercentage
+        : 50, // Usar el valor proporcionado o 50% por defecto
     categories: quotation.categories.map((category) => ({
       ...category,
       items: category.items.map((item) => {
@@ -160,6 +166,11 @@ export async function updateQuotation(
   // Calcular los totales de items con ganancia del 35% antes de enviar
   const calculatedQuotation = {
     ...quotation,
+    // Incluir el porcentaje de abono si está definido
+    advancePercentage:
+      quotation.advancePercentage !== undefined
+        ? quotation.advancePercentage
+        : undefined,
     categories: quotation.categories.map((category) => ({
       ...category,
       items: category.items.map((item) => {

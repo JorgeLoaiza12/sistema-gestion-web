@@ -1,4 +1,3 @@
-// web\components\quotes\QuotationsTable.tsx
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
@@ -13,6 +12,7 @@ import {
   ChevronRight,
   Mail,
   Loader2,
+  Percent,
 } from "lucide-react";
 import {
   downloadQuotationPDF,
@@ -185,6 +185,20 @@ export default function QuotationsTable({
       id: "status",
       header: "Estado",
       cell: ({ row }) => getStatusBadge(row.original.status),
+    },
+    {
+      id: "advancePercentage",
+      header: "% Abono",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Percent className="h-4 w-4 text-content-subtle" />
+          <span>
+            {row.original.advancePercentage !== undefined
+              ? `${row.original.advancePercentage}%`
+              : "50%"}
+          </span>
+        </div>
+      ),
     },
     {
       id: "validUntil",
