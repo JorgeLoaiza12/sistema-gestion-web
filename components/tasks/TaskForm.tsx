@@ -49,7 +49,12 @@ const TASK_CATEGORIES = [
   "Citofonia",
   "Cerco eléctrico",
   "Alarma",
+  "Alarma de robo",
+  "Alarma de incendio",
   "Control de acceso",
+  "Porton automatico",
+  "Circuito de fuerza",
+  "Fibra optica",
   "Redes",
   "Otros",
 ];
