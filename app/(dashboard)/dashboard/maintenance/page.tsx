@@ -257,6 +257,7 @@ export default function MaintenancePage() {
       cell: ({ row }) => {
         const frequencyMap: Record<string, string> = {
           MENSUAL: "Mensual",
+          BIMESTRAL: "Bimestral",
           TRIMESTRAL: "Trimestral",
           SEMESTRAL: "Semestral",
           ANUAL: "Anual",
@@ -326,7 +327,7 @@ export default function MaintenancePage() {
           )
     );
     const [frequency, setFrequency] = useState<
-      "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+      "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
     >(maintenance ? maintenance.frequency : "TRIMESTRAL");
     const [notes, setNotes] = useState(
       maintenance ? maintenance.notes || "" : ""
@@ -398,7 +399,7 @@ export default function MaintenancePage() {
             <Select
               value={frequency}
               onValueChange={(
-                val: "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+                val: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
               ) => setFrequency(val)}
             >
               <SelectTrigger className="w-full">
@@ -406,6 +407,7 @@ export default function MaintenancePage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="MENSUAL">Mensual</SelectItem>
+                <SelectItem value="BIMESTRAL">Bimestral</SelectItem>
                 <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
                 <SelectItem value="SEMESTRAL">Semestral</SelectItem>
                 <SelectItem value="ANUAL">Anual</SelectItem>

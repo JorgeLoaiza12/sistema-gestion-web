@@ -9,13 +9,16 @@
  */
 export function calculateNextMaintenanceDate(
   currentDate: Date,
-  frequency: "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+  frequency: "MENSUAL" | "BIMESTRAL"  | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
 ): Date {
   const nextDate = new Date(currentDate);
 
   switch (frequency) {
     case "MENSUAL":
       nextDate.setMonth(nextDate.getMonth() + 1);
+      break;
+    case "BIMESTRAL":
+      nextDate.setMonth(nextDate.getMonth() + 3);
       break;
     case "TRIMESTRAL":
       nextDate.setMonth(nextDate.getMonth() + 3);
@@ -94,10 +97,11 @@ export function isMaintenanceUpcoming(
  * @returns Descripción en español de la frecuencia
  */
 export function getFrequencyDescription(
-  frequency: "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+  frequency: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
 ): string {
   const frequencyMap: Record<string, string> = {
     MENSUAL: "Mensual",
+    BIMESTRAL: "Trimestral (cada 2 meses)",
     TRIMESTRAL: "Trimestral (cada 3 meses)",
     SEMESTRAL: "Semestral (cada 6 meses)",
     ANUAL: "Anual",
@@ -113,10 +117,11 @@ export function getFrequencyDescription(
  * @returns Número estimado de mantenimientos por año
  */
 export function getYearlyMaintenanceCount(
-  frequency: "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+  frequency: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
 ): number {
   const countMap: Record<string, number> = {
     MENSUAL: 12,
+    BIMESTRAL: 6,
     TRIMESTRAL: 4,
     SEMESTRAL: 2,
     ANUAL: 1,

@@ -12,7 +12,7 @@ export interface Maintenance {
   };
   lastMaintenanceDate: string;
   nextMaintenanceDate: string;
-  frequency: "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL";
+  frequency: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL";
   notes?: string;
   taskIds?: number[];
   createdAt?: string;
