@@ -8,7 +8,7 @@ interface Customer {
   id: string;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   rut?: string;
   address?: string;
   commune?: string;
@@ -94,7 +94,6 @@ export function CustomerForm({
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            required
           />
         </FormField>
         <FormField>
