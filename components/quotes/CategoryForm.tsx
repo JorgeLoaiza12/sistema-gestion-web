@@ -82,19 +82,20 @@ export default function CategoryForm({
   const calculateCategoryTotal = (): number => {
     return roundUp(
       category.items.reduce((total, item) => {
-        const providerPrice =
-          item.price || (item.product ? item.product.price : 0);
+        // Verificar si el producto existe
+        if (!item.product) return total;
 
-        // Obtener el markup del producto si existe, o usar 35% por defecto
-        const markup = item.product?.markup || 35;
-        const finalPrice = Math.ceil(
-          providerPrice + (providerPrice * markup) / 100
-        );
-        return total + finalPrice * item.quantity;
+        const unitPrice = item.product.unitPrice || 0;
+        const markup = item.product.markup || 35;
+
+        // Calcular el precio final correctamente
+        const markupAmount = Math.ceil((unitPrice * markup) / 100);
+        const finalPrice = unitPrice + markupAmount;
+
+        return total + finalPrice * (item.quantity || 1);
       }, 0)
     );
   };
-
   // Verificar si hay elementos en la categoría
   const hasItems = category.items.length > 0;
 
@@ -445,7 +446,7 @@ export default function CategoryForm({
                     <Input
                       type="number"
                       min="0"
-                      value={item.product.unitPrice || 0}
+                      value={item.product ? item.product.unitPrice || 0 : 0}
                       onChange={(e) => {
                         const value = parseInt(e.target.value) || 0;
                         onUpdateItem(categoryIndex, itemIndex, "price", value);
@@ -461,7 +462,9 @@ export default function CategoryForm({
                   <div className="col-span-1 md:col-span-1">
                     <FormLabel className="text-xs">% Ganancia</FormLabel>
                     <Input
-                      value={`${item.product?.markup || 35}%`}
+                      value={`${
+                        item.product ? item.product.markup || 35 : 35
+                      }%`}
                       className="h-9 bg-gray-50"
                       readOnly
                       disabled
@@ -474,8 +477,8 @@ export default function CategoryForm({
                     <Input
                       value={formatCurrency(
                         Math.ceil(
-                          ((item.product.unitPrice || 0) *
-                            (item.product?.markup || 35)) /
+                          ((item.product ? item.product.unitPrice || 0 : 0) *
+                            (item.product ? item.product.markup || 35 : 35)) /
                             100
                         )
                       )}
@@ -490,10 +493,10 @@ export default function CategoryForm({
                     <FormLabel className="text-xs">Precio</FormLabel>
                     <Input
                       value={formatCurrency(
-                        (item.product.unitPrice || 0) +
+                        (item.product ? item.product.unitPrice || 0 : 0) +
                           Math.ceil(
-                            ((item.product.unitPrice || 0) *
-                              (item.product?.markup || 35)) /
+                            ((item.product ? item.product.unitPrice || 0 : 0) *
+                              (item.product ? item.product.markup || 35 : 35)) /
                               100
                           )
                       )}
@@ -508,10 +511,10 @@ export default function CategoryForm({
                     <FormLabel className="text-xs">Total</FormLabel>
                     <Input
                       value={formatCurrency(
-                        ((item.product.unitPrice || 0) +
+                        ((item.product ? item.product.unitPrice || 0 : 0) +
                           Math.ceil(
-                            ((item.product.unitPrice || 0) *
-                              (item.product?.markup || 35)) /
+                            ((item.product ? item.product.unitPrice || 0 : 0) *
+                              (item.product ? item.product.markup || 35 : 35)) /
                               100
                           )) *
                           (item.quantity || 1)
