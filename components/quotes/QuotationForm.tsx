@@ -245,14 +245,22 @@ export default function QuotationForm({
       return (
         total +
         category.items.reduce((categoryTotal, item) => {
+          // Verificamos que exista un producto asociado
           if (!item.product && !item.productId) return categoryTotal;
 
-          const providerPrice =
-            item.price || (item.product ? item.product.price : 0);
-          const markup = item.product?.markup || 35;
-          const finalPrice = Math.ceil(
-            providerPrice + (providerPrice * markup) / 100
-          );
+          // Obtenemos el precio unitario (del proveedor)
+          const unitPrice = item.product ? item.product.unitPrice || 0 : 0;
+
+          // Obtenemos el porcentaje de markup
+          const markup = item.product ? item.product.markup || 35 : 35;
+
+          // Calculamos el monto del markup (la ganancia) por unidad
+          const markupAmount = Math.ceil((unitPrice * markup) / 100);
+
+          // Calculamos el precio final por unidad
+          const finalPrice = unitPrice + markupAmount;
+
+          // Multiplicamos por la cantidad y sumamos al total de la categoría
           return categoryTotal + finalPrice * item.quantity;
         }, 0)
       );
@@ -282,7 +290,6 @@ export default function QuotationForm({
       );
     }, 0);
   };
-
   // Calcular el IVA (19%)
   const calculateIVA = (): number => {
     const subtotal = calculateQuotationTotal();

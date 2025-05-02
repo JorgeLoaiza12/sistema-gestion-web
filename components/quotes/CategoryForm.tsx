@@ -272,12 +272,12 @@ export default function CategoryForm({
 
         <div className="flex items-center justify-between sm:justify-end gap-2">
           {/* Total de la categoría siempre visible */}
-          <div className="bg-primary/10 px-3 py-1 rounded text-sm">
+          {/* <div className="bg-primary/10 px-3 py-1 rounded text-sm">
             <span className="hidden sm:inline">Total de la categoría: </span>
             <span className="font-medium">
               {formatCurrency(calculateCategoryTotal())}
             </span>
-          </div>
+          </div> */}
 
           {/* Botón para eliminar categoría */}
           <Button
@@ -296,224 +296,236 @@ export default function CategoryForm({
       {/* Contenido de la categoría (productos) - colapsable en móvil */}
       <div className={`space-y-3 ${isExpanded ? "block" : "hidden sm:block"}`}>
         {/* Lista de productos */}
-        {category.items.map((item, itemIndex) => (
-          <div
-            key={`item-${categoryIndex}-${itemIndex}`}
-            className={
-              !item.productId || item.productId === 0
-                ? "border border-red-300 rounded-md p-2 bg-red-50"
-                : ""
-            }
-          >
-            {(!item.productId || item.productId === 0) && (
-              <p className="text-red-500 text-xs mb-2">
-                ⚠️ Seleccione un producto o elimine esta fila
-              </p>
-            )}
-            <div className="border rounded-md p-3 mb-3 bg-white shadow-sm">
-              {/* Cabecera de la fila del producto con botón de eliminar */}
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-medium">
-                  Producto {itemIndex + 1}
-                </h4>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => onRemoveItem(categoryIndex, itemIndex)}
-                  disabled={disabled}
-                >
-                  <Trash className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Selector de producto */}
-              <div className="mb-3">
-                <FormLabel className="text-xs">
-                  Producto{" "}
-                  {(!item.productId || item.productId === 0) && (
-                    <span className="text-red-500 text-xs ml-1">
-                      *Requerido
-                    </span>
-                  )}
-                </FormLabel>
-                <Select
-                  value={item.productId ? item.productId.toString() : "0"}
-                  onValueChange={(value) => {
-                    if (value === "new") {
-                      // Abrir diálogo para crear producto
-                      setItemIndexForNewProduct(itemIndex);
-                      setIsNewProductDialogOpen(true);
-                    } else {
-                      const productId = parseInt(value);
-                      // Importante: Usar localProducts para buscar el producto
-                      const selectedProduct = localProducts.find(
-                        (p) => p.id === productId
-                      );
-                      onUpdateItem(
-                        categoryIndex,
-                        itemIndex,
-                        "productId",
-                        productId
-                      );
-
-                      if (selectedProduct) {
-                        // Asegurar que el precio no tenga decimales
-                        const priceWithoutDecimals = Math.floor(
-                          selectedProduct.price || 0
-                        );
-                        onUpdateItem(
-                          categoryIndex,
-                          itemIndex,
-                          "price",
-                          priceWithoutDecimals
-                        );
-                        onUpdateItem(
-                          categoryIndex,
-                          itemIndex,
-                          "product",
-                          selectedProduct
-                        );
-                      }
-                    }
-                  }}
-                  className={
-                    !item.productId || item.productId === 0
-                      ? "border-red-300"
-                      : ""
-                  }
-                  disabled={disabled}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar producto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">
-                      <div className="flex items-center">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Crear nuevo producto
-                      </div>
-                    </SelectItem>
-                    {/* Usamos la lista local para que se actualice inmediatamente */}
-                    {localProducts.map((product) => (
-                      <SelectItem
-                        key={product.id}
-                        value={product.id?.toString() || ""}
-                      >
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(!item.productId || item.productId === 0) && (
-                  <p className="text-red-500 text-xs mt-1">
-                    Por favor, seleccione un producto
-                  </p>
-                )}
-              </div>
-
-              {/* Campos para cantidad y precio */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
-                {/* Cantidad */}
-                <div>
-                  <FormLabel className="text-xs">Cantidad</FormLabel>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={item.quantity || 1}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 1;
-                      onUpdateItem(categoryIndex, itemIndex, "quantity", value);
-                    }}
-                    className="h-9"
-                    required
+        {category.items.map((item, itemIndex) => {
+          console.log("item", item);
+          return (
+            <div
+              key={`item-${categoryIndex}-${itemIndex}`}
+              className={
+                !item.productId || item.productId === 0
+                  ? "border border-red-300 rounded-md p-2 bg-red-50"
+                  : ""
+              }
+            >
+              {(!item.productId || item.productId === 0) && (
+                <p className="text-red-500 text-xs mb-2">
+                  ⚠️ Seleccione un producto o elimine esta fila
+                </p>
+              )}
+              <div className="border rounded-md p-3 mb-3 bg-white shadow-sm">
+                {/* Cabecera de la fila del producto con botón de eliminar */}
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="text-sm font-medium">
+                    Producto {itemIndex + 1}
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => onRemoveItem(categoryIndex, itemIndex)}
                     disabled={disabled}
-                  />
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                {/* Precio proveedor */}
-                <div>
-                  <FormLabel className="text-xs">Proveedor</FormLabel>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={item.price || 0}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      onUpdateItem(categoryIndex, itemIndex, "price", value);
-                    }}
-                    className="h-9"
-                    placeholder="Solo números enteros"
-                    required
-                    disabled={disabled}
-                  />
-                </div>
-
-                {/* % Ganancia */}
-                <div className="col-span-1 md:col-span-1">
-                  <FormLabel className="text-xs">% Ganancia</FormLabel>
-                  <Input
-                    value={`${item.product?.markup || 35}%`}
-                    className="h-9 bg-gray-50"
-                    readOnly
-                    disabled
-                  />
-                </div>
-
-                {/* Ganancia */}
-                <div className="col-span-1 md:col-span-1">
-                  <FormLabel className="text-xs">Ganancia</FormLabel>
-                  <Input
-                    value={formatCurrency(
-                      Math.ceil(
-                        ((item.price || 0) * (item.product?.markup || 35)) / 100
-                      )
+                {/* Selector de producto */}
+                <div className="mb-3">
+                  <FormLabel className="text-xs">
+                    Producto{" "}
+                    {(!item.productId || item.productId === 0) && (
+                      <span className="text-red-500 text-xs ml-1">
+                        *Requerido
+                      </span>
                     )}
-                    className="h-9 bg-gray-50"
-                    readOnly
-                    disabled
-                  />
+                  </FormLabel>
+                  <Select
+                    value={item.productId ? item.productId.toString() : "0"}
+                    onValueChange={(value) => {
+                      if (value === "new") {
+                        // Abrir diálogo para crear producto
+                        setItemIndexForNewProduct(itemIndex);
+                        setIsNewProductDialogOpen(true);
+                      } else {
+                        const productId = parseInt(value);
+                        // Importante: Usar localProducts para buscar el producto
+                        const selectedProduct = localProducts.find(
+                          (p) => p.id === productId
+                        );
+                        onUpdateItem(
+                          categoryIndex,
+                          itemIndex,
+                          "productId",
+                          productId
+                        );
+
+                        if (selectedProduct) {
+                          // Asegurar que el precio no tenga decimales
+                          const priceWithoutDecimals = Math.floor(
+                            selectedProduct.price || 0
+                          );
+                          onUpdateItem(
+                            categoryIndex,
+                            itemIndex,
+                            "price",
+                            priceWithoutDecimals
+                          );
+                          onUpdateItem(
+                            categoryIndex,
+                            itemIndex,
+                            "product",
+                            selectedProduct
+                          );
+                        }
+                      }
+                    }}
+                    className={
+                      !item.productId || item.productId === 0
+                        ? "border-red-300"
+                        : ""
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">
+                        <div className="flex items-center">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Crear nuevo producto
+                        </div>
+                      </SelectItem>
+                      {/* Usamos la lista local para que se actualice inmediatamente */}
+                      {localProducts.map((product) => (
+                        <SelectItem
+                          key={product.id}
+                          value={product.id?.toString() || ""}
+                        >
+                          {product.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(!item.productId || item.productId === 0) && (
+                    <p className="text-red-500 text-xs mt-1">
+                      Por favor, seleccione un producto
+                    </p>
+                  )}
                 </div>
 
-                {/* Precio */}
-                <div className="col-span-1 md:col-span-1">
-                  <FormLabel className="text-xs">Precio</FormLabel>
-                  <Input
-                    value={formatCurrency(
-                      (item.price || 0) +
+                {/* Campos para cantidad y precio */}
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
+                  {/* Cantidad */}
+                  <div>
+                    <FormLabel className="text-xs">Cantidad</FormLabel>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={item.quantity || 1}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 1;
+                        onUpdateItem(
+                          categoryIndex,
+                          itemIndex,
+                          "quantity",
+                          value
+                        );
+                      }}
+                      className="h-9"
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+
+                  {/* Precio proveedor */}
+                  <div>
+                    <FormLabel className="text-xs">Proveedor</FormLabel>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={item.product.unitPrice || 0}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        onUpdateItem(categoryIndex, itemIndex, "price", value);
+                      }}
+                      className="h-9"
+                      placeholder="Solo números enteros"
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+
+                  {/* % Ganancia */}
+                  <div className="col-span-1 md:col-span-1">
+                    <FormLabel className="text-xs">% Ganancia</FormLabel>
+                    <Input
+                      value={`${item.product?.markup || 35}%`}
+                      className="h-9 bg-gray-50"
+                      readOnly
+                      disabled
+                    />
+                  </div>
+
+                  {/* Ganancia */}
+                  <div className="col-span-1 md:col-span-1">
+                    <FormLabel className="text-xs">Ganancia</FormLabel>
+                    <Input
+                      value={formatCurrency(
                         Math.ceil(
-                          ((item.price || 0) * (item.product?.markup || 35)) /
+                          ((item.product.unitPrice || 0) *
+                            (item.product?.markup || 35)) /
                             100
                         )
-                    )}
-                    className="h-9 bg-gray-50"
-                    readOnly
-                    disabled
-                  />
-                </div>
+                      )}
+                      className="h-9 bg-gray-50"
+                      readOnly
+                      disabled
+                    />
+                  </div>
 
-                {/* Total */}
-                <div className="col-span-1 md:col-span-1">
-                  <FormLabel className="text-xs">Total</FormLabel>
-                  <Input
-                    value={formatCurrency(
-                      ((item.price || 0) +
-                        Math.ceil(
-                          ((item.price || 0) * (item.product?.markup || 35)) /
-                            100
-                        )) *
-                        (item.quantity || 1)
-                    )}
-                    className="h-9 bg-gray-50 font-medium"
-                    readOnly
-                    disabled
-                  />
+                  {/* Precio */}
+                  <div className="col-span-1 md:col-span-1">
+                    <FormLabel className="text-xs">Precio</FormLabel>
+                    <Input
+                      value={formatCurrency(
+                        (item.product.unitPrice || 0) +
+                          Math.ceil(
+                            ((item.product.unitPrice || 0) *
+                              (item.product?.markup || 35)) /
+                              100
+                          )
+                      )}
+                      className="h-9 bg-gray-50"
+                      readOnly
+                      disabled
+                    />
+                  </div>
+
+                  {/* Total */}
+                  <div className="col-span-1 md:col-span-1">
+                    <FormLabel className="text-xs">Total</FormLabel>
+                    <Input
+                      value={formatCurrency(
+                        ((item.product.unitPrice || 0) +
+                          Math.ceil(
+                            ((item.product.unitPrice || 0) *
+                              (item.product?.markup || 35)) /
+                              100
+                          )) *
+                          (item.quantity || 1)
+                      )}
+                      className="h-9 bg-gray-50 font-medium"
+                      readOnly
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Mensaje cuando no hay productos */}
         {!hasItems && (
