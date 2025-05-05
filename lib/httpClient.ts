@@ -1,3 +1,4 @@
+// web\lib\httpClient.ts
 /**
  * Cliente HTTP mejorado con manejo de errores, renovación de tokens y compatible con CORS
  */

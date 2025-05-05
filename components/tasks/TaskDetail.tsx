@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Task } from "@/services/tasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,18 @@ import {
   Trash,
   CheckCircle,
   Loader2,
+  MapPin,
+  FileText,
+  User,
+  Briefcase,
+  Image as ImageIcon,
+  ExternalLink,
+  Download,
+  PenTool,
 } from "lucide-react";
 import QuotationInfo from "../quotes/QuotationInfo";
 import { formatDateSafely } from "@/utils/date-format";
+import DownloadTaskReportButton from "@/components/tasks/DownloadTaskReportButton";
 
 interface TaskDetailProps {
   task: Task;
@@ -34,6 +43,7 @@ export default function TaskDetail({
   const [showDetails, setShowDetails] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const getStateDisplay = (state: string) => {
     switch (state) {
@@ -82,6 +92,49 @@ export default function TaskDetail({
     }
   };
 
+  // Componente para mostrar la imagen ampliada
+  const ImagePreview = () => {
+    if (!selectedImage) return null;
+
+    return (
+      <div
+        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+        onClick={() => setSelectedImage(null)}
+      >
+        <div
+          className="relative max-w-4xl max-h-[90vh] w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute right-0 top-0 bg-background z-10 m-2"
+            onClick={() => setSelectedImage(null)}
+          >
+            ✕
+          </Button>
+          <div className="bg-white p-2 rounded-md">
+            <img
+              src={selectedImage}
+              alt="Vista previa"
+              className="max-h-[85vh] max-w-full object-contain mx-auto"
+            />
+          </div>
+          <div className="mt-2 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => window.open(selectedImage, "_blank")}
+              className="bg-background"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Abrir en nueva pestaña
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card className="mb-6">
       <CardHeader className="pb-2">
@@ -90,11 +143,12 @@ export default function TaskDetail({
             <CardTitle className="text-xl">{task.title}</CardTitle>
             <div className="flex items-center mt-2">
               {getStateDisplay(task.state)}
-              {task.types.map((type) => (
-                <Badge key={type} variant="outline" className="mr-2">
-                  {type}
-                </Badge>
-              ))}
+              {task.types &&
+                task.types.map((type) => (
+                  <Badge key={type} variant="outline" className="mr-2">
+                    {type}
+                  </Badge>
+                ))}
             </div>
           </div>
 
@@ -195,9 +249,33 @@ export default function TaskDetail({
                   </p>
                 )}
                 {task.client.address && (
+                  <p className="text-sm flex">
+                    <span className="font-medium mr-1">Dirección:</span>{" "}
+                    <MapPin className="h-4 w-4 mx-1 text-content-subtle" />
+                    <span>{task.client.address}</span>
+                  </p>
+                )}
+                {task.client.rut && (
                   <p className="text-sm">
-                    <span className="font-medium">Dirección:</span>{" "}
-                    {task.client.address}
+                    <span className="font-medium">RUT:</span> {task.client.rut}
+                  </p>
+                )}
+                {task.client.commune && (
+                  <p className="text-sm">
+                    <span className="font-medium">Comuna:</span>{" "}
+                    {task.client.commune}
+                  </p>
+                )}
+                {task.client.administrator && (
+                  <p className="text-sm">
+                    <span className="font-medium">Administrador:</span>{" "}
+                    {task.client.administrator}
+                  </p>
+                )}
+                {task.client.butler && (
+                  <p className="text-sm">
+                    <span className="font-medium">Mayordomo:</span>{" "}
+                    {task.client.butler}
                   </p>
                 )}
               </div>
@@ -223,7 +301,7 @@ export default function TaskDetail({
                   {formatDateSafely(task.endDate)}
                 </p>
               )}
-              {task.hoursWorked && (
+              {task.hoursWorked !== undefined && (
                 <p className="text-sm flex items-center">
                   <Clock className="h-4 w-4 mr-2 text-content-subtle" />
                   <span className="font-medium mr-1">Horas trabajadas:</span>
@@ -262,47 +340,9 @@ export default function TaskDetail({
           )}
         </div>
 
-        {/* Mostrar más detalles si la tarea está finalizada */}
-        {task.state === "FINALIZADO" && (
-          <div className="border-t border-border pt-4 mt-4">
-            <h3 className="font-medium mb-2">Informe Técnico</h3>
-            <p className="text-sm whitespace-pre-line mb-4">
-              {task.technicalReport}
-            </p>
-
-            {task.observations && (
-              <div className="mb-4">
-                <h3 className="font-medium mb-2">Observaciones</h3>
-                <p className="text-sm whitespace-pre-line">
-                  {task.observations}
-                </p>
-              </div>
-            )}
-
-            {task.mediaUrls && task.mediaUrls.length > 0 && (
-              <div>
-                <h3 className="font-medium mb-2">Archivos Adjuntos</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {task.mediaUrls.map((url, index) => (
-                    <a
-                      key={index}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:underline break-all"
-                    >
-                      Archivo {index + 1}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Mostrar categorías si existen */}
+        {/* Categorías */}
         {task.categories && task.categories.length > 0 && (
-          <div className="mt-4">
+          <div className="mb-4">
             <h3 className="font-medium mb-2">Categorías</h3>
             <div className="flex flex-wrap gap-1">
               {task.categories.map((category, index) => (
@@ -313,7 +353,117 @@ export default function TaskDetail({
             </div>
           </div>
         )}
+
+        {/* Mostrar más detalles si la tarea está finalizada */}
+        {task.state === "FINALIZADO" && (
+          <div className="border-t border-border pt-4 mt-4">
+            <div className="bg-accent/10 p-3 rounded-md mb-4">
+              <h3 className="font-medium mb-2 flex items-center">
+                <FileText className="h-4 w-4 mr-2" />
+                Informe Técnico
+              </h3>
+              <p className="text-sm whitespace-pre-line mb-4">
+                {task.technicalReport}
+              </p>
+            </div>
+
+            {task.observations && (
+              <div className="bg-muted/30 p-3 rounded-md mb-4">
+                <h3 className="font-medium mb-2">Observaciones</h3>
+                <p className="text-sm whitespace-pre-line">
+                  {task.observations}
+                </p>
+              </div>
+            )}
+
+            {/* Información de la persona que recibió el trabajo */}
+            {task.metadata?.receivedBy && (
+              <div className="mb-6 border border-border rounded-lg p-4">
+                <h3 className="font-medium mb-3">Información de Recepción</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm flex items-center">
+                      <User className="h-4 w-4 mr-2 text-content-subtle" />
+                      <span className="font-medium mr-1">Recibido por:</span>
+                      {task.metadata.receivedBy.name}
+                    </p>
+                    {task.metadata.receivedBy.position && (
+                      <p className="text-sm flex items-center">
+                        <Briefcase className="h-4 w-4 mr-2 text-content-subtle" />
+                        <span className="font-medium mr-1">Cargo:</span>
+                        {task.metadata.receivedBy.position}
+                      </p>
+                    )}
+                    {task.metadata.receivedBy.date && (
+                      <p className="text-sm flex items-center">
+                        <Calendar className="h-4 w-4 mr-2 text-content-subtle" />
+                        <span className="font-medium mr-1">
+                          Fecha de recepción:
+                        </span>
+                        {formatDateSafely(task.metadata.receivedBy.date)}
+                      </p>
+                    )}
+                  </div>
+                  {task.metadata.receivedBy.imageUrl && (
+                    <div className="flex justify-center items-center">
+                      <div
+                        className="relative border border-border rounded overflow-hidden cursor-pointer"
+                        onClick={() =>
+                          setSelectedImage(task.metadata.receivedBy.imageUrl)
+                        }
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 hover:opacity-100 transition-opacity">
+                          <div className="bg-black/60 text-white p-1 rounded">
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        </div>
+                        <img
+                          src={task.metadata.receivedBy.imageUrl}
+                          alt="Firma de recepción"
+                          className="max-w-full max-h-32 object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Galería de imágenes */}
+            {task.mediaUrls && task.mediaUrls.length > 0 && (
+              <div className="mb-6">
+                <h3 className="font-medium mb-3 flex items-center">
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Imágenes Adjuntas
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {task.mediaUrls.map((url, index) => (
+                    <div
+                      key={index}
+                      className="relative border border-border rounded-md overflow-hidden aspect-square cursor-pointer"
+                      onClick={() => setSelectedImage(url)}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 hover:opacity-100 transition-opacity">
+                        <div className="bg-black/60 text-white p-1 rounded">
+                          <ImageIcon className="h-5 w-5" />
+                        </div>
+                      </div>
+                      <img
+                        src={url}
+                        alt={`Adjunto ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
+
+      {/* Visor de imágenes en grande */}
+      <ImagePreview />
     </Card>
   );
 }

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { FormField, FormLabel } from "@/components/ui/form";
+import { useState, useEffect, useRef } from "react";
+import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -11,9 +11,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Task, FinalizeTaskData } from "@/services/tasks";
+import { uploadTaskImage, compressImage, blobToFile } from "@/services/uploads";
 import { formatNumber } from "@/utils/number-format";
 import { getTodayISOString } from "@/utils/date-format";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  Upload,
+  Edit,
+  Plus,
+  X,
+  Image,
+  Camera,
+} from "lucide-react";
 
 interface FinalizeTaskFormProps {
   isOpen: boolean;
@@ -38,9 +48,16 @@ export default function FinalizeTaskForm({
     observations: "",
     hoursWorked: 1,
     mediaUrls: [],
-    endDate: getTodayISOString(), // Utiliza la función de utilidad para obtener la fecha actual correcta
+    nameWhoReceives: "",
+    positionWhoReceives: "",
+    imageUrlWhoReceives: "",
+    endDate: getTodayISOString(),
   });
   const [progress, setProgress] = useState(0);
+  const [isUploadingWhoReceives, setIsUploadingWhoReceives] = useState(false);
+  const [isUploadingWork, setIsUploadingWork] = useState(false);
+  const fileInputWhoReceivesRef = useRef<HTMLInputElement>(null);
+  const fileInputWorkRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (task?.id) {
@@ -50,7 +67,10 @@ export default function FinalizeTaskForm({
         observations: task.observations || "",
         hoursWorked: task.hoursWorked || 1,
         mediaUrls: task.mediaUrls || [],
-        endDate: getTodayISOString(), // Usar fecha actual ajustada
+        nameWhoReceives: "",
+        positionWhoReceives: "",
+        imageUrlWhoReceives: "",
+        endDate: getTodayISOString(),
       });
     }
     setValidationError(null);
@@ -72,6 +92,93 @@ export default function FinalizeTaskForm({
     }
   }, [isSubmitting]);
 
+  // Función para subir imagen quien recibe
+  const handleUploadWhoReceivesImage = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setIsUploadingWhoReceives(true);
+      setValidationError(null);
+
+      // Comprimir la imagen antes de subirla
+      const compressedBlob = await compressImage(files[0], 800, 0.8);
+      const compressedFile = blobToFile(
+        compressedBlob,
+        `who-receives-${Date.now()}.${files[0].name.split(".").pop()}`,
+        { type: files[0].type }
+      );
+
+      // Subir la imagen comprimida
+      const imageUrl = await uploadTaskImage(compressedFile, "who-receives");
+
+      setFinalizeForm({
+        ...finalizeForm,
+        imageUrlWhoReceives: imageUrl,
+      });
+    } catch (error) {
+      console.error("Error al subir imagen:", error);
+      setValidationError("No se pudo subir la imagen. Intente nuevamente.");
+    } finally {
+      setIsUploadingWhoReceives(false);
+      // Limpiar el input
+      if (fileInputWhoReceivesRef.current) {
+        fileInputWhoReceivesRef.current.value = "";
+      }
+    }
+  };
+
+  // Función para subir imagen de trabajo
+  const handleUploadWorkImage = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setIsUploadingWork(true);
+      setValidationError(null);
+
+      // Comprimir la imagen antes de subirla
+      const compressedBlob = await compressImage(files[0], 1200, 0.8);
+      const compressedFile = blobToFile(
+        compressedBlob,
+        `work-${Date.now()}.${files[0].name.split(".").pop()}`,
+        { type: files[0].type }
+      );
+
+      // Subir la imagen comprimida
+      const imageUrl = await uploadTaskImage(compressedFile, "work");
+
+      // Agregar nueva imagen a las existentes
+      setFinalizeForm({
+        ...finalizeForm,
+        mediaUrls: [...(finalizeForm.mediaUrls || []), imageUrl],
+      });
+    } catch (error) {
+      console.error("Error al subir imagen:", error);
+      setValidationError("No se pudo subir la imagen. Intente nuevamente.");
+    } finally {
+      setIsUploadingWork(false);
+      // Limpiar el input
+      if (fileInputWorkRef.current) {
+        fileInputWorkRef.current.value = "";
+      }
+    }
+  };
+
+  // Eliminar imagen de trabajo
+  const handleRemoveWorkImage = (urlToRemove: string) => {
+    setFinalizeForm({
+      ...finalizeForm,
+      mediaUrls: (finalizeForm.mediaUrls || []).filter(
+        (url) => url !== urlToRemove
+      ),
+    });
+  };
+
   const handleSubmit = async () => {
     setValidationError(null);
 
@@ -86,10 +193,116 @@ export default function FinalizeTaskForm({
       return;
     }
 
+    // Validar nuevos campos obligatorios
+    if (!finalizeForm.nameWhoReceives) {
+      setValidationError("El nombre de quien recibe es obligatorio");
+      return;
+    }
+
+    if (!finalizeForm.positionWhoReceives) {
+      setValidationError("El cargo de quien recibe es obligatorio");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await onSave(finalizeForm);
-      setProgress(100);
+
+      // Aquí enviamos directamente el formulario si el usuario subió imágenes usando el formulario
+      // Si no, usamos el proceso API normal
+
+      // Comprobar si tenemos imágenes para enviar como FormData
+      const hasWhoReceivesImage =
+        fileInputWhoReceivesRef.current?.files?.length > 0;
+      const hasWorkImages = fileInputWorkRef.current?.files?.length > 0;
+
+      if (hasWhoReceivesImage || hasWorkImages) {
+        // Crear un FormData para enviar los datos y los archivos
+        const formData = new FormData();
+
+        // Añadir los datos del formulario
+        formData.append("taskId", finalizeForm.taskId.toString());
+        formData.append("technicalReport", finalizeForm.technicalReport);
+        if (finalizeForm.observations)
+          formData.append("observations", finalizeForm.observations);
+        formData.append("hoursWorked", finalizeForm.hoursWorked.toString());
+        formData.append("nameWhoReceives", finalizeForm.nameWhoReceives);
+        formData.append(
+          "positionWhoReceives",
+          finalizeForm.positionWhoReceives
+        );
+        if (finalizeForm.endDate)
+          formData.append("endDate", finalizeForm.endDate);
+
+        // Añadir imagen de quien recibe si existe
+        if (hasWhoReceivesImage) {
+          formData.append(
+            "imageWhoReceives",
+            fileInputWhoReceivesRef.current.files[0]
+          );
+        } else if (finalizeForm.imageUrlWhoReceives) {
+          formData.append(
+            "imageUrlWhoReceives",
+            finalizeForm.imageUrlWhoReceives
+          );
+        }
+
+        // Añadir URLs de imágenes ya existentes
+        if (finalizeForm.mediaUrls && finalizeForm.mediaUrls.length > 0) {
+          // Para enviar un array en FormData, debemos usar notación de corchetes
+          finalizeForm.mediaUrls.forEach((url, i) => {
+            formData.append(`mediaUrls[${i}]`, url);
+          });
+        }
+
+        // Añadir nuevas imágenes de trabajo
+        if (hasWorkImages) {
+          Array.from(fileInputWorkRef.current.files).forEach((file) => {
+            formData.append("image", file);
+          });
+        }
+
+        // Obtener token para la petición
+        const session = await import("next-auth/react").then((mod) =>
+          mod.getSession()
+        );
+        const accessToken = session?.accessToken;
+
+        // Enviar los datos directamente con fetch
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/tasks/finalize`,
+          {
+            method: "POST",
+            headers: {
+              ...(accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {}),
+            },
+            credentials: "include",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({
+            message: `Error ${response.status}: ${response.statusText}`,
+          }));
+
+          throw new Error(
+            errorData.message ||
+              `Error al finalizar tarea: ${response.statusText}`
+          );
+        }
+
+        const result = await response.json();
+
+        // Continuar con el flujo normal después de la operación exitosa
+        setProgress(100);
+        onClose();
+      } else {
+        // Si no hay archivos para subir, usamos el método normal
+        await onSave(finalizeForm);
+        setProgress(100);
+      }
     } catch (error) {
       console.error("Error al finalizar la tarea:", error);
       setValidationError("Ocurrió un error al finalizar la tarea");
@@ -102,14 +315,15 @@ export default function FinalizeTaskForm({
   };
 
   // Fusionar los estados de carga
-  const isFormDisabled = isLoading || isSubmitting;
+  const isFormDisabled =
+    isLoading || isSubmitting || isUploadingWhoReceives || isUploadingWork;
 
   return (
     <Dialog
       open={isOpen}
       onOpenChange={(open) => !open && !isFormDisabled && onClose()}
     >
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -212,6 +426,159 @@ export default function FinalizeTaskForm({
               )}
             </div>
           </FormField>
+
+          {/* NUEVOS CAMPOS */}
+          <div className="border p-4 rounded-md bg-accent/10 space-y-4">
+            <h3 className="font-medium">
+              Información de quien recibe el trabajo
+            </h3>
+
+            <FormField>
+              <FormLabel>Nombre de quien recibe</FormLabel>
+              <Input
+                value={finalizeForm.nameWhoReceives || ""}
+                onChange={(e) =>
+                  setFinalizeForm({
+                    ...finalizeForm,
+                    nameWhoReceives: e.target.value,
+                  })
+                }
+                required
+                disabled={isFormDisabled}
+                placeholder="Nombre completo"
+              />
+            </FormField>
+
+            <FormField>
+              <FormLabel>Cargo de quien recibe</FormLabel>
+              <Input
+                value={finalizeForm.positionWhoReceives || ""}
+                onChange={(e) =>
+                  setFinalizeForm({
+                    ...finalizeForm,
+                    positionWhoReceives: e.target.value,
+                  })
+                }
+                required
+                disabled={isFormDisabled}
+                placeholder="Ej: Administrador, Conserje, etc."
+              />
+            </FormField>
+
+            <FormField>
+              <FormLabel>Foto de quien recibe (opcional)</FormLabel>
+              <div className="flex flex-col gap-4">
+                <input
+                  type="file"
+                  ref={fileInputWhoReceivesRef}
+                  onChange={handleUploadWhoReceivesImage}
+                  accept="image/*"
+                  style={{ display: "none" }}
+                />
+
+                {finalizeForm.imageUrlWhoReceives && (
+                  <div className="relative w-full h-32 bg-gray-100 rounded-md overflow-hidden">
+                    <img
+                      src={finalizeForm.imageUrlWhoReceives}
+                      alt="Firma de quien recibe"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputWhoReceivesRef.current?.click()}
+                  disabled={isFormDisabled}
+                  className="w-full"
+                >
+                  {isUploadingWhoReceives ? (
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>Subiendo...</span>
+                    </div>
+                  ) : finalizeForm.imageUrlWhoReceives ? (
+                    <>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Cambiar imagen
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="mr-2 h-4 w-4" />
+                      Tomar foto de quien recibe
+                    </>
+                  )}
+                </Button>
+              </div>
+            </FormField>
+          </div>
+
+          {/* Sección de fotos del trabajo realizado */}
+          <div className="border p-4 rounded-md bg-accent/10 space-y-4">
+            <h3 className="font-medium">Fotos del trabajo realizado</h3>
+
+            <FormField>
+              <FormLabel>Fotos de la instalación o servicio</FormLabel>
+              <FormDescription>
+                Agregue fotos del trabajo realizado (antes/después, detalles,
+                etc.)
+              </FormDescription>
+
+              <input
+                type="file"
+                ref={fileInputWorkRef}
+                onChange={handleUploadWorkImage}
+                accept="image/*"
+                style={{ display: "none" }}
+              />
+
+              {/* Grid de imágenes */}
+              {finalizeForm.mediaUrls && finalizeForm.mediaUrls.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 my-4">
+                  {finalizeForm.mediaUrls.map((url, index) => (
+                    <div key={url} className="relative group">
+                      <div className="h-32 bg-gray-100 rounded-md overflow-hidden">
+                        <img
+                          src={url}
+                          alt={`Imagen ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWorkImage(url)}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        disabled={isFormDisabled}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputWorkRef.current?.click()}
+                disabled={isFormDisabled}
+                className="w-full mt-2"
+              >
+                {isUploadingWork ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <span>Subiendo...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar foto
+                  </>
+                )}
+              </Button>
+            </FormField>
+          </div>
 
           {/* Mensaje de validación */}
           {validationError && (

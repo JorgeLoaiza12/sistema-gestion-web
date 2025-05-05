@@ -47,6 +47,7 @@ export interface Task {
   reminderSent?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  metadata?: any;
 }
 
 export interface TaskResponse {
@@ -75,6 +76,10 @@ export interface FinalizeTaskData {
   types?: string[];
   systems?: string[];
   technicians?: string[];
+  // Nuevos campos
+  nameWhoReceives?: string;
+  positionWhoReceives?: string;
+  imageUrlWhoReceives?: string;
 }
 
 // Función auxiliar para obtener el token de autenticación
