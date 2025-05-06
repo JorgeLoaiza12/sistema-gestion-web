@@ -20,6 +20,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -286,10 +288,22 @@ export default function QuotesPage() {
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Filtrar por cliente" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent
+                    // Aplicar altura máxima al contenido completo
+                    style={{ maxHeight: "300px", overflowY: "auto" }}
+                    // Alternativa usando la clase de tailwind directamente:
+                    // className="max-h-[300px] overflow-y-auto"
+                  >
                     <SelectItem value="all">Todos los clientes</SelectItem>
+
+                    {/* Etiqueta con cantidad de clientes */}
+                    <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
+                      Clientes ({clientsForFilter.length})
+                    </div>
+
+                    {/* Lista de clientes sin contenedores anidados adicionales */}
                     {clientsForFilter.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
+                      <SelectItem key={client.id} value={client.id.toString()}>
                         {client.name}
                       </SelectItem>
                     ))}

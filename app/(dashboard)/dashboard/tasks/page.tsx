@@ -1,3 +1,4 @@
+// web\app\(dashboard)\dashboard\tasks\page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,6 +14,7 @@ import {
   updateTask,
   deleteTask,
   finalizeTask,
+  startTask,
   type Task,
   type TasksByDateParams,
   type FinalizeTaskData,
@@ -24,6 +26,7 @@ import TaskFilters from "@/components/tasks/TaskFilters";
 import TaskList from "@/components/tasks/TaskList";
 import TaskForm from "@/components/tasks/TaskForm";
 import FinalizeTaskForm from "@/components/tasks/FinalizeTaskForm";
+import TaskDetail from "@/components/tasks/TaskDetail";
 import { useNotification } from "@/contexts/NotificationContext";
 
 // Interfaces
@@ -45,6 +48,7 @@ export default function TasksPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isFinalizingTask, setIsFinalizingTask] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<TasksFilterOptions>({
     view: "weekly",
@@ -58,6 +62,7 @@ export default function TasksPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [isStartingTask, setIsStartingTask] = useState(false);
 
   // Verificar si el usuario tiene el rol ADMIN
   const isAdmin = () => {
@@ -217,9 +222,31 @@ export default function TasksPage() {
     setIsEditing(true);
   };
 
+  const handleViewTask = (task: Task) => {
+    setViewingTask(task);
+  };
+
   const handleFinalizeTask = (task: Task) => {
     setCurrentTask(task);
     setIsFinalizing(true);
+  };
+
+  const handleStartTask = async (task: Task) => {
+    try {
+      setIsStartingTask(true);
+      const result = await startTask(task.id!);
+      if (result && result.task) {
+        setTasks((tasks) =>
+          tasks.map((t) => (t.id === task.id ? result.task : t))
+        );
+        addNotification("success", "Tarea iniciada correctamente");
+      }
+    } catch (error) {
+      console.error("Error al iniciar tarea:", error);
+      addNotification("error", "Error al iniciar la tarea");
+    } finally {
+      setIsStartingTask(false);
+    }
   };
 
   const handleDeleteConfirm = (task: Task) => {
@@ -376,26 +403,49 @@ export default function TasksPage() {
         </p>
       </div>
 
-      <Card className="p-6">
-        <TaskFilters
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          searchTerm={searchTerm}
-          onSearchChange={handleSearchChange}
-          onAddTask={handleAddTask}
-          isAdmin={isAdmin()}
-          isLoading={isLoadingFilters}
-        />
+      {viewingTask ? (
+        <>
+          <TaskDetail
+            task={viewingTask}
+            isAdmin={isAdmin()}
+            onEdit={handleEditTask}
+            onDelete={handleDeleteConfirm}
+            onFinalize={handleFinalizeTask}
+            onStart={handleStartTask}
+          />
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setViewingTask(null)}
+              className="w-full max-w-md"
+            >
+              Volver a la lista de tareas
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Card className="p-6">
+          <TaskFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            searchTerm={searchTerm}
+            onSearchChange={handleSearchChange}
+            onAddTask={handleAddTask}
+            isAdmin={isAdmin()}
+            isLoading={isLoadingFilters}
+          />
 
-        <TaskList
-          tasks={filteredTasks}
-          isLoading={isLoading}
-          isAdmin={isAdmin()}
-          onEdit={handleEditTask}
-          onDelete={handleDeleteConfirm}
-          onFinalize={handleFinalizeTask}
-        />
-      </Card>
+          <TaskList
+            tasks={filteredTasks}
+            isLoading={isLoading}
+            isAdmin={isAdmin()}
+            onEdit={handleEditTask}
+            onView={handleViewTask}
+            onDelete={handleDeleteConfirm}
+            onFinalize={handleFinalizeTask}
+          />
+        </Card>
+      )}
 
       {error && (
         <div className="text-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">

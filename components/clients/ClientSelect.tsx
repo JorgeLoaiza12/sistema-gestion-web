@@ -8,6 +8,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { Client, createClient } from "@/services/clients";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -88,7 +90,7 @@ export default function ClientSelect({
               <SelectValue placeholder={placeholder} />
             )}
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[300px] overflow-y-auto">
             <SelectItem value="-">Sin cliente</SelectItem>
             <SelectItem value="new">
               <div className="flex items-center">
@@ -97,11 +99,18 @@ export default function ClientSelect({
               </div>
             </SelectItem>
             {clients.length > 0 ? (
-              clients.map((client) => (
-                <SelectItem key={client.id} value={client.id.toString()}>
-                  {client.name}
-                </SelectItem>
-              ))
+              <SelectGroup>
+                <SelectLabel className="px-2 py-1 text-xs text-content-subtle">
+                  Clientes ({clients.length})
+                </SelectLabel>
+                <div className="max-h-[200px] overflow-y-auto">
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id.toString()}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </div>
+              </SelectGroup>
             ) : (
               <SelectItem value="empty" disabled>
                 No hay clientes disponibles
@@ -122,4 +131,3 @@ export default function ClientSelect({
     </>
   );
 }
-

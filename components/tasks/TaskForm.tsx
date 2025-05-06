@@ -1,3 +1,4 @@
+// web\components\tasks\TaskForm.tsx
 import { useState, useEffect } from "react";
 import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ import { Client } from "@/services/clients";
 import { User } from "@/services/users";
 import { Quotation, getQuotationsByClient } from "@/services/quotations";
 import ClientSelect from "@/components/clients/ClientSelect";
-import UserSelect from "@/components/tasks/UserSelect";
+import UserMultiSelect from "@/components/tasks/UserMultiSelect";
 import { useNotification } from "@/contexts/NotificationContext";
 import { Loader2 } from "lucide-react";
 
@@ -43,7 +44,7 @@ interface TaskFormProps {
 
 // Constantes para tipos y estados de tareas
 const TASK_STATES = ["PENDIENTE", "EN_CURSO", "FINALIZADO"];
-const TASK_TYPES = ["REVISION", "REPARACION", "MANTENCION"];
+const TASK_TYPES = ["REVISION", "REPARACION", "MANTENCION", "INSTALACION"];
 const TASK_CATEGORIES = [
   "CCTV",
   "Citofonia",
@@ -83,7 +84,7 @@ export default function TaskForm({
   });
   const [clientQuotations, setClientQuotations] = useState<Quotation[]>([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<number[]>([]);
   const [isSavingInProgress, setIsSavingInProgress] = useState(false);
   const [formValidationError, setFormValidationError] = useState<string | null>(
     null
@@ -108,9 +109,14 @@ export default function TaskForm({
           : undefined,
       });
 
-      // Si la tarea tiene trabajadores asignados, seleccionar el primero
+      // Si la tarea tiene trabajadores asignados, establecer los IDs seleccionados
       if (task.assignedWorkers && task.assignedWorkers.length > 0) {
-        setSelectedWorkerId(task.assignedWorkers[0].workerId.toString());
+        const workerIds = task.assignedWorkers.map(
+          (assignment) => assignment.workerId
+        );
+        setSelectedWorkerIds(workerIds);
+      } else {
+        setSelectedWorkerIds([]);
       }
 
       // Si la tarea tiene un cliente, cargar sus cotizaciones
@@ -127,7 +133,7 @@ export default function TaskForm({
         categories: [],
         startDate: new Date().toISOString().split("T")[0],
       });
-      setSelectedWorkerId("");
+      setSelectedWorkerIds([]);
       setClientQuotations([]);
     }
 
@@ -180,8 +186,8 @@ export default function TaskForm({
         // Asegurar que se envíen arrays vacíos en lugar de undefined
         types: taskForm.types || [],
         categories: taskForm.categories || [],
-        // Asignar el trabajador seleccionado si existe
-        assignedWorkerIds: selectedWorkerId ? [parseInt(selectedWorkerId)] : [],
+        // Asignar los trabajadores seleccionados
+        assignedWorkerIds: selectedWorkerIds,
       };
 
       console.log("Datos de tarea a guardar:", taskData);
@@ -278,9 +284,8 @@ export default function TaskForm({
     }
   };
 
-  const handleWorkerChange = (value: string, worker?: User) => {
-    console.log("Worker seleccionado:", value, worker);
-    setSelectedWorkerId(value);
+  const handleWorkerSelectionChange = (workerIds: number[]) => {
+    setSelectedWorkerIds(workerIds);
   };
 
   // Mostrar estado de carga al abrir el formulario
@@ -502,12 +507,13 @@ export default function TaskForm({
 
           <div className="md:col-span-2">
             <FormLabel>Técnicos asignados</FormLabel>
-            <UserSelect
+            <UserMultiSelect
               workers={workers}
-              value={selectedWorkerId}
-              onValueChange={handleWorkerChange}
+              selectedWorkerIds={selectedWorkerIds}
+              onSelectionChange={handleWorkerSelectionChange}
               onUserCreated={onUserCreated}
               isLoading={isLoadingWorkers}
+              disabled={isFormLoading}
             />
           </div>
         </div>

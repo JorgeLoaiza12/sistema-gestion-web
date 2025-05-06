@@ -469,7 +469,7 @@ export default function ReportsPage() {
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Todos los clientes" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[300px] overflow-y-auto">
                 <SelectItem value="All">Todos los clientes</SelectItem>
                 {clients.map((client) => (
                   <SelectItem

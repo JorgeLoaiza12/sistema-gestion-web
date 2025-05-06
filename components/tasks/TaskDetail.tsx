@@ -1,3 +1,4 @@
+// C:\workspace\gestion\web\components\tasks\TaskDetail.tsx
 import { useState, useEffect } from "react";
 import { Task } from "@/services/tasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

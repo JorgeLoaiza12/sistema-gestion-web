@@ -3,6 +3,7 @@ import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormTextarea } from "@/components/ui/form-textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
   X,
   Image,
   Camera,
+  Users,
 } from "lucide-react";
 
 interface FinalizeTaskFormProps {
@@ -52,6 +54,7 @@ export default function FinalizeTaskForm({
     positionWhoReceives: "",
     imageUrlWhoReceives: "",
     endDate: getTodayISOString(),
+    technicians: [],
   });
   const [progress, setProgress] = useState(0);
   const [isUploadingWhoReceives, setIsUploadingWhoReceives] = useState(false);
@@ -61,6 +64,11 @@ export default function FinalizeTaskForm({
 
   useEffect(() => {
     if (task?.id) {
+      // Extraer nombres de técnicos de los asignados a la tarea
+      const technicians = task.assignedWorkers
+        ? task.assignedWorkers.map((assignment) => assignment.worker.name)
+        : [];
+
       setFinalizeForm({
         taskId: task.id,
         technicalReport: task.technicalReport || "",
@@ -71,6 +79,7 @@ export default function FinalizeTaskForm({
         positionWhoReceives: "",
         imageUrlWhoReceives: "",
         endDate: getTodayISOString(),
+        technicians: technicians, // Agregar lista de técnicos asignados
       });
     }
     setValidationError(null);
@@ -254,6 +263,13 @@ export default function FinalizeTaskForm({
           });
         }
 
+        // Añadir las listas de técnicos
+        if (finalizeForm.technicians && finalizeForm.technicians.length > 0) {
+          finalizeForm.technicians.forEach((tech, i) => {
+            formData.append(`technicians[${i}]`, tech);
+          });
+        }
+
         // Añadir nuevas imágenes de trabajo
         if (hasWorkImages) {
           Array.from(fileInputWorkRef.current.files).forEach((file) => {
@@ -343,6 +359,29 @@ export default function FinalizeTaskForm({
 
         <div className="space-y-4">
           <p className="font-medium">{task ? task.title : ""}</p>
+
+          {/* Mostrar los técnicos asignados */}
+          {task?.assignedWorkers && task.assignedWorkers.length > 0 && (
+            <div className="border rounded-md p-3 bg-blue-50">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4 text-blue-500" />
+                <h3 className="font-medium text-blue-700">
+                  Técnicos asignados
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {task.assignedWorkers.map((assignment) => (
+                  <Badge
+                    key={assignment.workerId}
+                    variant="secondary"
+                    className="px-2 py-1 text-sm"
+                  >
+                    {assignment.worker.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           <FormField>
             <FormLabel>Informe técnico</FormLabel>

@@ -1,3 +1,4 @@
+// web\components\tasks\TaskList.tsx
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
@@ -9,14 +10,23 @@ import {
   Edit,
   Trash,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { Task } from "@/services/tasks";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TaskListProps {
   tasks: Task[];
   isLoading: boolean;
   isAdmin: boolean;
   onEdit: (task: Task) => void;
+  onView: (task: Task) => void;
   onDelete: (task: Task) => void;
   onFinalize: (task: Task) => void;
 }
@@ -26,12 +36,13 @@ export default function TaskList({
   isLoading,
   isAdmin,
   onEdit,
+  onView,
   onDelete,
   onFinalize,
 }: TaskListProps) {
   const [loadingTaskAction, setLoadingTaskAction] = useState<{
     id: number | null;
-    action: "edit" | "delete" | "finalize" | null;
+    action: "edit" | "delete" | "finalize" | "view" | null;
   }>({ id: null, action: null });
 
   // Obtener estado formateado para mostrar
@@ -65,7 +76,7 @@ export default function TaskList({
 
   const handleActionStart = (
     taskId: number,
-    action: "edit" | "delete" | "finalize"
+    action: "edit" | "delete" | "finalize" | "view"
   ) => {
     setLoadingTaskAction({ id: taskId, action });
 
@@ -85,6 +96,10 @@ export default function TaskList({
           const taskToFinalize = tasks.find((task) => task.id === taskId);
           if (taskToFinalize) onFinalize(taskToFinalize);
           break;
+        case "view":
+          const taskToView = tasks.find((task) => task.id === taskId);
+          if (taskToView) onView(taskToView);
+          break;
       }
 
       // Limpiar el estado de carga
@@ -100,11 +115,16 @@ export default function TaskList({
       accessorKey: "title",
       header: "Título",
       cell: ({ row }) => (
-        <div>
+        <div
+          className="cursor-pointer hover:text-primary"
+          onClick={() => handleActionStart(row.original.id!, "view")}
+        >
           <p className="font-medium">{row.original.title}</p>
           {row.original.description && (
             <p className="text-sm text-content-subtle truncate max-w-xs">
-              {row.original.description}
+              {row.original.description.length > 60
+                ? `${row.original.description.substring(0, 60)}...`
+                : row.original.description}
             </p>
           )}
         </div>
@@ -135,7 +155,7 @@ export default function TaskList({
       header: "Tipo",
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
-          {row.original.types.map((type) => (
+          {(row.original.types || []).map((type) => (
             <span
               key={type}
               className="px-2 py-1 text-xs bg-accent text-primary rounded-full"
@@ -159,32 +179,76 @@ export default function TaskList({
     {
       accessorKey: "assignedWorkers",
       header: "Técnicos",
-      cell: ({ row }) => (
-        <div>
-          {row.original.assignedWorkers &&
-          row.original.assignedWorkers.length > 0 ? (
-            <div className="flex flex-col gap-1">
-              {row.original.assignedWorkers.map((assignment) => (
-                <span key={assignment.workerId}>{assignment.worker.name}</span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-content-subtle">Sin asignar</span>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const assignedWorkers = row.original.assignedWorkers || [];
+        const totalWorkers = assignedWorkers.length;
+
+        if (totalWorkers === 0) {
+          return <span className="text-content-subtle">Sin asignar</span>;
+        }
+
+        // Mostrar hasta 2 técnicos directamente
+        const displayLimit = 2;
+        const displayedWorkers = assignedWorkers.slice(0, displayLimit);
+        const remainingCount = totalWorkers - displayLimit;
+
+        return (
+          <div className="flex flex-col gap-1">
+            {displayedWorkers.map((assignment) => (
+              <span key={assignment.workerId} className="text-sm">
+                {assignment.worker.name}
+              </span>
+            ))}
+
+            {remainingCount > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-content-subtle cursor-help">
+                      + {remainingCount} más
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1 p-1">
+                      {assignedWorkers.slice(displayLimit).map((assignment) => (
+                        <p key={assignment.workerId} className="text-xs">
+                          {assignment.worker.name}
+                        </p>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => (
         <div className="flex space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleActionStart(row.original.id!, "view")}
+            disabled={loadingTaskAction.id === row.original.id}
+          >
+            {loadingTaskAction.id === row.original.id &&
+            loadingTaskAction.action === "view" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </Button>
+
           {isAdmin && (
             <>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleActionStart(row.original.id, "edit")}
+                onClick={() => handleActionStart(row.original.id!, "edit")}
                 disabled={loadingTaskAction.id === row.original.id}
               >
                 {loadingTaskAction.id === row.original.id &&
@@ -197,7 +261,7 @@ export default function TaskList({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleActionStart(row.original.id, "delete")}
+                onClick={() => handleActionStart(row.original.id!, "delete")}
                 disabled={loadingTaskAction.id === row.original.id}
               >
                 {loadingTaskAction.id === row.original.id &&
@@ -213,7 +277,7 @@ export default function TaskList({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleActionStart(row.original.id, "finalize")}
+              onClick={() => handleActionStart(row.original.id!, "finalize")}
               disabled={loadingTaskAction.id === row.original.id}
             >
               {loadingTaskAction.id === row.original.id &&

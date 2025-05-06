@@ -3,11 +3,15 @@ import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { EntityForm } from "@/components/ui/entity-form";
 import { FormTextarea } from "@/components/ui/form-textarea";
+import { Alert } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 interface Customer {
   id: string;
   name: string;
   email: string;
+  emailSecondary?: string;
+  emailTertiary?: string;
   phone?: string;
   rut?: string;
   address?: string;
@@ -34,6 +38,12 @@ export function CustomerForm({
 }: CustomerFormProps) {
   const [name, setName] = useState(customer?.name || "");
   const [email, setEmail] = useState(customer?.email || "");
+  const [emailSecondary, setEmailSecondary] = useState(
+    customer?.emailSecondary || ""
+  );
+  const [emailTertiary, setEmailTertiary] = useState(
+    customer?.emailTertiary || ""
+  );
   const [phone, setPhone] = useState(customer?.phone || "");
   const [address, setAddress] = useState(customer?.address || "");
   const [commune, setCommune] = useState(customer?.commune || "");
@@ -50,6 +60,8 @@ export function CustomerForm({
       id: customer?.id || "",
       name,
       email,
+      emailSecondary,
+      emailTertiary,
       phone,
       rut,
       address,
@@ -79,15 +91,41 @@ export function CustomerForm({
             required
           />
         </FormField>
-        <FormField>
-          <FormLabel>Email</FormLabel>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </FormField>
+
+        {/* Emails section - takes full width */}
+        <div className="md:col-span-2 space-y-3">
+          <FormField>
+            <FormLabel>Email Principal</FormLabel>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="Email principal (obligatorio)"
+            />
+          </FormField>
+
+          <FormField>
+            <FormLabel>Email Secundario</FormLabel>
+            <Input
+              type="email"
+              value={emailSecondary}
+              onChange={(e) => setEmailSecondary(e.target.value)}
+              placeholder="Email secundario (opcional)"
+            />
+          </FormField>
+
+          <FormField>
+            <FormLabel>Email Terciario</FormLabel>
+            <Input
+              type="email"
+              value={emailTertiary}
+              onChange={(e) => setEmailTertiary(e.target.value)}
+              placeholder="Email terciario (opcional)"
+            />
+          </FormField>
+        </div>
+
         <FormField>
           <FormLabel>Teléfono</FormLabel>
           <Input

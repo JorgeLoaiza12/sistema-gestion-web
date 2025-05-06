@@ -397,7 +397,7 @@ export default function ProductsPage() {
               <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[300px] overflow-y-auto">
                 {sortOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}

@@ -18,7 +18,7 @@ export interface Task {
   quotationId?: number | null;
   clientId?: number;
   state: string; // Valores: "PENDIENTE", "EN_CURSO", "FINALIZADO"
-  types: string[]; // Ej: ["REVISION", "REPARACION", "MANTENCION"]
+  types: string[]; // Ej: ["REVISION", "REPARACION", "MANTENCION", ...]
   categories: string[]; // Ej: ["CCTV", "Citofonia", "Cerco eléctrico", ...]
   technicalReport?: string;
   observations?: string;
@@ -88,6 +88,23 @@ async function getAuthToken(): Promise<string> {
     mod.getSession()
   );
   return session?.accessToken || "";
+}
+
+/**
+ * Función auxiliar para asegurar que los datos de trabajadores sean siempre un array
+ */
+function ensureWorkersArray(
+  workerIds: number | number[] | undefined
+): number[] {
+  if (!workerIds) {
+    return [];
+  }
+
+  if (Array.isArray(workerIds)) {
+    return workerIds;
+  }
+
+  return [workerIds];
 }
 
 /**
@@ -172,7 +189,8 @@ export async function createTask(taskData: Task): Promise<TaskResponse> {
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
-      assignedWorkerIds: taskData.assignedWorkerIds || [],
+      // Asegurar que assignedWorkerIds sea siempre un array
+      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
 
     return await httpClient<TaskResponse>("/tasks", {
@@ -202,7 +220,8 @@ export async function updateTask(
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
-      assignedWorkerIds: taskData.assignedWorkerIds || [],
+      // Asegurar que assignedWorkerIds sea siempre un array
+      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
 
     // Eliminar propiedades que no deberían enviarse al backend
@@ -356,6 +375,55 @@ export async function downloadTaskReport(taskId: string): Promise<Blob> {
       `Error al descargar informe técnico de tarea ${taskId}:`,
       error
     );
+    throw error;
+  }
+}
+
+/**
+ * Sube una imagen relacionada con una tarea directamente usando FormData
+ * @param file Archivo a subir
+ * @param type Tipo de imagen (work, who-receives, etc.)
+ */
+export async function uploadTaskImageFormData(
+  file: File,
+  type: string = "work"
+): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+    formData.append("type", type);
+
+    // Obtener token para la petición
+    const session = await import("next-auth/react").then((mod) =>
+      mod.getSession()
+    );
+    const accessToken = session?.accessToken;
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`,
+      {
+        method: "POST",
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        message: `Error ${response.status}: ${response.statusText}`,
+      }));
+
+      throw new Error(
+        errorData.message || `Error al subir imagen: ${response.statusText}`
+      );
+    }
+
+    const result = await response.json();
+    return result.imageUrl;
+  } catch (error) {
+    console.error("Error al subir imagen de tarea:", error);
     throw error;
   }
 }

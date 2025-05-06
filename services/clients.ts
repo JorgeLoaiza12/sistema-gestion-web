@@ -1,10 +1,11 @@
-//web\services\clients.ts
 import { httpClient } from "@/lib/httpClient";
 
 export interface Client {
   id?: string;
   name: string;
   email: string;
+  emailSecondary?: string;
+  emailTertiary?: string;
   phone: string;
   rut?: string;
   address?: string;

@@ -14,11 +14,14 @@ import {
   deleteClient,
 } from "@/services/clients";
 import { CustomerForm } from "@/components/clients/CustomerForm";
+import { EmailBadge } from "@/components/clients/EmailBadge";
 
 interface Customer {
   id: string;
   name: string;
   email: string;
+  emailSecondary?: string;
+  emailTertiary?: string;
   phone: string;
   rut?: string;
   address?: string;
@@ -91,6 +94,7 @@ export default function CustomersPage() {
     } finally {
       setIsDeletingCustomer(false);
       setCustomerToDelete(null);
+      setIsDeleteConfirmOpen(false);
     }
   };
 
@@ -118,9 +122,29 @@ export default function CustomersPage() {
     }
   };
 
+  // Componente para mostrar emails con badge
+  const EmailsDisplay = ({ customer }: { customer: Customer }) => {
+    const emails = [
+      customer.email,
+      customer.emailSecondary,
+      customer.emailTertiary
+    ].filter(email => email && email.trim() !== "");
+    
+    return (
+      <div className="flex items-center">
+        <span>{customer.email}</span>
+        <EmailBadge emails={emails} />
+      </div>
+    );
+  };
+
   const columns: ColumnDef<Customer>[] = [
     { accessorKey: "name", header: "Nombre" },
-    { accessorKey: "email", header: "Email" },
+    { 
+      id: "emails",
+      header: "Correos",
+      cell: ({ row }) => <EmailsDisplay customer={row.original} />
+    },
     { accessorKey: "phone", header: "Teléfono" },
     { accessorKey: "address", header: "Dirección" },
     { accessorKey: "commune", header: "Comuna" },
@@ -148,9 +172,12 @@ export default function CustomersPage() {
     },
   ];
 
-  // Filtrar clientes por nombre
+  // Filtrar clientes por nombre o por cualquiera de los tres emails
   const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase())
+    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (customer.emailSecondary && customer.emailSecondary.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (customer.emailTertiary && customer.emailTertiary.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -166,7 +193,7 @@ export default function CustomersPage() {
           <h2 className="text-xl font-semibold">Lista de Clientes</h2>
           <div className="flex items-center gap-4">
             <Input
-              placeholder="Buscar por nombre..."
+              placeholder="Buscar por nombre o email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"

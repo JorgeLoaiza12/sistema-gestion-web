@@ -519,21 +519,35 @@ export default function QuotationForm({
                     <SelectTrigger className="flex-grow">
                       <SelectValue placeholder="Seleccionar cliente" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent
+                      className="max-h-[300px] overflow-y-auto"
+                      style={{ maxHeight: "300px", overflowY: "auto" }}
+                    >
                       <SelectItem value="new">
                         <div className="flex items-center">
                           <Plus className="h-4 w-4 mr-2" />
                           Crear nuevo cliente
                         </div>
                       </SelectItem>
-                      {clients.map((client) => (
-                        <SelectItem
-                          key={client.id}
-                          value={client.id?.toString() || ""}
-                        >
-                          {client.name}
+                      {clients.length > 0 ? (
+                        <>
+                          <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
+                            Clientes ({clients.length})
+                          </div>
+                          {clients.map((client) => (
+                            <SelectItem
+                              key={client.id}
+                              value={client.id?.toString() || ""}
+                            >
+                              {client.name}
+                            </SelectItem>
+                          ))}
+                        </>
+                      ) : (
+                        <SelectItem value="empty" disabled>
+                          No hay clientes disponibles
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 )}
