@@ -28,6 +28,7 @@ import TaskForm from "@/components/tasks/TaskForm";
 import FinalizeTaskForm from "@/components/tasks/FinalizeTaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import { useNotification } from "@/contexts/NotificationContext";
+import { Button } from "@/components/ui/button";
 
 // Interfaces
 interface TasksFilterOptions {
