@@ -4,21 +4,20 @@
  * Calcula la próxima fecha de mantenimiento basada en la fecha actual y la frecuencia
  *
  * @param currentDate - Fecha del último mantenimiento
- * @param frequency - Frecuencia de mantenimiento (MENSUAL, TRIMESTRAL, SEMESTRAL, ANUAL)
+ * @param frequency - Frecuencia de mantenimiento (MENSUAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL)
  * @returns La fecha calculada para el próximo mantenimiento
  */
 export function calculateNextMaintenanceDate(
   currentDate: Date,
-  frequency: "MENSUAL" | "BIMESTRAL"  | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+  frequency: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
 ): Date {
   const nextDate = new Date(currentDate);
-
   switch (frequency) {
     case "MENSUAL":
       nextDate.setMonth(nextDate.getMonth() + 1);
       break;
     case "BIMESTRAL":
-      nextDate.setMonth(nextDate.getMonth() + 3);
+      nextDate.setMonth(nextDate.getMonth() + 2);
       break;
     case "TRIMESTRAL":
       nextDate.setMonth(nextDate.getMonth() + 3);
@@ -93,7 +92,7 @@ export function isMaintenanceUpcoming(
 /**
  * Obtiene descripción legible de la frecuencia de mantenimiento
  *
- * @param frequency - Valor de frecuencia (MENSUAL, TRIMESTRAL, SEMESTRAL, ANUAL)
+ * @param frequency - Valor de frecuencia (MENSUAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL)
  * @returns Descripción en español de la frecuencia
  */
 export function getFrequencyDescription(
@@ -101,12 +100,11 @@ export function getFrequencyDescription(
 ): string {
   const frequencyMap: Record<string, string> = {
     MENSUAL: "Mensual",
-    BIMESTRAL: "Trimestral (cada 2 meses)",
+    BIMESTRAL: "Bimestral (cada 2 meses)", // CORREGIDO: Texto descriptivo
     TRIMESTRAL: "Trimestral (cada 3 meses)",
     SEMESTRAL: "Semestral (cada 6 meses)",
     ANUAL: "Anual",
   };
-
   return frequencyMap[frequency] || frequency;
 }
 
@@ -126,6 +124,5 @@ export function getYearlyMaintenanceCount(
     SEMESTRAL: 2,
     ANUAL: 1,
   };
-
   return countMap[frequency] || 4; // Por defecto 4 (trimestral)
 }
