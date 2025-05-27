@@ -3,6 +3,7 @@
  */
 
 import { signIn } from "next-auth/react";
+import { jwtDecode } from "jwt-decode";
 
 // Tiempo antes de la expiración para intentar renovar el token (5 minutos)
 const REFRESH_TOKEN_THRESHOLD = 5 * 60 * 1000; // 5 minutos en milisegundos
@@ -10,25 +11,23 @@ const REFRESH_TOKEN_THRESHOLD = 5 * 60 * 1000; // 5 minutos en milisegundos
 // Almacenamiento de timers de renovación para evitar duplicados
 let refreshTimers: Record<string, NodeJS.Timeout> = {};
 
+interface DecodedTokenPayload {
+  id: string;
+  email: string;
+  role: string;
+  iat: number;
+  exp: number;
+}
+
 /**
  * Decodifica un token JWT sin necesidad de bibliotecas externas
  * @param token El token JWT a decodificar
  * @returns El payload decodificado o null si el token no es válido
  */
-export function decodeJWT(token: string): any {
+export function decodeJWT(token: string): DecodedTokenPayload | null {
   try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map(function (c) {
-          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
-        })
-        .join("")
-    );
-
-    return JSON.parse(jsonPayload);
+    if (!token) return null;
+    return jwtDecode<DecodedTokenPayload>(token);
   } catch (error) {
     console.error("Error decodificando JWT:", error);
     return null;
