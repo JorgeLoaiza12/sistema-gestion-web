@@ -76,74 +76,56 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       const now = Date.now();
-
+      console.log(
+        `[JWT CALLBACK ENTRY] Trigger: ${trigger}, Now: ${new Date(
+          now
+        ).toISOString()}`
+      );
+      if (token) {
+        console.log(
+          `[JWT CALLBACK ENTRY] Existing token: exp=<span class="math-inline">\{token\.exp ? new Date\(\(token\.exp as number\) \* 1000\)\.toISOString\(\) \: 'N/A'\}, backendExp\=</span>{token.backendTokenExpiresAt ? new Date(token.backendTokenExpiresAt).toISOString() : 'N/A'}, error=${token.error}`
+        );
+      }
       if (user) {
-        // Proceso de inicio de sesión inicial
-        console.log("[JWT Callback] Initial sign-in. User:", user);
-        token.id = user.id as string;
-        token.email = user.email as string;
-        token.name = user.name as string;
-        token.role = (user.role as string) || "WORKER";
-        token.image = user.image || null;
-        token.accessToken = user.token as string; // Token de acceso del backend
-
+        console.log("[JWT CALLBACK] Initial sign-in. User ID:", user.id);
+        // ... (lógica de inicio de sesión) ...
+        token.accessToken = user.token as string;
         const backendTokenPayload = decodeJWT(token.accessToken as string);
         if (backendTokenPayload && backendTokenPayload.exp) {
-          token.backendTokenExpiresAt = backendTokenPayload.exp * 1000; // en milisegundos
+          token.backendTokenExpiresAt = backendTokenPayload.exp * 1000;
           console.log(
-            "[JWT Callback] Backend token expiration set to:",
+            "[JWT CALLBACK] Backend token expiration INITIALIZED to:",
             new Date(token.backendTokenExpiresAt).toISOString()
           );
         } else {
-          // Si no se puede decodificar o no tiene exp, asumir que expira en 1 hora (según tu backend)
-          token.backendTokenExpiresAt = now + 60 * 60 * 1000;
+          token.backendTokenExpiresAt = now + 60 * 60 * 1000; // Asumir 1h
           console.warn(
-            "[JWT Callback] Backend token 'exp' not found, assuming 1 hour expiration:",
+            "[JWT CALLBACK] Backend token 'exp' not found on init, assuming 1 hour:",
             new Date(token.backendTokenExpiresAt).toISOString()
           );
         }
-        // Establecer la expiración del JWT de NextAuth (ej. 24 horas)
-        token.exp = Math.floor(now / 1000) + 24 * 60 * 60;
+        token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // NextAuth token 24h
         console.log(
-          "[JWT Callback] NextAuth token expiration set to:",
+          "[JWT CALLBACK] NextAuth token expiration INITIALIZED to:",
           new Date((token.exp as number) * 1000).toISOString()
         );
-        token.error = undefined;
       }
 
-      if (trigger === "update" && session) {
-        // Si la sesión se actualiza externamente (ej. cambio de nombre)
-        console.log(
-          "[JWT Callback] Session update triggered. New session data:",
-          session
-        );
-        if (session.user?.name) token.name = session.user.name;
-        if (session.user?.image) token.image = session.user.image;
-        if (session.accessToken) {
-          // Si la actualización incluye un nuevo accessToken
-          token.accessToken = session.accessToken;
-          const backendTokenPayload = decodeJWT(token.accessToken as string);
-          if (backendTokenPayload && backendTokenPayload.exp) {
-            token.backendTokenExpiresAt = backendTokenPayload.exp * 1000;
-          }
-        }
-      }
-
-      // Lógica de Refresco del Token del Backend
-      // Refrescar si el token del backend está a punto de expirar (ej. < 5 minutos) o ya expiró
       const fiveMinutesInMs = 5 * 60 * 1000;
-      if (
+      const shouldAttemptRefresh =
         token.accessToken &&
         token.backendTokenExpiresAt &&
-        token.backendTokenExpiresAt - now < fiveMinutesInMs
-      ) {
+        token.backendTokenExpiresAt - now < fiveMinutesInMs;
+
+      if (shouldAttemptRefresh) {
         console.log(
-          `[JWT Callback] Backend access token expiring soon (expires at ${new Date(
-            token.backendTokenExpiresAt
-          ).toISOString()}) or expired. Attempting refresh.`
+          `[JWT CALLBACK] Backend token needs refresh. BackendExp: ${new Date(
+            token.backendTokenExpiresAt!
+          ).toISOString()}, Now: ${new Date(
+            now
+          ).toISOString()}. Attempting refresh.`
         );
         try {
-          // NEXTAUTH_URL es crucial para llamadas fetch internas en el mismo origen en Vercel/entornos serverless
           const nextAuthUrl =
             process.env.NEXTAUTH_URL ||
             process.env.VERCEL_URL ||
@@ -154,13 +136,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               ? nextAuthUrl
               : `http://${nextAuthUrl}`
           ).toString();
+          console.log(
+            `[JWT CALLBACK] Calling internal refresh API: ${refreshApiUrl}`
+          );
 
-          console.log(`[JWT Callback] Calling refresh API: ${refreshApiUrl}`);
           const refreshResponse = await fetch(refreshApiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            // El token actual de NextAuth (que contiene el accessToken del backend) se envía implícitamente
-            // a través de las cookies, ya que /api/auth/refresh usa getToken().
           });
 
           if (refreshResponse.ok) {
@@ -172,96 +154,79 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               );
               if (newBackendTokenPayload && newBackendTokenPayload.exp) {
                 token.backendTokenExpiresAt = newBackendTokenPayload.exp * 1000;
-                console.log(
-                  "[JWT Callback] Backend token refreshed. New backend expiration:",
-                  new Date(token.backendTokenExpiresAt).toISOString()
-                );
               } else {
                 token.backendTokenExpiresAt = now + 60 * 60 * 1000; // Asumir 1h
-                console.warn(
-                  "[JWT Callback] Refreshed backend token 'exp' not found, assuming 1 hour expiration:",
-                  new Date(token.backendTokenExpiresAt).toISOString()
-                );
               }
-              // Actualizar la expiración del token de NextAuth con lo que devuelve /api/auth/refresh
               token.exp =
                 refreshedData.exp || Math.floor(now / 1000) + 24 * 60 * 60;
               token.error = undefined;
               console.log(
-                "[JWT Callback] NextAuth token expiration updated after refresh:",
-                new Date((token.exp as number) * 1000).toISOString()
+                `[JWT CALLBACK] SUCCESSFUL REFRESH. New BackendExp: ${new Date(
+                  token.backendTokenExpiresAt
+                ).toISOString()}, New NextAuthExp: ${new Date(
+                  (token.exp as number) * 1000
+                ).toISOString()}`
               );
             } else {
               console.warn(
-                "[JWT Callback] Token refresh API call was ok but did not return new accessToken."
+                "[JWT CALLBACK] Refresh API OK, but no new accessToken returned."
               );
               token.error = "RefreshFailed";
-              // Si el refresco falla y el token del backend ya expiró, expirar la sesión de NextAuth.
-              if (
-                token.backendTokenExpiresAt &&
-                now >= token.backendTokenExpiresAt
-              ) {
-                console.log(
-                  "[JWT Callback] Backend token expired after failed refresh (no new token). Expiring NextAuth session."
-                );
-                token.exp = 0; // Expirar inmediatamente
-              }
+              console.log(
+                "[JWT CALLBACK] Setting NextAuth token exp to 0 due to missing new accessToken."
+              );
+              token.exp = 0; // Forzar expiración de NextAuth
+              delete token.accessToken;
+              delete token.backendTokenExpiresAt;
             }
           } else {
+            // refreshResponse NOT OK
             const errorData = await refreshResponse
               .json()
               .catch(() => ({
-                message: "Error al decodificar respuesta de error de refresco",
+                message: "Error decodificando respuesta de error de refresco",
               }));
             console.error(
-              `[JWT Callback] Token refresh API call failed. Status: ${refreshResponse.status}`,
+              `[JWT CALLBACK] Refresh API call FAILED. Status: ${refreshResponse.status}`,
               errorData
             );
             token.error = "RefreshFailed";
-            if (
-              token.backendTokenExpiresAt &&
-              now >= token.backendTokenExpiresAt
-            ) {
-              console.log(
-                "[JWT Callback] Backend token expired after failed refresh (API error). Expiring NextAuth session."
-              );
-              token.exp = 0; // Expirar inmediatamente
-            }
+            console.log(
+              "[JWT CALLBACK] Setting NextAuth token exp to 0 due to API refresh failure."
+            );
+            token.exp = 0; // Forzar expiración de NextAuth
+            delete token.accessToken;
+            delete token.backendTokenExpiresAt;
           }
         } catch (error) {
           console.error(
-            "[JWT Callback] Exception during token refresh request:",
+            "[JWT CALLBACK] EXCEPTION during token refresh request:",
             error
           );
           token.error = "RefreshFailed";
-          if (
-            token.backendTokenExpiresAt &&
-            now >= token.backendTokenExpiresAt
-          ) {
-            console.log(
-              "[JWT Callback] Backend token expired after refresh exception. Expiring NextAuth session."
-            );
-            token.exp = 0; // Expirar inmediatamente
-          }
+          console.log(
+            "[JWT CALLBACK] Setting NextAuth token exp to 0 due to refresh exception."
+          );
+          token.exp = 0; // Forzar expiración de NextAuth
+          delete token.accessToken;
+          delete token.backendTokenExpiresAt;
         }
       }
 
-      // Verificar si el token de NextAuth (sesión principal) ha expirado
-      // Esto es un último recurso si el refresco del token del backend falla y la sesión de NextAuth también caduca.
+      // Final check for NextAuth token expiration
       if (token.exp && now >= (token.exp as number) * 1000) {
         console.log(
-          `[JWT Callback] NextAuth JWT has expired (exp: ${new Date(
+          `[JWT CALLBACK] NextAuth JWT is EXPIRED (exp: ${new Date(
             (token.exp as number) * 1000
-          ).toISOString()}, now: ${new Date(
-            now
-          ).toISOString()}). Forcing logout.`
+          ).toISOString()}). Invalidating.`
         );
-        delete token.accessToken;
+        delete token.accessToken; // Asegurarse de limpiar tokens
         delete token.backendTokenExpiresAt;
-        token.error = "TokenExpired"; // Error estándar de NextAuth para sesión expirada
-        return { ...token, exp: 0 }; // Indicar a NextAuth que la sesión ha terminado
+        return { ...token, exp: 0 }; // Devolver token expirado para NextAuth
       }
-
+      console.log(
+        `[JWT CALLBACK EXIT] Returning token: exp=<span class="math-inline">\{token\.exp ? new Date\(\(token\.exp as number\) \* 1000\)\.toISOString\(\) \: 'N/A'\}, backendExp\=</span>{token.backendTokenExpiresAt ? new Date(token.backendTokenExpiresAt).toISOString() : 'N/A'}, error=${token.error}`
+      );
       return token;
     },
     async session({ session, token }) {
