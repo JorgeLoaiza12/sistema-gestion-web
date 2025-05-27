@@ -1,38 +1,54 @@
-// auth.ts
+// web/auth.ts
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { decodeJWT } from "@/lib/tokenService"; // Asegúrate que esta función exista y funcione correctamente
+import { decodeJWT } from "@/lib/tokenService"; // Aunque no lo usemos en el JWT simplificado, lo mantenemos por si se usa en otra parte o para el futuro.
+
+// Asegúrate de que tus variables de entorno estén definidas
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET as string;
+const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL as string;
+
+if (!NEXTAUTH_SECRET) {
+  throw new Error("Missing NEXTAUTH_SECRET environment variable");
+}
+if (!NEXT_PUBLIC_API_URL && process.env.NODE_ENV !== "test") {
+  // No fallar en tests si no se necesita API
+  // En un entorno real, esto debería ser un error si no es para testing
+  console.warn(
+    "Missing NEXT_PUBLIC_API_URL environment variable. API calls might fail."
+  );
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  secret: process.env.NEXTAUTH_SECRET as string,
+  secret: NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    // maxAge: 24 * 60 * 60, // 24 horas para la sesión de NextAuth
+    maxAge: 24 * 60 * 60, // 24 horas para la sesión de NextAuth (el JWT de NextAuth)
   },
   providers: [
     Credentials({
-      id: "credentials",
+      id: "credentials", // Identificador del proveedor
+      name: "Credentials", // Nombre que se muestra en la página de inicio de sesión (opcional)
       credentials: {
-        email: {},
-        password: {},
+        email: { label: "Email", type: "email", placeholder: "tu@email.com" },
+        password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials, req) {
-        try {
-          if (!credentials?.email || !credentials?.password) {
-            console.log("[Authorize] Email o contraseña faltantes.");
-            return null;
-          }
-
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL as string;
-          if (!apiUrl) {
-            console.error("[Authorize] NEXT_PUBLIC_API_URL no está definida.");
-            return null;
-          }
-
-          console.log(
-            `[Authorize] Attempting login for ${credentials.email} at ${apiUrl}/auth/login`
+        console.log("[Authorize Callback] Attempting authorization...");
+        if (!NEXT_PUBLIC_API_URL) {
+          console.error(
+            "[Authorize Callback] NEXT_PUBLIC_API_URL is not defined. Cannot authorize."
           );
-          const response = await fetch(`${apiUrl}/auth/login`, {
+          return null;
+        }
+        if (!credentials?.email || !credentials?.password) {
+          console.warn(
+            "[Authorize Callback] Email o contraseña faltantes en las credenciales."
+          );
+          return null; // O lanzar un error específico que se mapee en la página de login
+        }
+
+        try {
+          const response = await fetch(`${NEXT_PUBLIC_API_URL}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -42,221 +58,192 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
 
           if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            console.log(
-              `[Authorize] Login failed. Status: ${response.status}`,
-              errorData
+            const errorData = await response
+              .json()
+              .catch(() => ({ message: "Error desconocido del backend" }));
+            console.warn(
+              `[Authorize Callback] Login failed with status ${response.status}. Error:`,
+              errorData.message || response.statusText
             );
-            return null;
+            // Puedes lanzar un error aquí para pasarlo a la página de login
+            // throw new Error(errorData.message || `Error ${response.status}`);
+            return null; // O devolver null para un error genérico
           }
 
           const data = await response.json();
-          console.log("[Authorize] Login successful. Data received:", data);
+          console.log(
+            "[Authorize Callback] Login successful. Data received from backend."
+          );
 
-          if (data.token && data.user) {
+          // Asegurarse de que el backend devuelve 'token' y 'user' con 'id'
+          if (data.token && data.user && data.user.id) {
             return {
-              id: data.user.id.toString(),
-              email: credentials.email as string,
-              name: data.user.name || "Usuario",
-              role: data.user.role || "WORKER",
+              id: data.user.id.toString(), // NextAuth espera 'id' como string
+              email: data.user.email as string, // Asegurar que el email viene
+              name: data.user.name as string, // Asegurar que el name viene
+              role: data.user.role as string, // Asegurar que el role viene
               token: data.token, // Este es el accessToken del backend
+              // Añadir cualquier otro campo del usuario que quieras propagar al token de NextAuth
             };
           }
-          console.log(
-            "[Authorize] Token o usuario faltante en la respuesta del backend."
+          console.warn(
+            "[Authorize Callback] Token o datos de usuario faltantes en la respuesta del backend."
           );
           return null;
         } catch (error) {
-          console.error("[Authorize] Exception during authorization:", error);
+          console.error(
+            "[Authorize Callback] Exception during authorization request:",
+            error
+          );
+          // throw new Error("No se pudo conectar con el servicio de autenticación."); // Error más genérico para el usuario
           return null;
         }
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger, session, account }) {
       const now = Date.now();
+      // El console.log original tenía un problema de formato con las fechas en el string template.
+      // Vamos a loguear los valores directamente o pre-formatearlos.
+      const tokenExpLog = token.exp
+        ? new Date((token.exp as number) * 1000).toISOString()
+        : "N/A";
+      const backendTokenExpLog = (token as any).backendTokenExpiresAt
+        ? new Date((token as any).backendTokenExpiresAt).toISOString()
+        : "N/A";
       console.log(
-        `[JWT CALLBACK ENTRY] Trigger: ${trigger}, Now: ${new Date(
+        `[JWT CALLBACK DEBUG ENTRY] Trigger: ${trigger}, Now: ${new Date(
           now
-        ).toISOString()}`
+        ).toISOString()}, Current Token Exp: ${tokenExpLog}, Backend Exp: ${backendTokenExpLog}, Error: ${
+          (token as any).error
+        }`
       );
-      if (token) {
+
+      if (user && trigger === "signIn" && account?.provider === "credentials") {
+        // Proceso de inicio de sesión inicial o refresco manual
         console.log(
-          `[JWT CALLBACK ENTRY] Existing token: exp=<span class="math-inline">\{token\.exp ? new Date\(\(token\.exp as number\) \* 1000\)\.toISOString\(\) \: 'N/A'\}, backendExp\=</span>{token.backendTokenExpiresAt ? new Date(token.backendTokenExpiresAt).toISOString() : 'N/A'}, error=${token.error}`
+          "[JWT CALLBACK DEBUG] Initial sign-in via credentials. User ID:",
+          user.id
+        );
+        token.id = user.id as string;
+        token.email = user.email as string;
+        token.name = user.name as string;
+        token.role = (user as any).role as string; // Asegúrate que 'role' venga en el objeto 'user' de authorize
+        token.accessToken = (user as any).token as string; // Token de acceso del backend
+
+        // ----- INICIO DE SECCIÓN SIMPLIFICADA PARA DEBUG -----
+        // NO INTENTAR DECODIFICAR accessToken DEL BACKEND NI ESTABLECER backendTokenExpiresAt POR AHORA
+        // NO INTENTAR REFRESCAR EL TOKEN DEL BACKEND DESDE AQUÍ
+        console.log(
+          "[JWT CALLBACK DEBUG] Simplified logic active: Skipping backend token decode and all refresh logic to diagnose lambda timeouts."
+        );
+        delete (token as any).backendTokenExpiresAt; // Limpiar por si existía de una sesión anterior
+        // ----- FIN DE SECCIÓN SIMPLIFICADA PARA DEBUG -----
+
+        // El token de NextAuth (este 'token' JWT) durará 24 horas por defecto (configurado en session.maxAge)
+        // Sobrescribimos 'exp' solo si es necesario o para ser explícitos.
+        token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // 24 horas desde ahora
+        token.error = undefined; // Limpiar cualquier error previo
+        const newTokenExpLog = token.exp
+          ? new Date((token.exp as number) * 1000).toISOString()
+          : "N/A";
+        console.log(
+          `[JWT CALLBACK DEBUG] NextAuth token 'exp' explicitly set to: ${newTokenExpLog} for user ${user.id}`
         );
       }
-      if (user) {
-        console.log("[JWT CALLBACK] Initial sign-in. User ID:", user.id);
-        // ... (lógica de inicio de sesión) ...
-        token.accessToken = user.token as string;
-        const backendTokenPayload = decodeJWT(token.accessToken as string);
-        if (backendTokenPayload && backendTokenPayload.exp) {
-          token.backendTokenExpiresAt = backendTokenPayload.exp * 1000;
-          console.log(
-            "[JWT CALLBACK] Backend token expiration INITIALIZED to:",
-            new Date(token.backendTokenExpiresAt).toISOString()
-          );
-        } else {
-          token.backendTokenExpiresAt = now + 60 * 60 * 1000; // Asumir 1h
-          console.warn(
-            "[JWT CALLBACK] Backend token 'exp' not found on init, assuming 1 hour:",
-            new Date(token.backendTokenExpiresAt).toISOString()
-          );
-        }
-        token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // NextAuth token 24h
+
+      // Si hay un trigger de "update" (ej. update({ name: "New Name" }) desde el cliente)
+      if (trigger === "update" && session) {
         console.log(
-          "[JWT CALLBACK] NextAuth token expiration INITIALIZED to:",
-          new Date((token.exp as number) * 1000).toISOString()
+          "[JWT CALLBACK DEBUG] Update trigger. Updating token with session data:",
+          session
         );
+        if (session.name) token.name = session.name;
+        if (session.email) token.email = session.email; // Si permites actualizar email
+        if (session.role) token.role = session.role; // Si permites actualizar rol
+        // No tocar accessToken o exp aquí a menos que la actualización específicamente lo provea
       }
 
-      const fiveMinutesInMs = 5 * 60 * 1000;
-      const shouldAttemptRefresh =
-        token.accessToken &&
-        token.backendTokenExpiresAt &&
-        token.backendTokenExpiresAt - now < fiveMinutesInMs;
+      // ----- INICIO DE LÓGICA DE REFRESH COMENTADA -----
+      // Toda la lógica que teníamos para:
+      // 1. Decodificar token.accessToken
+      // 2. Calcular token.backendTokenExpiresAt
+      // 3. Verificar si token.backendTokenExpiresAt - now < UMBRAL_REFRESCO
+      // 4. Si es así, `await fetch('/api/auth/refresh', ...)`
+      // 5. Manejar la respuesta: actualizar token.accessToken, token.backendTokenExpiresAt, y
+      //    si falla el refresco, poner token.exp = 0
+      // ESTÁ TEMPORALMENTE DESACTIVADA PARA ESTE DIAGNÓSTICO.
+      // console.log("[JWT CALLBACK DEBUG] All backend token refresh logic is currently COMMENTED OUT.");
+      // ----- FIN DE LÓGICA DE REFRESH COMENTADA -----
 
-      if (shouldAttemptRefresh) {
-        console.log(
-          `[JWT CALLBACK] Backend token needs refresh. BackendExp: ${new Date(
-            token.backendTokenExpiresAt!
-          ).toISOString()}, Now: ${new Date(
-            now
-          ).toISOString()}. Attempting refresh.`
-        );
-        try {
-          const nextAuthUrl =
-            process.env.NEXTAUTH_URL ||
-            process.env.VERCEL_URL ||
-            "http://localhost:3001";
-          const refreshApiUrl = new URL(
-            "/api/auth/refresh",
-            nextAuthUrl.startsWith("http")
-              ? nextAuthUrl
-              : `http://${nextAuthUrl}`
-          ).toString();
-          console.log(
-            `[JWT CALLBACK] Calling internal refresh API: ${refreshApiUrl}`
-          );
-
-          const refreshResponse = await fetch(refreshApiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-
-          if (refreshResponse.ok) {
-            const refreshedData = await refreshResponse.json();
-            if (refreshedData.accessToken) {
-              token.accessToken = refreshedData.accessToken;
-              const newBackendTokenPayload = decodeJWT(
-                token.accessToken as string
-              );
-              if (newBackendTokenPayload && newBackendTokenPayload.exp) {
-                token.backendTokenExpiresAt = newBackendTokenPayload.exp * 1000;
-              } else {
-                token.backendTokenExpiresAt = now + 60 * 60 * 1000; // Asumir 1h
-              }
-              token.exp =
-                refreshedData.exp || Math.floor(now / 1000) + 24 * 60 * 60;
-              token.error = undefined;
-              console.log(
-                `[JWT CALLBACK] SUCCESSFUL REFRESH. New BackendExp: ${new Date(
-                  token.backendTokenExpiresAt
-                ).toISOString()}, New NextAuthExp: ${new Date(
-                  (token.exp as number) * 1000
-                ).toISOString()}`
-              );
-            } else {
-              console.warn(
-                "[JWT CALLBACK] Refresh API OK, but no new accessToken returned."
-              );
-              token.error = "RefreshFailed";
-              console.log(
-                "[JWT CALLBACK] Setting NextAuth token exp to 0 due to missing new accessToken."
-              );
-              token.exp = 0; // Forzar expiración de NextAuth
-              delete token.accessToken;
-              delete token.backendTokenExpiresAt;
-            }
-          } else {
-            // refreshResponse NOT OK
-            const errorData = await refreshResponse
-              .json()
-              .catch(() => ({
-                message: "Error decodificando respuesta de error de refresco",
-              }));
-            console.error(
-              `[JWT CALLBACK] Refresh API call FAILED. Status: ${refreshResponse.status}`,
-              errorData
-            );
-            token.error = "RefreshFailed";
-            console.log(
-              "[JWT CALLBACK] Setting NextAuth token exp to 0 due to API refresh failure."
-            );
-            token.exp = 0; // Forzar expiración de NextAuth
-            delete token.accessToken;
-            delete token.backendTokenExpiresAt;
-          }
-        } catch (error) {
-          console.error(
-            "[JWT CALLBACK] EXCEPTION during token refresh request:",
-            error
-          );
-          token.error = "RefreshFailed";
-          console.log(
-            "[JWT CALLBACK] Setting NextAuth token exp to 0 due to refresh exception."
-          );
-          token.exp = 0; // Forzar expiración de NextAuth
-          delete token.accessToken;
-          delete token.backendTokenExpiresAt;
-        }
-      }
-
-      // Final check for NextAuth token expiration
+      // Verificar la expiración del token de NextAuth (el JWT que dura 24h)
+      // Esta es la expiración propia del token de sesión de NextAuth, no del token del backend.
       if (token.exp && now >= (token.exp as number) * 1000) {
-        console.log(
-          `[JWT CALLBACK] NextAuth JWT is EXPIRED (exp: ${new Date(
-            (token.exp as number) * 1000
-          ).toISOString()}). Invalidating.`
-        );
-        delete token.accessToken; // Asegurarse de limpiar tokens
-        delete token.backendTokenExpiresAt;
-        return { ...token, exp: 0 }; // Devolver token expirado para NextAuth
+        const expiredMsg = `[JWT CALLBACK DEBUG] NextAuth session JWT has EXPIRED. Original exp: ${new Date(
+          (token.exp as number) * 1000
+        ).toISOString()}, Now: ${new Date(
+          now
+        ).toISOString()}. Invalidating token by setting exp to 0.`;
+        console.warn(expiredMsg);
+        delete token.accessToken; // Quitar el token del backend ya que la sesión de NextAuth terminó
+        delete (token as any).backendTokenExpiresAt; // Limpiar esto también
+        delete (token as any).error; // Limpiar errores
+        return { ...token, exp: 0 }; // Indicar a NextAuth que la sesión ha terminado efectivamente
       }
+
+      const finalTokenExpLog = token.exp
+        ? new Date((token.exp as number) * 1000).toISOString()
+        : "N/A";
+      const finalBackendTokenExpLog = (token as any).backendTokenExpiresAt
+        ? new Date((token as any).backendTokenExpiresAt).toISOString()
+        : "N/A"; // Será N/A en este modo debug
       console.log(
-        `[JWT CALLBACK EXIT] Returning token: exp=<span class="math-inline">\{token\.exp ? new Date\(\(token\.exp as number\) \* 1000\)\.toISOString\(\) \: 'N/A'\}, backendExp\=</span>{token.backendTokenExpiresAt ? new Date(token.backendTokenExpiresAt).toISOString() : 'N/A'}, error=${token.error}`
+        `[JWT CALLBACK DEBUG EXIT] Returning token. NextAuth Exp: ${finalTokenExpLog}, Backend Exp: ${finalBackendTokenExpLog}, Error: ${
+          (token as any).error
+        }`
       );
       return token;
     },
     async session({ session, token }) {
-      // Pasar datos del token a la sesión del cliente
+      // La sesión del cliente obtiene la información del token JWT de NextAuth
+      console.log(
+        `[Session Callback] Populating session from token for user ID: ${token.id}`
+      );
       session.user.id = token.id as string;
-      session.user.email = token.email as string;
       session.user.name = token.name as string;
-      session.user.role = token.role as string;
-      session.user.image = (token.image as string) || null;
-      session.accessToken = token.accessToken as string; // Este es el token del backend
+      session.user.email = token.email as string;
+      session.user.role = token.role as string; // Asegúrate que 'role' está en el token
+      // session.user.image = token.picture as string; // Si tuvieras imagen
 
-      if (token.error) {
-        // @ts-ignore
-        session.error = token.error;
-        console.log(
-          "[Session Callback] Session error propagated:",
-          token.error
+      session.accessToken = token.accessToken as string; // Este es el token de acceso del backend
+
+      // Si el token JWT de NextAuth fue marcado como expirado (exp=0)
+      if (token.exp === 0) {
+        (session as any).error = "SessionExpired"; // Señalar error de sesión expirada
+        console.warn(
+          "[Session Callback] Session is marked as expired based on token.exp === 0."
+        );
+      } else if ((token as any).error) {
+        (session as any).error = (token as any).error; // Propagar otros errores (ej. "RefreshFailed")
+        console.warn(
+          `[Session Callback] Propagating error to session: ${
+            (token as any).error
+          }`
         );
       }
 
-      // Si token.exp es 0, NextAuth tratará la sesión como expirada.
-      // session.expires se establece automáticamente por NextAuth basado en token.exp.
-      // console.log("[Session Callback] Final session object:", session);
+      // NextAuth maneja session.expires basado en token.exp
+      // console.log("[Session Callback] Session object being returned:", session);
       return session;
     },
   },
   pages: {
-    signIn: "/login",
-    error: "/login", // Errores de autenticación redirigen a login
-    signOut: "/login",
+    signIn: "/login", // Página de inicio de sesión personalizada
+    error: "/login", // Página para mostrar errores de autenticación (ej. credenciales incorrectas)
+    // signOut: '/login', // Página a la que redirigir después de cerrar sesión (opcional)
+    // verifyRequest: '/auth/verify-request', // Para magic links (email provider)
+    // newUser: '/auth/new-user' // Nueva página de usuario (si se usa email provider para primer login)
   },
-  debug: process.env.NODE_ENV === "development",
+  debug: process.env.NODE_ENV === "development", // Activar logs de debug de NextAuth en desarrollo
 });
