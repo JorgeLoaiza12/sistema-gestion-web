@@ -77,7 +77,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         ? new Date((token.exp as number) * 1000).toISOString()
         : "N/A";
       console.log(
-        `[JWT Callback] Trigger: ${trigger}, User ID: ${user?.id}, Input token ID: ${token?.id}, Input token exp: ${logTokenExp}`
+        `[JWT MINIMAL+] Trigger: ${trigger}, User ID from arg: ${user?.id}, Input token ID: ${token?.id}, Input token exp: ${logTokenExp}`
       );
 
       if (
@@ -86,75 +86,83 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         account?.provider === "credentials"
       ) {
         console.log(
-          `[JWT Callback] Sign-in for user ID: ${user.id}. Populating token.`
+          `[JWT MINIMAL+] Sign-in for user ID: ${user.id}. Populating token.`
         );
         token.id = user.id as string;
-        token.email = user.email as string;
-        token.name = user.name as string;
-        token.role = (user as any).role as string;
-        token.accessToken = (user as any).token as string; // Token del backend
-        // Establecer la expiración del token de NextAuth. No más lógica de refresco aquí por ahora.
+        token.email = user.email as string; // Necesario para session callback
+        token.name = user.name as string; // Necesario para session callback
+        token.role = (user as any).role as string; // Necesario para session callback
+        token.accessToken = (user as any).token as string; // Guardar el accessToken del backend
+
+        // Establecer la expiración del token de NextAuth (el que gestiona la sesión del navegador)
         token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // 24 horas
-        token.error = undefined; // Limpiar errores
+        token.error = undefined;
+        console.log(
+          `[JWT MINIMAL+] Token populated. NextAuth exp: ${new Date(
+            (token.exp as number) * 1000
+          ).toISOString()}`
+        );
       }
 
-      // VERIFICACIÓN CRÍTICA: Si en cualquier punto (que no sea el signIn inicial donde user existe)
-      // el token NO tiene un 'id', consideramos la sesión inválida.
-      // Esto podría pasar si la cookie de sesión se corrompe o si una lambda fallida devuelve un token parcial.
+      // Si no es signIn inicial, y el token que viene de la cookie no tiene un 'id', es inválido.
+      // Esto es crucial si una ejecución anterior del jwt callback hizo timeout y no guardó bien.
       if (!user && !token.id) {
         console.warn(
-          "[JWT Callback] Token is missing 'id' and no 'user' object present (not initial signIn). Invalidating session."
+          "[JWT MINIMAL+] Token is missing 'id' (not initial signIn). Invalidating session."
         );
-        return { ...token, exp: 0, error: "InvalidSessionState" }; // Forzar expiración y marcar error
+        return { exp: 0, error: "CorruptedSessionToken" }; // Devolver un token mínimo y expirado
       }
 
-      // Verificar expiración del token de NextAuth (el JWT de 24h)
+      // Verificar expiración del token de NextAuth
       if (token.exp && now >= (token.exp as number) * 1000) {
         console.warn(
-          `[JWT Callback] NextAuth session JWT has EXPIRED. Original exp: ${new Date(
+          `[JWT MINIMAL+] NextAuth JWT has EXPIRED. Original exp: ${new Date(
             (token.exp as number) * 1000
-          ).toISOString()}. Invalidating.`
+          ).toISOString()}.`
         );
-        delete token.accessToken;
-        return { ...token, exp: 0, error: "SessionExpired" };
+        delete token.accessToken; // Limpiar accessToken del backend
+        return { ...token, exp: 0, error: "NextAuthSessionExpired" };
       }
 
-      const finalTokenExpLog = token.exp
-        ? new Date((token.exp as number) * 1000).toISOString()
-        : "N/A";
       console.log(
-        `[JWT Callback] EXIT. Returning token ID: ${token?.id}, NextAuth Exp: ${finalTokenExpLog}, Error: ${token.error}`
+        `[JWT MINIMAL+] EXIT. Returning token ID: ${token?.id}, NextAuth Exp: ${
+          token.exp
+            ? new Date((token.exp as number) * 1000).toISOString()
+            : "N/A"
+        }`
       );
       return token;
     },
     async session({ session, token }) {
       console.log(
-        `[Session Callback] Populating session from token ID: ${token.id}. Token error: ${token.error}`
+        `[Session MINIMAL+] Populating session from token ID: ${token.id}. Token error: ${token.error}`
       );
       if (token.id) {
+        // Solo popular si el token tiene ID
         session.user.id = token.id as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
         session.user.role = token.role as string;
         session.accessToken = token.accessToken as string;
       } else {
-        // Si el token no tiene id, la sesión es inválida.
-        // Esto es una capa extra de seguridad. El middleware o httpClient deberían actuar antes.
         console.warn(
-          "[Session Callback] Token provided to session callback is missing 'id'. Session will be incomplete."
+          "[Session MINIMAL+] Token missing 'id', session.user will be incomplete."
         );
+        // No poner datos de usuario si el token es inválido
       }
 
       if (token.error) {
         (session as any).error = token.error;
-        console.warn(
-          `[Session Callback] Propagating error to session object: ${token.error}`
-        );
       }
+      // Si el token fue explícitamente expirado (exp=0) y no tiene error, añadir uno.
       if (token.exp === 0 && !(session as any).error) {
-        // Si exp es 0 pero no hay error explícito, marcarla como expirada
-        (session as any).error = "SessionForceExpired";
+        (session as any).error = "SessionForceInvalidated";
       }
+      console.log(
+        `[Session MINIMAL+] EXIT. Session user ID: ${
+          session.user?.id
+        }, Session error: ${(session as any).error}`
+      );
       return session;
     },
   },
