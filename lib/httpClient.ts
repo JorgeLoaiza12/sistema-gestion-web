@@ -1,60 +1,34 @@
-// web\lib\httpClient.ts
+// web/lib/httpClient.ts
 /**
  * Cliente HTTP mejorado con manejo de errores, renovación de tokens y compatible con CORS
  */
 
 import { createAppError, ErrorType, logError } from "@/lib/errorHandler";
-import { isTokenExpiringSoon } from "@/lib/tokenService";
+import { isTokenExpiringSoon, decodeJWT } from "@/lib/tokenService"; // Asumiendo que decodeJWT existe
 import { getSession, signIn, signOut } from "next-auth/react";
 import { Session } from "next-auth";
 
-// Tiempo de espera para solicitudes (30 segundos)
 const REQUEST_TIMEOUT = 30000;
-
-// URL base de la API
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-// Definir tipo para la caché de sesión
 interface SessionCache {
   session: Session | null;
   timestamp: number;
   promise?: Promise<Session | null>;
 }
 
-// Cache para sesión y token
 let sessionCache: SessionCache | null = null;
+const CACHE_EXPIRY = 1 * 60 * 1000; // Reducir caché de sesión a 1 minuto para forzar re-fetch más seguido si es necesario
 
-// Tiempo de caducidad de la caché (5 minutos)
-const CACHE_EXPIRY = 5 * 60 * 1000;
-
-/**
- * Obtiene un token CSRF para incluir en solicitudes que modifican datos
- */
 function getCsrfToken(): string {
   if (typeof window !== "undefined") {
-    // Intentar obtener el token CSRF de las cookies
-    const csrfCookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("csrf="))
-      ?.split("=")[1];
-
-    if (csrfCookie) {
-      return csrfCookie;
-    }
-
-    // Si no hay cookie, ver si hay un token en sessionStorage como fallback
     return sessionStorage.getItem("csrfToken") || "";
   }
   return "";
 }
 
-/**
- * Función para obtener la sesión con caché para evitar llamadas repetidas
- */
 async function getCachedSession(): Promise<Session | null> {
   const now = Date.now();
-
-  // Si existe caché válida, retornarla. Si además hay una promesa en curso, la retornamos.
   if (sessionCache && now - sessionCache.timestamp < CACHE_EXPIRY) {
     if (sessionCache.promise) {
       return sessionCache.promise;
@@ -62,163 +36,229 @@ async function getCachedSession(): Promise<Session | null> {
     return sessionCache.session;
   }
 
-  // Si no hay caché o ha expirado, creamos una nueva promesa para obtener la sesión
-  const sessionPromise = getSession().then((session) => {
-    // Actualizamos la caché sin la promesa (ya que se resolvió)
-    sessionCache = { session, timestamp: now };
-    return session;
-  });
+  const sessionPromise = getSession()
+    .then((session) => {
+      sessionCache = { session, timestamp: Date.now(), promise: undefined };
+      console.log(
+        "[getCachedSession] Fetched new session:",
+        session
+          ? {
+              user: session.user,
+              expires: session.expires,
+              error: (session as any).error,
+            }
+          : null
+      );
+      return session;
+    })
+    .catch((err) => {
+      console.error("[getCachedSession] Error fetching session:", err);
+      sessionCache = {
+        session: null,
+        timestamp: Date.now(),
+        promise: undefined,
+      }; // Limpiar en caso de error
+      return null;
+    });
 
-  // Almacenamos la promesa en la caché para que las llamadas concurrentes la usen
   sessionCache = { session: null, timestamp: now, promise: sessionPromise };
-
   return sessionPromise;
 }
 
-/**
- * Función para invalidar la caché de sesión
- */
 function invalidateSessionCache(): void {
+  console.log("[invalidateSessionCache] Invalidating session cache.");
   sessionCache = null;
 }
 
-/**
- * Verifica y renueva el token si está por expirar
- */
-async function checkAndRefreshToken(accessToken: string): Promise<string> {
-  // Si el token está por expirar, intentar renovarlo
-  if (isTokenExpiringSoon(accessToken)) {
-    try {
-      console.log("Token por expirar, intentando renovación silenciosa");
+function clearAuthCookies() {
+  if (typeof document === "undefined") return;
 
-      // Intentar renovar el token silenciosamente
-      const result = await signIn("refresh", { redirect: false });
+  console.log(
+    "[clearAuthCookies] Attempting to clear NextAuth cookies from client-side."
+  );
+  const cookieNames = [
+    "next-auth.session-token",
+    "next-auth.callback-url",
+    "next-auth.csrf-token",
+    "__Secure-next-auth.session-token",
+    "__Secure-next-auth.callback-url",
+    "__Secure-next-auth.csrf-token",
+    "__Host-next-auth.session-token",
+  ];
+
+  // Para localhost y dominios sin subdominios específicos
+  const domainParts = window.location.hostname.split(".");
+  const domains = [
+    window.location.hostname, // Dominio actual
+    `.${window.location.hostname}`, // Con punto al inicio
+  ];
+  // Añadir dominio base si es diferente (ej. app.example.com -> .example.com)
+  if (domainParts.length > 2) {
+    domains.push(`.${domainParts.slice(-2).join(".")}`);
+  }
+  const uniqueDomains = [...new Set(domains)];
+
+  cookieNames.forEach((name) => {
+    uniqueDomains.forEach((d) => {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=${d}; path=/; SameSite=Lax`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=${d}; path=/; SameSite=None; Secure`; // Para HTTPS
+    });
+    // Intento adicional sin especificar dominio (útil para localhost)
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=None; Secure`;
+  });
+  console.log(
+    "[clearAuthCookies] Standard NextAuth cookies cleared (attempted)."
+  );
+  sessionStorage.removeItem("csrfToken"); // Limpiar también de sessionStorage si lo usas
+}
+
+async function forceLogoutAndRedirect(reason: string) {
+  console.warn(`[forceLogoutAndRedirect] Forcing logout due to: ${reason}`);
+  invalidateSessionCache();
+  clearAuthCookies(); // Limpieza manual de cookies
+
+  try {
+    await signOut({ redirect: false }); // Intentar que NextAuth limpie su estado
+    console.log(
+      "[forceLogoutAndRedirect] signOut({ redirect: false }) completed."
+    );
+  } catch (e) {
+    console.error("[forceLogoutAndRedirect] Error during signOut:", e);
+  }
+
+  if (typeof window !== "undefined") {
+    const loginUrl = `/login?error=SessionExpired&reason=${encodeURIComponent(
+      reason
+    )}`;
+    console.log(`[forceLogoutAndRedirect] Redirecting to: ${loginUrl}`);
+    window.location.href = loginUrl; // Redirección forzada
+  }
+  // Lanzar un error para detener cualquier procesamiento posterior en httpClient
+  throw createAppError(ErrorType.AUTH_SESSION_EXPIRED, reason, 401);
+}
+
+async function checkAndRefreshToken(
+  accessToken: string
+): Promise<string | null> {
+  const payload = decodeJWT(accessToken);
+  const isExpiring =
+    payload && payload.exp && payload.exp * 1000 - Date.now() < 5 * 60 * 1000;
+
+  if (isExpiring) {
+    console.log(
+      "[checkAndRefreshToken] Token is expiring soon or has expired. Attempting refresh via NextAuth signIn('refresh')."
+    );
+    try {
+      // signIn('refresh') internamente debería actualizar la sesión y el token
+      // si el callback 'jwt' y la ruta '/api/auth/refresh' están bien configurados.
+      // No devuelve el token directamente, necesitamos obtener la sesión actualizada.
+      const result = await signIn("refresh", { redirect: false }); // Esto llama al callback jwt con trigger='signIn' y provider='refresh'
 
       if (result?.error) {
-        console.error("Error al renovar el token:", result.error);
-        throw new Error("No se pudo renovar el token de acceso");
-      }
-
-      // Obtener el nuevo token de la sesión actualizada
-      invalidateSessionCache(); // Invalidar caché para forzar obtención de nueva sesión
-      const updatedSession = await getCachedSession();
-      const newToken = updatedSession?.accessToken as string | undefined;
-
-      if (!newToken) {
-        throw new Error(
-          "No se pudo obtener un nuevo token después de la renovación"
+        console.error(
+          "[checkAndRefreshToken] signIn('refresh') resulted in an error:",
+          result.error
         );
+        await forceLogoutAndRedirect(`Refresh Signin Error: ${result.error}`);
+        return null; // No se pudo refrescar
       }
 
-      console.log("Token renovado exitosamente");
-      return newToken;
+      // Forzar la re-obtención de la sesión para obtener el token actualizado
+      invalidateSessionCache();
+      const updatedSession = await getCachedSession();
+      const newAccessToken = updatedSession?.accessToken as string | undefined;
+
+      if (!newAccessToken) {
+        console.error(
+          "[checkAndRefreshToken] Refreshed session does not contain a new accessToken."
+        );
+        await forceLogoutAndRedirect("No new token after refresh");
+        return null;
+      }
+      console.log(
+        "[checkAndRefreshToken] Token refreshed successfully via signIn('refresh')."
+      );
+      return newAccessToken;
     } catch (error) {
-      console.error("Error durante la renovación del token:", error);
-      throw error; // Propagar el error para manejo superior
+      console.error(
+        "[checkAndRefreshToken] Exception during signIn('refresh'):",
+        error
+      );
+      await forceLogoutAndRedirect(
+        `Refresh Exception: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return null; // No se pudo refrescar
     }
   }
-
-  // Si el token no está por expirar, devolverlo sin cambios
-  return accessToken;
+  return accessToken; // Devolver el token original si no necesita refresco
 }
 
-/**
- * Maneja el caso de sesión expirada
- */
-async function handleExpiredSession(statusCode: number, errorData: any) {
-  invalidateSessionCache(); // Limpiar caché de sesión
-
-  const error = createAppError(
-    ErrorType.AUTH_SESSION_EXPIRED,
-    errorData?.message ||
-      "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
-    statusCode,
-    errorData
-  );
-
-  // Si estamos en el navegador, iniciar proceso de logout
-  if (typeof window !== "undefined") {
-    try {
-      // Primero intentamos hacer un signOut limpio con nextAuth
-      await signOut({ redirect: false });
-
-      // Obtener URL actual para redirigir después del login
-      const currentPath = window.location.pathname;
-      const loginUrl = `/login${
-        currentPath !== "/login"
-          ? `?callbackUrl=${encodeURIComponent(currentPath)}`
-          : ""
-      }`;
-
-      // Redirigir después de una pequeña pausa
-      setTimeout(() => {
-        window.location.href = loginUrl;
-      }, 100);
-    } catch (logoutError) {
-      console.error("Error durante el logout:", logoutError);
-      // Si falla el signOut, forzar redirección al login
-      window.location.href = "/login";
-    }
-  }
-
-  return error;
-}
-
-/**
- * Cliente HTTP mejorado con manejo de errores y compatible con CORS
- */
-// Definir tipo para headers personalizados que sea compatible con HeadersInit
 type CustomHeadersInit = Record<string, string | undefined>;
 
 interface HttpClientOptions extends Omit<RequestInit, "headers"> {
   headers?: CustomHeadersInit;
   timeout?: number;
   skipErrorHandling?: boolean;
-  skipTokenRefresh?: boolean;
-  skipTokenCheck?: boolean;
+  skipTokenRefresh?: boolean; // Para controlar si se intenta el refresco
 }
 
 export async function httpClient<T = any>(
   url: string,
   options: HttpClientOptions = {}
 ): Promise<T> {
-  // Extraer opciones personalizadas
   const {
     timeout = REQUEST_TIMEOUT,
     skipErrorHandling = false,
     skipTokenRefresh = false,
-    skipTokenCheck = false,
     ...fetchOptions
   } = options;
 
-  // Obtener la sesión actual
-  const session = await getCachedSession();
+  let session = await getCachedSession();
+
+  // Si la sesión de NextAuth tiene un error de refresco, forzar logout
+  if (session && (session as any).error === "RefreshFailed") {
+    console.warn(
+      "[httpClient] Session indicates previous RefreshFailed. Forcing logout."
+    );
+    await forceLogoutAndRedirect("Previous token refresh failed");
+    // forceLogoutAndRedirect lanza un error, por lo que la ejecución aquí se detendría.
+    // Pero para type safety, devolvemos algo aunque no se alcance:
+    return Promise.reject(
+      createAppError(ErrorType.AUTH_SESSION_EXPIRED, "Refresh failed", 401)
+    );
+  }
+
   let accessToken = session?.accessToken as string | undefined;
 
-  // Verificar y renovar el token si es necesario
-  if (accessToken && !skipTokenRefresh && !skipTokenCheck) {
-    try {
-      accessToken = await checkAndRefreshToken(accessToken);
-    } catch (error) {
-      // Si no se puede renovar el token, continuar con el actual
-      console.warn(
-        "No se pudo renovar el token, continuando con el actual:",
-        error
+  if (accessToken && !skipTokenRefresh) {
+    const refreshedToken = await checkAndRefreshToken(accessToken);
+    if (refreshedToken) {
+      accessToken = refreshedToken;
+    } else {
+      // Si checkAndRefreshToken devuelve null, es porque forzó un logout o hubo un error crítico.
+      // La ejecución ya debería haberse detenido por el error lanzado en forceLogoutAndRedirect.
+      console.error(
+        "[httpClient] Token refresh failed and resulted in null, should have redirected."
+      );
+      // Este throw es una salvaguarda.
+      throw createAppError(
+        ErrorType.AUTH_SESSION_EXPIRED,
+        "Fallo crítico en la renovación del token.",
+        401
       );
     }
   }
 
-  // Crear los headers básicos
   const baseHeaders: Record<string, string> = {
     "Content-Type": "application/json",
   };
-
-  // Añadir token de autorización si existe
   if (accessToken) {
     baseHeaders["Authorization"] = `Bearer ${accessToken}`;
   }
 
-  // Añadir token CSRF para métodos que modifican datos
   const method = (fetchOptions.method || "GET").toUpperCase();
   if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
     const csrfToken = getCsrfToken();
@@ -227,12 +267,7 @@ export async function httpClient<T = any>(
     }
   }
 
-  // Combinar headers base con headers personalizados
-  const mergedHeaders: Record<string, string> = {
-    ...baseHeaders,
-  };
-
-  // Añadir headers personalizados (si existen)
+  const mergedHeaders: Record<string, string> = { ...baseHeaders };
   if (fetchOptions.headers) {
     Object.entries(fetchOptions.headers).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -241,27 +276,26 @@ export async function httpClient<T = any>(
     });
   }
 
-  // Construir URL completa
   const fullUrl = url.startsWith("http")
     ? url
     : `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
 
-  // Implementar timeout con AbortController
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  try {
-    // Log de depuración
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[httpClient] Enviando ${method} a ${fullUrl}`);
-      console.log("[httpClient] Headers:", mergedHeaders);
-      console.log(
-        "[httpClient] Body:",
-        fetchOptions.body ? "Existe body" : "Sin body"
-      );
-    }
+  console.log(`[httpClient] Request: ${method} ${fullUrl}`);
+  if (accessToken) {
+    console.log(
+      `[httpClient] Using accessToken (first 10): ${accessToken.substring(
+        0,
+        10
+      )}...`
+    );
+  } else {
+    console.log("[httpClient] No accessToken for this request.");
+  }
 
-    // Crear opciones para fetch - eliminando la duplicación de headers
+  try {
     const requestOptions: RequestInit = {
       ...fetchOptions,
       method,
@@ -271,120 +305,107 @@ export async function httpClient<T = any>(
     };
 
     const response = await fetch(fullUrl, requestOptions);
-
-    // Limpiar el timeout
     clearTimeout(timeoutId);
 
-    // Manejar respuestas no exitosas
     if (!response.ok) {
       const statusCode = response.status;
       let errorData = null;
-
       try {
-        // Intentar parsear el cuerpo como JSON
         errorData = await response.json();
       } catch (e) {
-        // Si no es JSON, usar el texto de la respuesta
-        errorData = { message: await response.text() };
+        errorData = {
+          message: (await response.text()) || `Error ${statusCode}`,
+        };
       }
+      console.warn(
+        `[httpClient] API Error: ${method} ${fullUrl} - Status: ${statusCode}`,
+        errorData
+      );
 
-      // Manejar caso específico de sesión expirada
       if (statusCode === 401) {
-        const error = await handleExpiredSession(statusCode, errorData);
-
-        if (!skipErrorHandling) {
-          logError(error);
-        }
-
-        throw error;
+        // El backend indica que el token no es válido (expirado o incorrecto)
+        await forceLogoutAndRedirect(`API returned 401 for ${method} ${url}`);
+        // Esto lanza un error, por lo que no se llegará a la siguiente línea
+        throw createAppError(
+          ErrorType.AUTH_SESSION_EXPIRED,
+          "API Unauthorized",
+          statusCode,
+          errorData
+        );
       }
 
-      // Crear error personalizado para otras respuestas no exitosas
       const error = createAppError(
         ErrorType.API_REQUEST_FAILED,
         errorData?.message || `Error ${statusCode}: ${response.statusText}`,
         statusCode,
         errorData
       );
-
-      if (!skipErrorHandling) {
-        logError(error);
-      }
-
+      if (!skipErrorHandling) logError(error);
       throw error;
     }
 
-    // Para respuestas 204 No Content
     if (response.status === 204) {
       return {} as T;
     }
 
-    // Verificar el tipo de contenido para determinar cómo procesar la respuesta
     const contentType = response.headers.get("content-type");
-    if (!contentType || contentType.includes("application/json")) {
+    if (contentType && contentType.includes("application/json")) {
       try {
         return (await response.json()) as T;
       } catch (e) {
-        if (contentType && contentType.includes("application/json")) {
-          console.warn(
-            "Error al parsear JSON aunque el Content-Type es application/json",
-            e
-          );
-        }
-        return {} as T;
+        console.warn(
+          "[httpClient] Error parsing JSON response despite Content-Type header:",
+          e
+        );
+        return {} as T; // O lanzar un error específico de parseo
       }
-    } else if (contentType.includes("text/")) {
-      // Manejar respuestas de texto
+    } else if (contentType && contentType.includes("text/")) {
       const text = await response.text();
       try {
-        // Intentar parsear como JSON por si acaso
         return JSON.parse(text) as T;
       } catch {
-        // Si no es JSON, devolver el texto como es
         return text as unknown as T;
       }
-    } else {
-      // Para otros tipos, como binarios
-      return response as unknown as T;
     }
+    return response as unknown as T; // Para otros tipos de contenido (binarios, etc.)
   } catch (error: unknown) {
-    // Limpiar el timeout
     clearTimeout(timeoutId);
 
-    // Si fue un timeout (AbortError)
     if (error instanceof Error && error.name === "AbortError") {
       const timeoutError = createAppError(
         ErrorType.API_TIMEOUT,
-        `La solicitud a ${url} excedió el tiempo límite de ${timeout}ms`,
+        `Timeout en ${method} ${url}`,
         408
       );
-
-      if (!skipErrorHandling) {
-        logError(timeoutError);
-      }
-
+      if (!skipErrorHandling) logError(timeoutError);
       throw timeoutError;
     }
 
-    // Si ya es un AppError (creado anteriormente), propagarlo
-    if (typeof error === "object" && error !== null && "type" in error) {
+    // Si el error ya es un AppError (lanzado por forceLogoutAndRedirect por ejemplo), simplemente re-lanzarlo
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      "message" in error
+    ) {
+      console.warn(
+        `[httpClient] Propagating existing AppError: ${
+          (error as AppError).type
+        } - ${(error as AppError).message}`
+      );
       throw error;
     }
 
-    // Otros errores (red, etc.)
+    // Para otros errores de red o excepciones inesperadas
     const networkError = createAppError(
       ErrorType.API_NETWORK_ERROR,
-      `Error de red en solicitud a ${url}: ${
+      `Error de red en ${method} ${url}: ${
         error instanceof Error ? error.message : "Error desconocido"
       }`,
       undefined,
       error
     );
-
-    if (!skipErrorHandling) {
-      logError(networkError);
-    }
-
+    if (!skipErrorHandling) logError(networkError);
     throw networkError;
   }
 }
