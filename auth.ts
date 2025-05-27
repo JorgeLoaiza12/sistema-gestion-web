@@ -103,105 +103,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user, trigger, session, account }) {
-      const now = Date.now();
-      // El console.log original tenía un problema de formato con las fechas en el string template.
-      // Vamos a loguear los valores directamente o pre-formatearlos.
-      const tokenExpLog = token.exp
-        ? new Date((token.exp as number) * 1000).toISOString()
-        : "N/A";
-      const backendTokenExpLog = (token as any).backendTokenExpiresAt
-        ? new Date((token as any).backendTokenExpiresAt).toISOString()
-        : "N/A";
       console.log(
-        `[JWT CALLBACK DEBUG ENTRY] Trigger: ${trigger}, Now: ${new Date(
-          now
-        ).toISOString()}, Current Token Exp: ${tokenExpLog}, Backend Exp: ${backendTokenExpLog}, Error: ${
-          (token as any).error
-        }`
+        `[JWT SUPER-DEBUG ENTRY] User: ${user?.id}, Token: ${token?.id}`
       );
-
-      if (user && trigger === "signIn" && account?.provider === "credentials") {
-        // Proceso de inicio de sesión inicial o refresco manual
-        console.log(
-          "[JWT CALLBACK DEBUG] Initial sign-in via credentials. User ID:",
-          user.id
-        );
-        token.id = user.id as string;
-        token.email = user.email as string;
-        token.name = user.name as string;
-        token.role = (user as any).role as string; // Asegúrate que 'role' venga en el objeto 'user' de authorize
-        token.accessToken = (user as any).token as string; // Token de acceso del backend
-
-        // ----- INICIO DE SECCIÓN SIMPLIFICADA PARA DEBUG -----
-        // NO INTENTAR DECODIFICAR accessToken DEL BACKEND NI ESTABLECER backendTokenExpiresAt POR AHORA
-        // NO INTENTAR REFRESCAR EL TOKEN DEL BACKEND DESDE AQUÍ
-        console.log(
-          "[JWT CALLBACK DEBUG] Simplified logic active: Skipping backend token decode and all refresh logic to diagnose lambda timeouts."
-        );
-        delete (token as any).backendTokenExpiresAt; // Limpiar por si existía de una sesión anterior
-        // ----- FIN DE SECCIÓN SIMPLIFICADA PARA DEBUG -----
-
-        // El token de NextAuth (este 'token' JWT) durará 24 horas por defecto (configurado en session.maxAge)
-        // Sobrescribimos 'exp' solo si es necesario o para ser explícitos.
-        token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // 24 horas desde ahora
-        token.error = undefined; // Limpiar cualquier error previo
-        const newTokenExpLog = token.exp
-          ? new Date((token.exp as number) * 1000).toISOString()
-          : "N/A";
-        console.log(
-          `[JWT CALLBACK DEBUG] NextAuth token 'exp' explicitly set to: ${newTokenExpLog} for user ${user.id}`
-        );
+      if (user) {
+        // Solo en el login inicial
+        token.id = user.id; // Propagar solo el id, nada más
+        token.exp = Math.floor(Date.now() / 1000) + 5 * 60; // Token de NextAuth MUY corto (5 min) para prueba
       }
-
-      // Si hay un trigger de "update" (ej. update({ name: "New Name" }) desde el cliente)
-      if (trigger === "update" && session) {
-        console.log(
-          "[JWT CALLBACK DEBUG] Update trigger. Updating token with session data:",
-          session
-        );
-        if (session.name) token.name = session.name;
-        if (session.email) token.email = session.email; // Si permites actualizar email
-        if (session.role) token.role = session.role; // Si permites actualizar rol
-        // No tocar accessToken o exp aquí a menos que la actualización específicamente lo provea
-      }
-
-      // ----- INICIO DE LÓGICA DE REFRESH COMENTADA -----
-      // Toda la lógica que teníamos para:
-      // 1. Decodificar token.accessToken
-      // 2. Calcular token.backendTokenExpiresAt
-      // 3. Verificar si token.backendTokenExpiresAt - now < UMBRAL_REFRESCO
-      // 4. Si es así, `await fetch('/api/auth/refresh', ...)`
-      // 5. Manejar la respuesta: actualizar token.accessToken, token.backendTokenExpiresAt, y
-      //    si falla el refresco, poner token.exp = 0
-      // ESTÁ TEMPORALMENTE DESACTIVADA PARA ESTE DIAGNÓSTICO.
-      // console.log("[JWT CALLBACK DEBUG] All backend token refresh logic is currently COMMENTED OUT.");
-      // ----- FIN DE LÓGICA DE REFRESH COMENTADA -----
-
-      // Verificar la expiración del token de NextAuth (el JWT que dura 24h)
-      // Esta es la expiración propia del token de sesión de NextAuth, no del token del backend.
-      if (token.exp && now >= (token.exp as number) * 1000) {
-        const expiredMsg = `[JWT CALLBACK DEBUG] NextAuth session JWT has EXPIRED. Original exp: ${new Date(
-          (token.exp as number) * 1000
-        ).toISOString()}, Now: ${new Date(
-          now
-        ).toISOString()}. Invalidating token by setting exp to 0.`;
-        console.warn(expiredMsg);
-        delete token.accessToken; // Quitar el token del backend ya que la sesión de NextAuth terminó
-        delete (token as any).backendTokenExpiresAt; // Limpiar esto también
-        delete (token as any).error; // Limpiar errores
-        return { ...token, exp: 0 }; // Indicar a NextAuth que la sesión ha terminado efectivamente
-      }
-
-      const finalTokenExpLog = token.exp
-        ? new Date((token.exp as number) * 1000).toISOString()
-        : "N/A";
-      const finalBackendTokenExpLog = (token as any).backendTokenExpiresAt
-        ? new Date((token as any).backendTokenExpiresAt).toISOString()
-        : "N/A"; // Será N/A en este modo debug
       console.log(
-        `[JWT CALLBACK DEBUG EXIT] Returning token. NextAuth Exp: ${finalTokenExpLog}, Backend Exp: ${finalBackendTokenExpLog}, Error: ${
-          (token as any).error
-        }`
+        `[JWT SUPER-DEBUG EXIT] Returning token with exp: ${token.exp}`
       );
       return token;
     },

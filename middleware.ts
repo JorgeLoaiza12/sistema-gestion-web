@@ -35,11 +35,9 @@ export async function middleware(request: NextRequest) {
     response.cookies.delete("next-auth.csrf-token");
 
     // Si estás usando una cookie segura en producción
-    if (process.env.NODE_ENV === "production") {
-      response.cookies.delete("__Secure-next-auth.session-token");
-      response.cookies.delete("__Secure-next-auth.callback-url");
-      response.cookies.delete("__Secure-next-auth.csrf-token");
-    }
+    response.cookies.delete("__Secure-next-auth.session-token");
+    response.cookies.delete("__Secure-next-auth.callback-url");
+    response.cookies.delete("__Secure-next-auth.csrf-token");
 
     // También podemos eliminar cualquier cookie personalizada que hayas definido
     response.cookies.delete("csrfToken");
