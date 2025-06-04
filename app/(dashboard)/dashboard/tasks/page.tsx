@@ -1,14 +1,12 @@
-// app/(dashboard)/dashboard/tasks/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { useSession } from "next-auth/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getClients, Client } from "@/services/clients"; // Import Client interface
+import { getClients, Client } from "@/services/clients";
 import { getUsers, User } from "@/services/users";
 import {
-  // getAllTasks, // Reemplazado por getFilteredTasks
   getTasksByDate,
   createTask,
   updateTask,
@@ -18,8 +16,9 @@ import {
   type Task,
   type TasksByDateParams,
   type FinalizeTaskData,
-  type TaskFilterParams, // Nueva interfaz de filtros
-  getAllTasks as getFilteredTasks, // Renombrar para claridad
+  type TaskFilterParams,
+  getAllTasks as getFilteredTasks,
+  downloadTasksExcel,
 } from "@/services/tasks";
 import {
   Loader2,
@@ -30,9 +29,8 @@ import {
   CheckCircle,
   Clock,
   Plus,
+  FileSpreadsheet,
 } from "lucide-react";
-// TaskFilters ya no se usa, se integran los filtros directamente en esta página
-// import TaskFilters from "@/components/tasks/TaskFilters";
 import TaskList from "@/components/tasks/TaskList";
 import TaskForm from "@/components/tasks/TaskForm";
 import FinalizeTaskForm from "@/components/tasks/FinalizeTaskForm";
@@ -49,7 +47,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Constantes para tipos y estados de tareas
 const TASK_TYPES_OPTIONS = [
   "REVISION",
   "REPARACION",
@@ -78,6 +75,7 @@ export default function TasksPage() {
   const [isFinalizingTask, setIsFinalizingTask] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -85,20 +83,19 @@ export default function TasksPage() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [workers, setWorkers] = useState<User[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true); // Para clientes y workers
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
   const [isStartingTask, setIsStartingTask] = useState(false);
 
-  // Nuevos estados para filtros de búsqueda
   const [searchFilters, setSearchFilters] = useState<TaskFilterParams>({
     clientId: undefined,
     taskType: undefined,
     startDate: undefined,
     endDate: undefined,
-    state: "ALL", // Mostrar todos por defecto
+    state: "ALL",
   });
-  const [searchTerm, setSearchTerm] = useState(""); // Para búsqueda por texto general
+  const [searchTerm, setSearchTerm] = useState("");
 
   const isAdmin = () => session?.user?.role === "ADMIN";
 
@@ -139,7 +136,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks();
-  }, [searchFilters]); // Quitar searchTerm de aquí, se filtrará en el frontend
+  }, [searchFilters]);
 
   const fetchTasks = async () => {
     setIsLoading(true);
@@ -176,7 +173,7 @@ export default function TasksPage() {
   };
 
   const filteredTasksBySearchTerm = useMemo(() => {
-    if (!searchTerm) return tasks; // Si no hay término de búsqueda, devolver todas las tareas cargadas por los filtros
+    if (!searchTerm) return tasks;
     return tasks.filter(
       (task) =>
         task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -282,8 +279,30 @@ export default function TasksPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const blob = await downloadTasksExcel(searchFilters);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Reporte_Tareas_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      addNotification("success", "Tareas exportadas a Excel correctamente");
+    } catch (error) {
+      console.error("Error al exportar tareas a Excel:", error);
+      addNotification("error", "No se pudo exportar las tareas a Excel");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   if (isLoadingData && !tasks.length) {
-    // Mostrar loader principal solo si no hay tareas y se están cargando datos iniciales
     return (
       <div className="space-y-8">
         <div>
@@ -308,7 +327,6 @@ export default function TasksPage() {
           Gestiona las tareas y trabajos del equipo técnico
         </p>
       </div>
-
       {viewingTask ? (
         <>
           <TaskDetail
@@ -331,7 +349,6 @@ export default function TasksPage() {
         </>
       ) : (
         <Card className="p-6">
-          {/* Filtros de Búsqueda */}
           <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="space-y-1">
               <label htmlFor="clientFilter" className="text-sm font-medium">
@@ -364,7 +381,6 @@ export default function TasksPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1">
               <label htmlFor="taskTypeFilter" className="text-sm font-medium">
                 Tipo de Tarea
@@ -392,7 +408,6 @@ export default function TasksPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1 md:col-span-2 lg:col-span-1">
               <label className="text-sm font-medium">Rango de Fechas</label>
               <DateRangePicker
@@ -407,10 +422,8 @@ export default function TasksPage() {
                 onChange={(range) =>
                   handleDateRangeChange({ start: range.from, end: range.to })
                 }
-                // className="w-full" // Asegúrate que el DateRangePicker pueda tomar el ancho completo
               />
             </div>
-
             <div className="space-y-1">
               <label htmlFor="stateFilter" className="text-sm font-medium">
                 Estado
@@ -434,7 +447,6 @@ export default function TasksPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="relative md:col-span-2 lg:col-span-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -446,18 +458,34 @@ export default function TasksPage() {
               />
             </div>
           </div>
-
-          <div className="flex justify-end mb-4">
-            {isAdmin() && (
-              <Button
-                onClick={handleAddTask}
-                disabled={isLoadingData || isLoading}
-              >
-                <Plus className="mr-2 h-4 w-4" /> Nueva Tarea
-              </Button>
-            )}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+            <div>
+              {isAdmin() && (
+                <Button
+                  onClick={handleExportExcel}
+                  variant="outline"
+                  disabled={isExportingExcel || isLoading || tasks.length === 0}
+                >
+                  {isExportingExcel ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  Exportar a Excel
+                </Button>
+              )}
+            </div>
+            <div className="flex justify-end w-full md:w-auto">
+              {isAdmin() && (
+                <Button
+                  onClick={handleAddTask}
+                  disabled={isLoadingData || isLoading}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Nueva Tarea
+                </Button>
+              )}
+            </div>
           </div>
-
           <TaskList
             tasks={filteredTasksBySearchTerm}
             isLoading={isLoading}
@@ -469,7 +497,6 @@ export default function TasksPage() {
           />
         </Card>
       )}
-
       {error && (
         <div className="text-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
           {error}
@@ -478,7 +505,6 @@ export default function TasksPage() {
           </button>
         </div>
       )}
-
       <TaskForm
         isOpen={isEditing}
         task={currentTask}
@@ -490,7 +516,6 @@ export default function TasksPage() {
         isLoadingClients={isLoadingClients}
         isLoadingWorkers={isLoadingWorkers}
       />
-
       <FinalizeTaskForm
         isOpen={isFinalizing}
         task={currentTask}
@@ -498,7 +523,6 @@ export default function TasksPage() {
         onClose={() => setIsFinalizing(false)}
         isLoading={isFinalizingTask}
       />
-
       <ConfirmDialog
         open={isDeleteConfirmOpen}
         onOpenChange={setIsDeleteConfirmOpen}
