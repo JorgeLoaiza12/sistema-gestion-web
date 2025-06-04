@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
-import { Plus, Edit, Trash, Shield, Calendar } from "lucide-react";
+import { Plus, Edit, Trash, Shield, Calendar, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -14,28 +14,33 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  adminSetUserPassword,
   User,
 } from "@/services/users";
 import UserForm from "@/components/users/UserForm";
+import { useSession } from "next-auth/react";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const { addNotification } = useNotification();
+  const { data: session } = useSession();
+
+  const isAdminLoggedIn = session?.user?.role === "ADMIN";
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
   useEffect(() => {
-    // Filtrar usuarios por término de búsqueda con validación
     const filtered = users.filter(
       (user) =>
         (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
@@ -48,12 +53,10 @@ export default function UsersPage() {
     setIsLoading(true);
     try {
       const data = await getUsers();
-      console.log("Usuarios cargados:", data); // Para depuración
       setUsers(data);
       setFilteredUsers(data);
-    } catch (err) {
-      console.error("Error al cargar usuarios:", err);
-      addNotification("error", "Error al cargar los usuarios");
+    } catch (err: any) {
+      addNotification("error", err.message || "Error al cargar los usuarios");
     } finally {
       setIsLoading(false);
     }
@@ -61,12 +64,12 @@ export default function UsersPage() {
 
   const handleAddUser = () => {
     setCurrentUser(null);
-    setIsEditing(true);
+    setIsFormOpen(true);
   };
 
   const handleEditUser = (user: User) => {
     setCurrentUser(user);
-    setIsEditing(true);
+    setIsFormOpen(true);
   };
 
   const handleDeleteConfirm = (user: User) => {
@@ -74,40 +77,89 @@ export default function UsersPage() {
     setIsDeleteConfirmOpen(true);
   };
 
-  const handleSaveUser = async (userData: User) => {
+  const handleSaveUser = async (
+    userData: User,
+    newPasswordForUser?: string
+  ) => {
+    setIsSubmittingForm(true);
     try {
       if (currentUser && currentUser.id) {
-        // Actualizar usuario existente
-        const response = await updateUser(currentUser.id.toString(), userData);
+        // Editando usuario existente
+        const userToUpdate = { ...currentUser, ...userData }; // Combinar datos actuales con los del form
+        const profileDataToUpdate: Partial<User> = {
+          name: userToUpdate.name,
+          email: userToUpdate.email, // Backend debería validar si el email ya existe (excepto para el usuario actual)
+          role: userToUpdate.role,
+          phone: userToUpdate.phone,
+        };
+
+        const response = await updateUser(
+          currentUser.id.toString(),
+          profileDataToUpdate
+        );
         setUsers(
           users.map((u) => (u.id === currentUser.id ? response.user : u))
         );
-        addNotification("success", "Usuario actualizado correctamente");
+        addNotification(
+          "success",
+          "Datos del usuario actualizados correctamente"
+        );
+
+        // Si es admin, está editando a OTRO usuario Y se proporcionó una nueva contraseña
+        if (
+          isAdminLoggedIn &&
+          newPasswordForUser &&
+          currentUser.id !== parseInt(session?.user?.id || "0")
+        ) {
+          await adminSetUserPassword(
+            currentUser.id.toString(),
+            newPasswordForUser
+          );
+          addNotification(
+            "success",
+            "Contraseña del usuario actualizada por el administrador."
+          );
+        }
       } else {
-        // Crear nuevo usuario
-        const response = await createUser(userData);
-        setUsers([...users, response.user]);
+        // Creando nuevo usuario
+        if (!userData.password && !newPasswordForUser) {
+          // Esto no debería pasar si el form valida
+          addNotification(
+            "error",
+            "La contraseña es requerida para crear un nuevo usuario."
+          );
+          setIsSubmittingForm(false);
+          return;
+        }
+        const userToCreate: User = {
+          ...userData,
+          password: newPasswordForUser || userData.password, // newPasswordForUser tiene prioridad si se pasa
+        };
+        const response = await createUser(userToCreate);
+        setUsers((prevUsers) => [...prevUsers, response.user]);
         addNotification("success", "Usuario creado correctamente");
       }
-      setIsEditing(false);
+      setIsFormOpen(false);
       setCurrentUser(null);
-    } catch (err) {
-      console.error("Error al guardar usuario:", err);
-      addNotification("error", "Error al guardar el usuario");
+      fetchUsers(); // Recargar la lista para reflejar cambios
+    } catch (err: any) {
+      addNotification("error", err.message || "Error al guardar el usuario");
+      // No cerrar el formulario en caso de error para que el usuario pueda corregir
+      // setIsFormOpen(false);
+    } finally {
+      setIsSubmittingForm(false);
     }
   };
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
-
+    setIsDeletingUser(true);
     try {
-      setIsDeletingUser(true);
       await deleteUser(userToDelete.id.toString());
       setUsers(users.filter((user) => user.id !== userToDelete.id));
       addNotification("success", "Usuario eliminado correctamente");
-    } catch (err) {
-      console.error("Error al eliminar usuario:", err);
-      addNotification("error", "Error al eliminar el usuario");
+    } catch (err: any) {
+      addNotification("error", err.message || "Error al eliminar el usuario");
     } finally {
       setIsDeletingUser(false);
       setIsDeleteConfirmOpen(false);
@@ -115,7 +167,6 @@ export default function UsersPage() {
     }
   };
 
-  // Columnas para la tabla de usuarios
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -159,21 +210,28 @@ export default function UsersPage() {
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleEditUser(row.original)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleDeleteConfirm(row.original)}
-          >
-            <Trash className="h-4 w-4" />
-          </Button>
+        <div className="flex space-x-1">
+          {isAdminLoggedIn && ( // Solo los admins pueden editar
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEditUser(row.original)}
+              title="Editar usuario"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+          )}
+          {isAdminLoggedIn &&
+            row.original.id !== parseInt(session?.user?.id || "0") && ( // Admins pueden borrar a otros, no a sí mismos
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteConfirm(row.original)}
+                title="Eliminar usuario"
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            )}
         </div>
       ),
     },
@@ -198,10 +256,12 @@ export default function UsersPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
-            <Button onClick={handleAddUser}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Usuario
-            </Button>
+            {isAdminLoggedIn && (
+              <Button onClick={handleAddUser}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo Usuario
+              </Button>
+            )}
           </div>
         </div>
 
@@ -214,23 +274,22 @@ export default function UsersPage() {
         )}
       </Card>
 
-      {/* Formulario para crear/editar usuario */}
       <UserForm
-        isOpen={isEditing}
+        isOpen={isFormOpen}
         user={currentUser}
         onSave={handleSaveUser}
-        onClose={() => setIsEditing(false)}
-        showRoleSelector={true} // Activamos el selector de rol en esta página
+        onClose={() => setIsFormOpen(false)}
+        isLoading={isSubmittingForm}
+        showRoleSelector={isAdminLoggedIn}
       />
 
-      {/* Diálogo de confirmación para eliminar */}
       <ConfirmDialog
         open={isDeleteConfirmOpen}
         onOpenChange={setIsDeleteConfirmOpen}
         title="Eliminar Usuario"
         description={`¿Estás seguro que deseas eliminar al usuario "${
           userToDelete?.name || "seleccionado"
-        }"? Esta acción no se puede deshacer.`}
+        }"? Esta acción no se puede deshacer y podría afectar registros asociados.`}
         onConfirm={handleDeleteUser}
         confirmLabel="Eliminar"
         isLoading={isDeletingUser}

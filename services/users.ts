@@ -1,4 +1,4 @@
-// web\services\users.ts
+// web/services/users.ts
 import { httpClient } from "@/lib/httpClient";
 
 export interface User {
@@ -37,9 +37,14 @@ export async function getUserById(id: string): Promise<User> {
 
 export async function createUser(user: User): Promise<UserResponse> {
   try {
+    const payload: any = { ...user };
+    if (!user.password) {
+      // El backend ahora lo requiere explícitamente en su schema de creación
+      throw new Error("La contraseña es requerida para crear un usuario.");
+    }
     return await httpClient<UserResponse>("/users", {
       method: "POST",
-      body: JSON.stringify(user),
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     console.error("Error al crear usuario:", error);
@@ -52,12 +57,31 @@ export async function updateUser(
   user: Partial<User>
 ): Promise<UserResponse> {
   try {
+    const { password, ...profileData } = user;
     return await httpClient<UserResponse>(`/users/${id}`, {
       method: "PUT",
-      body: JSON.stringify(user),
+      body: JSON.stringify(profileData),
     });
   } catch (error) {
     console.error(`Error al actualizar usuario ${id}:`, error);
+    throw error;
+  }
+}
+
+export async function adminSetUserPassword(
+  userId: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  try {
+    return await httpClient<{ message: string }>(`/users/${userId}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ password: newPassword }),
+    });
+  } catch (error) {
+    console.error(
+      `Error al actualizar contraseña para usuario ${userId} por admin:`,
+      error
+    );
     throw error;
   }
 }
@@ -86,9 +110,10 @@ export async function updateUserProfile(
   userData: Partial<User>
 ): Promise<UserResponse> {
   try {
+    const { password, ...profileData } = userData;
     return await httpClient<UserResponse>("/users/me", {
       method: "PUT",
-      body: JSON.stringify(userData),
+      body: JSON.stringify(profileData),
     });
   } catch (error) {
     console.error("Error al actualizar perfil de usuario:", error);
