@@ -1,8 +1,8 @@
-//web\components\dashboard\date-range-picker.tsx
+// components/dashboard/date-range-picker.tsx
 "use client";
 
 import * as React from "react";
-import { addDays, format } from "date-fns";
+import { addDays, format, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, CalendarDays, HelpCircle } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/tooltip";
 
 interface DateRangePickerProps {
-  value: { start: Date; end: Date };
-  onChange: (range: { start: Date; end: Date }) => void;
+  value: { start?: Date; end?: Date };
+  onChange: (range: { start?: Date; end?: Date }) => void;
   className?: string;
 }
 
@@ -33,46 +33,91 @@ export function DateRangePicker({
   onChange,
   className,
 }: DateRangePickerProps) {
-  // Estado local para manejar el rango de fechas seleccionado
-  const [date, setDate] = React.useState<DateRange>({
-    from: value.start,
-    to: value.end,
+  const [date, setDate] = React.useState<DateRange | undefined>(() => {
+    const validStart =
+      value.start instanceof Date && isValid(value.start)
+        ? new Date(value.start)
+        : undefined;
+    const validEnd =
+      value.end instanceof Date && isValid(value.end)
+        ? new Date(value.end)
+        : undefined;
+    if (validStart || validEnd) {
+      return { from: validStart, to: validEnd };
+    }
+    return undefined;
   });
 
-  // Estado para rastrear si estamos seleccionando la fecha de inicio o fin
   const [selectionMode, setSelectionMode] = React.useState<
     "start" | "end" | "complete"
-  >("complete");
-
-  // Estado para el popover
+  >(
+    value.start && value.end && isValid(value.start) && isValid(value.end)
+      ? "complete"
+      : "start"
+  );
   const [open, setOpen] = React.useState(false);
 
-  // Actualiza el estado interno cuando las props cambian desde fuera
   React.useEffect(() => {
-    console.log("DateRangePicker recibió nuevas props:", {
-      start: value.start.toISOString(),
-      end: value.end.toISOString(),
-    });
+    // console.log("DateRangePicker props 'value' changed:", {
+    //   start: value.start && isValid(value.start) ? value.start.toISOString() : undefined,
+    //   end: value.end && isValid(value.end) ? value.end.toISOString() : undefined,
+    // });
 
-    setDate({
-      from: new Date(value.start),
-      to: new Date(value.end),
-    });
-  }, [value.start, value.end]);
+    const propStart = value.start;
+    const propEnd = value.end;
 
-  // Presets rápidos para selección de rango
+    const validPropStart =
+      propStart instanceof Date && isValid(propStart)
+        ? new Date(propStart)
+        : undefined;
+    const validPropEnd =
+      propEnd instanceof Date && isValid(propEnd)
+        ? new Date(propEnd)
+        : undefined;
+
+    let newSelectionMode: "start" | "end" | "complete" = "start";
+    if (validPropStart && !validPropEnd) {
+      newSelectionMode = "end";
+    } else if (validPropStart && validPropEnd) {
+      newSelectionMode = "complete";
+    }
+
+    // Comparar con el estado interno 'date'
+    const internalStart = date?.from;
+    const internalEnd = date?.to;
+
+    // Verificar si hubo un cambio real en las props que deba reflejarse en el estado
+    const propsActuallyChanged =
+      validPropStart?.getTime() !== internalStart?.getTime() ||
+      validPropEnd?.getTime() !== internalEnd?.getTime() ||
+      // Caso donde una fecha se vuelve undefined
+      (validPropStart === undefined && internalStart !== undefined) ||
+      (validPropEnd === undefined && internalEnd !== undefined);
+
+    if (propsActuallyChanged) {
+      // console.log("Updating internal 'date' state due to prop change:", { from: validPropStart, to: validPropEnd });
+      setDate({ from: validPropStart, to: validPropEnd });
+      setSelectionMode(newSelectionMode);
+    } else if (!validPropStart && !validPropEnd && date !== undefined) {
+      // Si las props se vuelven completamente undefined y el estado interno no lo es, resetear.
+      // console.log("Resetting internal 'date' state because props are undefined.");
+      setDate(undefined);
+      setSelectionMode("start");
+    }
+  }, [value.start, value.end]); // Depender solo de value.start y value.end
+
   const presets = [
     {
       label: "Últimos 7 días",
       value: {
-        from: addDays(new Date(), -7),
+        from: addDays(new Date(), -6),
         to: new Date(),
       },
     },
     {
       label: "Últimos 30 días",
       value: {
-        from: addDays(new Date(), -30),
+        from: addDays(new Date(), -29),
         to: new Date(),
       },
     },
@@ -80,61 +125,48 @@ export function DateRangePicker({
       label: "Este mes",
       value: {
         from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        to: new Date(),
+        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),
       },
     },
     {
       label: "Último trimestre",
       value: {
-        from: addDays(new Date(), -90),
+        from: addDays(new Date(), -89),
         to: new Date(),
       },
     },
   ];
 
-  // Función para aplicar un preset
-  const handlePresetChange = (preset: DateRange) => {
-    console.log("Preset seleccionado:", {
-      from: preset.from?.toISOString(),
-      to: preset.to?.toISOString(),
-    });
-
-    setDate(preset);
-    setSelectionMode("complete");
-
-    // Notificar inmediatamente al componente padre
-    if (preset.from && preset.to) {
-      const newRange = {
-        start: new Date(preset.from),
-        end: new Date(preset.to),
-      };
-      console.log("Notificando al padre desde preset:", newRange);
-      onChange(newRange);
-    }
-
-    setOpen(false); // Cerrar popover después de seleccionar
-  };
-
-  // Función para aplicar el rango y cerrar el popover
-  const applyRange = () => {
-    if (date && date.from && date.to) {
-      const newRange = {
-        start: new Date(date.from),
-        end: new Date(date.to),
-      };
-      console.log("Aplicando rango con el botón:", newRange);
-      onChange(newRange);
+  const handlePresetChange = (presetValue?: DateRange) => {
+    if (
+      presetValue?.from &&
+      presetValue?.to &&
+      isValid(presetValue.from) &&
+      isValid(presetValue.to)
+    ) {
+      const newFrom = new Date(presetValue.from);
+      const newTo = new Date(presetValue.to);
+      setDate({ from: newFrom, to: newTo });
+      setSelectionMode("complete");
+      onChange({ start: newFrom, end: newTo });
       setOpen(false);
     }
   };
 
-  // Función para reiniciar la selección
+  const applyRange = () => {
+    if (date?.from && isValid(date.from) && date?.to && isValid(date.to)) {
+      onChange({ start: new Date(date.from), end: new Date(date.to) });
+      setOpen(false);
+    } else if (date?.from && isValid(date.from) && !date?.to) {
+      onChange({ start: new Date(date.from), end: new Date(date.from) });
+      setOpen(false);
+    }
+  };
+
   const resetSelection = () => {
-    setDate({
-      from: value.start,
-      to: value.end,
-    });
+    setDate(undefined);
     setSelectionMode("start");
+    onChange({ start: undefined, end: undefined });
   };
 
   return (
@@ -146,18 +178,18 @@ export function DateRangePicker({
             variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
-              !date && "text-muted-foreground"
+              !date?.from && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
+            {date?.from && isValid(date.from) ? (
+              date.to && isValid(date.to) ? (
                 <>
-                  {format(date.from, "dd MMM yyyy", { locale: es })} -{" "}
-                  {format(date.to, "dd MMM yyyy", { locale: es })}
+                  {format(date.from, "dd MMM yy", { locale: es })} -{" "}
+                  {format(date.to, "dd MMM yy", { locale: es })}
                 </>
               ) : (
-                format(date.from, "dd MMM yyyy", { locale: es })
+                format(date.from, "dd MMM yy", { locale: es })
               )
             ) : (
               <span>Seleccionar periodo</span>
@@ -221,16 +253,12 @@ export function DateRangePicker({
                 : "Rango completo seleccionado"}
             </div>
 
-            {/* Estilos globales para los días del calendario */}
             <style jsx global>{`
-              /* Estilo para todos los días intermedios del rango */
               .rdp-day_range_middle {
                 background-color: rgba(220, 38, 38, 0.1) !important;
                 position: relative;
                 z-index: 1;
               }
-
-              /* Agregar un fondo continuo para los días del rango */
               .rdp-day_range_middle::before {
                 content: "";
                 position: absolute;
@@ -241,8 +269,6 @@ export function DateRangePicker({
                 background-color: rgba(220, 38, 38, 0.1);
                 z-index: -1;
               }
-
-              /* Día de inicio del rango */
               .rdp-day_range_start {
                 background-color: rgb(220, 38, 38) !important;
                 color: white !important;
@@ -251,8 +277,6 @@ export function DateRangePicker({
                 position: relative;
                 z-index: 2;
               }
-
-              /* Día de fin del rango */
               .rdp-day_range_end {
                 background-color: rgb(220, 38, 38) !important;
                 color: white !important;
@@ -261,18 +285,14 @@ export function DateRangePicker({
                 position: relative;
                 z-index: 2;
               }
-
-              /* Color para día seleccionado */
               .rdp-day_selected {
                 background-color: rgb(220, 38, 38) !important;
                 color: white !important;
               }
-
-              /* Estilo para el rango completo (fondo continuo) */
               .rdp-day_range_middle::after {
                 content: "";
                 position: absolute;
-                height: 24px; /* Altura del rectángulo de fondo */
+                height: 24px;
                 top: 50%;
                 transform: translateY(-50%);
                 left: 0;
@@ -280,8 +300,6 @@ export function DateRangePicker({
                 background-color: rgba(220, 38, 38, 0.1);
                 z-index: -1;
               }
-
-              /* Mejorar la visualización en hover */
               .rdp-day:hover:not(.rdp-day_range_start):not(
                   .rdp-day_range_end
                 ):not(.rdp-day_selected) {
@@ -292,14 +310,23 @@ export function DateRangePicker({
 
             <Calendar
               mode="range"
-              defaultMonth={date?.from}
+              defaultMonth={
+                date?.from && isValid(date.from) ? date.from : new Date()
+              }
               selected={date}
-              onSelect={(newDate) => {
-                console.log("Calendar onSelect:", newDate);
-                if (newDate) {
-                  setDate(newDate);
-                  if (newDate?.from && !newDate.to) setSelectionMode("end");
-                  if (newDate?.from && newDate.to) setSelectionMode("complete");
+              onSelect={(newDateRange) => {
+                if (newDateRange) {
+                  setDate(newDateRange);
+                  if (newDateRange.from && !newDateRange.to) {
+                    setSelectionMode("end");
+                  } else if (newDateRange.from && newDateRange.to) {
+                    setSelectionMode("complete");
+                  } else {
+                    setSelectionMode("start");
+                  }
+                } else {
+                  setDate(undefined);
+                  setSelectionMode("start");
                 }
               }}
               numberOfMonths={2}
@@ -308,19 +335,19 @@ export function DateRangePicker({
               footer={
                 <div className="pt-2 text-center border-t mt-2">
                   <div className="flex justify-between px-2 text-xs">
-                    {date.from && (
+                    {date?.from && isValid(date.from) && (
                       <div className="flex flex-col items-start">
                         <span className="text-gray-500">Inicio:</span>
                         <span className="text-red-600 font-medium">
-                          {format(date.from, "dd MMM yyyy", { locale: es })}
+                          {format(date.from, "dd MMM yy", { locale: es })}
                         </span>
                       </div>
                     )}
-                    {date.to && (
+                    {date?.to && isValid(date.to) && (
                       <div className="flex flex-col items-end">
                         <span className="text-gray-500">Fin:</span>
                         <span className="text-red-600 font-medium">
-                          {format(date.to, "dd MMM yyyy", { locale: es })}
+                          {format(date.to, "dd MMM yy", { locale: es })}
                         </span>
                       </div>
                     )}
@@ -343,7 +370,12 @@ export function DateRangePicker({
               size="sm"
               className="w-1/2 bg-red-600 hover:bg-red-700"
               onClick={applyRange}
-              disabled={!date.from || !date.to}
+              disabled={
+                !date?.from ||
+                !date?.to ||
+                !isValid(date.from) ||
+                !isValid(date.to)
+              }
             >
               Aplicar rango
             </Button>

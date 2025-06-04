@@ -1,3 +1,4 @@
+// app/(dashboard)/dashboard/maintenance/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -11,7 +12,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { useNotification } from "@/contexts/NotificationContext";
 import {
@@ -20,19 +20,21 @@ import {
   createMaintenance,
   updateMaintenance,
   deleteMaintenance,
+  getMaintenancesByClient, // Importar la nueva función
   type Maintenance,
 } from "@/services/maintenance";
 import ClientSelect from "@/components/clients/ClientSelect";
 import {
   Plus,
   Search,
-  Calendar,
+  Calendar as CalendarIconLucide, // Renombrar para evitar conflicto
   Edit,
   Trash,
   AlertTriangle,
   CheckCircle,
   Clock,
   Loader2,
+  RefreshCcw,
 } from "lucide-react";
 import {
   Select,
@@ -41,16 +43,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// import { useSession } from "next-auth/react";
 import { formatDate } from "@/utils/date-format";
 import {
   calculateNextMaintenanceDate,
   getMaintenanceStatus,
 } from "@/utils/maintenance-utils";
-import { getClients } from "@/services/clients";
+import { getClients, Client } from "@/services/clients"; // Importar Client
 
 export default function MaintenancePage() {
-  // const { data: session } = useSession();
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [filteredMaintenances, setFilteredMaintenances] = useState<
     Maintenance[]
@@ -66,28 +66,32 @@ export default function MaintenancePage() {
   const [maintenanceToDelete, setMaintenanceToDelete] =
     useState<Maintenance | null>(null);
   const { addNotification } = useNotification();
-  const [clients, setClients] = useState<any[]>([]);
+  const [allClients, setAllClients] = useState<Client[]>([]); // Para el filtro de cliente
+  const [selectedClientFilter, setSelectedClientFilter] = useState<
+    string | undefined
+  >(undefined); // Para el filtro
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
 
   useEffect(() => {
-    // Cargar clientes al abrir el modal de mantenimiento
     const loadClients = async () => {
+      setIsLoadingClients(true);
       try {
-        const clients = await getClients();
-        setClients(clients);
+        const clientsData = await getClients();
+        setAllClients(clientsData || []);
       } catch (error) {
-        console.error("Error al cargar clientes:", error);
-        addNotification("error", "Error al cargar clientes");
+        console.error("Error al cargar clientes para filtro:", error);
+        addNotification("error", "Error al cargar lista de clientes");
+      } finally {
+        setIsLoadingClients(false);
       }
     };
     loadClients();
-  }, [isModalOpen]);
+  }, [addNotification]);
 
-  // Cargar datos iniciales
   useEffect(() => {
     fetchMaintenances();
-  }, [viewMode, upcomingDays]);
+  }, [viewMode, upcomingDays, selectedClientFilter]); // Añadir selectedClientFilter a las dependencias
 
-  // Filtrar datos cuando cambia el término de búsqueda
   useEffect(() => {
     const filtered = maintenances.filter(
       (m) =>
@@ -103,14 +107,16 @@ export default function MaintenancePage() {
     setIsLoading(true);
     try {
       let data;
-      if (viewMode === "upcoming") {
+      if (selectedClientFilter && selectedClientFilter !== "ALL") {
+        data = await getMaintenancesByClient(selectedClientFilter);
+      } else if (viewMode === "upcoming") {
         data = await getUpcomingMaintenances(upcomingDays);
       } else {
         data = await getAllMaintenances();
       }
       setMaintenances(data);
-      setFilteredMaintenances(data);
-      addNotification("success", "Mantenimientos cargados correctamente");
+      setFilteredMaintenances(data); // Actualizar también aquí
+      // addNotification("success", "Mantenimientos cargados correctamente"); // Puede ser muy ruidoso
     } catch (error) {
       console.error("Error al cargar mantenimientos:", error);
       addNotification("error", "Error al cargar mantenimientos");
@@ -131,20 +137,15 @@ export default function MaintenancePage() {
 
   const handleDelete = async () => {
     if (!maintenanceToDelete || !maintenanceToDelete.id) return;
-
     setIsDeleting(true);
     try {
       await deleteMaintenance(maintenanceToDelete.id.toString());
-      // Actualizar la lista local
       setMaintenances((prev) =>
         prev.filter((m) => m.id !== maintenanceToDelete.id)
       );
-      setFilteredMaintenances((prev) =>
-        prev.filter((m) => m.id !== maintenanceToDelete.id)
-      );
+      // setFilteredMaintenances((prev) => prev.filter((m) => m.id !== maintenanceToDelete.id)); // Se actualiza por el useEffect
       addNotification("success", "Mantenimiento eliminado correctamente");
     } catch (error) {
-      console.error("Error al eliminar mantenimiento:", error);
       addNotification("error", "Error al eliminar mantenimiento");
     } finally {
       setIsDeleting(false);
@@ -155,75 +156,58 @@ export default function MaintenancePage() {
   const handleFormSubmit = async (maintenanceData: Maintenance) => {
     try {
       if (currentMaintenance && currentMaintenance.id) {
-        // Actualizar existente
         const response = await updateMaintenance(
           currentMaintenance.id.toString(),
           maintenanceData
         );
-        // Actualizar lista local
         setMaintenances((prev) =>
           prev.map((m) =>
             m.id === currentMaintenance.id ? response.maintenance : m
           )
         );
-        setFilteredMaintenances((prev) =>
-          prev.map((m) =>
-            m.id === currentMaintenance.id ? response.maintenance : m
-          )
-        );
-        addNotification("success", "Mantenimiento actualizado correctamente");
+        addNotification("success", "Mantenimiento actualizado");
       } else {
-        // Crear nuevo
         const response = await createMaintenance(maintenanceData);
-        // Añadir a la lista local
         setMaintenances((prev) => [...prev, response.maintenance]);
-        setFilteredMaintenances((prev) => [...prev, response.maintenance]);
-        addNotification("success", "Mantenimiento creado correctamente");
+        addNotification("success", "Mantenimiento creado");
       }
       closeModal();
+      fetchMaintenances(); // Recargar la lista después de guardar
     } catch (error) {
-      console.error("Error al guardar mantenimiento:", error);
       addNotification("error", "Error al guardar mantenimiento");
     }
   };
 
-  // Obtener el badge de estado
   const getStatusBadge = (nextDate: string) => {
     const status = getMaintenanceStatus(nextDate);
-
     switch (status) {
       case "overdue":
         return (
           <div className="flex items-center gap-1 text-error">
-            <AlertTriangle className="h-4 w-4" />
-            <span>Vencido</span>
+            <AlertTriangle className="h-4 w-4" /> <span>Vencido</span>
           </div>
         );
       case "urgent":
         return (
           <div className="flex items-center gap-1 text-warning">
-            <Clock className="h-4 w-4" />
-            <span>Urgente</span>
+            <Clock className="h-4 w-4" /> <span>Urgente</span>
           </div>
         );
       case "upcoming":
         return (
           <div className="flex items-center gap-1 text-info">
-            <Calendar className="h-4 w-4" />
-            <span>Próximo</span>
+            <CalendarIconLucide className="h-4 w-4" /> <span>Próximo</span>
           </div>
         );
       default:
         return (
           <div className="flex items-center gap-1 text-success">
-            <CheckCircle className="h-4 w-4" />
-            <span>Programado</span>
+            <CheckCircle className="h-4 w-4" /> <span>Programado</span>
           </div>
         );
     }
   };
 
-  // Definición de columnas para la tabla
   const columns: ColumnDef<Maintenance>[] = [
     {
       accessorKey: "client",
@@ -300,7 +284,6 @@ export default function MaintenancePage() {
     },
   ];
 
-  // Componente interno para el formulario modal
   const MaintenanceForm = ({
     maintenance,
     onSave,
@@ -332,8 +315,27 @@ export default function MaintenancePage() {
     const [notes, setNotes] = useState(
       maintenance ? maintenance.notes || "" : ""
     );
+    const [formClients, setFormClients] = useState<Client[]>([]); // Clientes para el select dentro del formulario
+    const [isLoadingFormClients, setIsLoadingFormClients] = useState(true);
 
-    // Actualizar fecha de próximo mantenimiento cuando cambia la frecuencia o la fecha del último
+    useEffect(() => {
+      const loadFormClients = async () => {
+        setIsLoadingFormClients(true);
+        try {
+          const clientsData = await getClients();
+          setFormClients(clientsData || []);
+        } catch (error) {
+          addNotification(
+            "error",
+            "Error al cargar clientes para el formulario."
+          );
+        } finally {
+          setIsLoadingFormClients(false);
+        }
+      };
+      loadFormClients();
+    }, [addNotification]);
+
     useEffect(() => {
       if (lastMaintenanceDate) {
         const nextDate = calculateNextMaintenanceDate(
@@ -350,12 +352,10 @@ export default function MaintenancePage() {
         addNotification("error", "Debes seleccionar un cliente");
         return;
       }
-
       if (!lastMaintenanceDate || !nextMaintenanceDate) {
         addNotification("error", "Las fechas son obligatorias");
         return;
       }
-
       const maintenanceData: Maintenance = {
         clientId: parseInt(clientId),
         lastMaintenanceDate,
@@ -363,12 +363,9 @@ export default function MaintenancePage() {
         frequency,
         notes,
       };
-
-      // Si estamos editando, mantener los taskIds
       if (maintenance && maintenance.taskIds) {
         maintenanceData.taskIds = maintenance.taskIds;
       }
-
       onSave(maintenanceData);
     };
 
@@ -377,10 +374,11 @@ export default function MaintenancePage() {
         <div className="space-y-4">
           <div>
             <ClientSelect
-              clients={clients} // Los clientes se cargan dinámicamente en el componente ClientSelect
+              clients={formClients}
               value={clientId}
               onValueChange={(val) => setClientId(val)}
               placeholder="Seleccionar cliente"
+              isLoading={isLoadingFormClients}
             />
           </div>
           <div>
@@ -399,7 +397,12 @@ export default function MaintenancePage() {
             <Select
               value={frequency}
               onValueChange={(
-                val: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL"
+                val:
+                  | "MENSUAL"
+                  | "BIMESTRAL"
+                  | "TRIMESTRAL"
+                  | "SEMESTRAL"
+                  | "ANUAL"
               ) => setFrequency(val)}
             >
               <SelectTrigger className="w-full">
@@ -445,17 +448,16 @@ export default function MaintenancePage() {
     );
   };
 
-  // Componente de carga (loading)
-  if (isLoading) {
+  if (isLoading && !maintenances.length) {
+    // Mostrar loader principal solo si no hay mantenimientos y se está cargando
     return (
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los mantenimientos programados para tus clientes
+            Gestiona los mantenimientos programados
           </p>
         </div>
-
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
           <p>Cargando mantenimientos...</p>
@@ -470,11 +472,10 @@ export default function MaintenancePage() {
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los mantenimientos programados para tus clientes
+            Gestiona los mantenimientos programados
           </p>
         </div>
-
-        <Button onClick={() => openModal()}>
+        <Button onClick={() => openModal()} disabled={isLoadingClients}>
           <Plus className="mr-2 h-4 w-4" />
           Agregar Mantenimiento
         </Button>
@@ -486,17 +487,44 @@ export default function MaintenancePage() {
             <div className="relative">
               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Buscar..."
+                placeholder="Buscar por cliente o notas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 w-full"
+                disabled={isLoading}
               />
             </div>
           </div>
 
+          {/* Filtro por Cliente */}
+          <Select
+            value={selectedClientFilter || "ALL"}
+            onValueChange={(value) =>
+              setSelectedClientFilter(value === "ALL" ? undefined : value)
+            }
+            disabled={isLoadingClients || isLoading}
+          >
+            <SelectTrigger className="w-full md:w-52">
+              {isLoadingClients ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <SelectValue placeholder="Filtrar por cliente" />
+              )}
+            </SelectTrigger>
+            <SelectContent style={{ maxHeight: "300px", overflowY: "auto" }}>
+              <SelectItem value="ALL">Todos los clientes</SelectItem>
+              {allClients.map((client) => (
+                <SelectItem key={client.id} value={client.id!.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select
             value={viewMode}
             onValueChange={(val: "all" | "upcoming") => setViewMode(val)}
+            disabled={isLoading}
           >
             <SelectTrigger className="w-full md:w-44">
               <SelectValue placeholder="Modo de vista" />
@@ -511,6 +539,7 @@ export default function MaintenancePage() {
             <Select
               value={upcomingDays.toString()}
               onValueChange={(val) => setUpcomingDays(parseInt(val))}
+              disabled={isLoading}
             >
               <SelectTrigger className="w-full md:w-44">
                 <SelectValue placeholder="Período" />
@@ -525,11 +554,11 @@ export default function MaintenancePage() {
             </Select>
           )}
         </div>
-
         <Button
           variant="outline"
           onClick={fetchMaintenances}
           className="self-start"
+          disabled={isLoading}
         >
           <RefreshCcw className="h-4 w-4 mr-2" />
           Actualizar
@@ -544,7 +573,6 @@ export default function MaintenancePage() {
         />
       </Card>
 
-      {/* Diálogo de confirmación para eliminar */}
       <ConfirmDialog
         open={!!maintenanceToDelete}
         onOpenChange={(open) => {
@@ -557,7 +585,6 @@ export default function MaintenancePage() {
         isLoading={isDeleting}
       />
 
-      {/* Modal para crear/editar mantenimiento */}
       {isModalOpen && (
         <Dialog
           open={isModalOpen}
@@ -582,28 +609,5 @@ export default function MaintenancePage() {
         </Dialog>
       )}
     </div>
-  );
-}
-
-// Componente RefreshCcw
-function RefreshCcw(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 2v6h6" />
-      <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
-      <path d="M21 22v-6h-6" />
-      <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
-    </svg>
   );
 }

@@ -17,9 +17,9 @@ export interface Task {
   description?: string;
   quotationId?: number | null;
   clientId?: number;
-  state: string; // Valores: "PENDIENTE", "EN_CURSO", "FINALIZADO"
-  types: string[]; // Ej: ["REVISION", "REPARACION", "MANTENCION", ...]
-  categories: string[]; // Ej: ["CCTV", "Citofonia", "Cerco eléctrico", ...]
+  state: string;
+  types: string[];
+  categories: string[];
   technicalReport?: string;
   observations?: string;
   hoursWorked?: number;
@@ -76,13 +76,25 @@ export interface FinalizeTaskData {
   types?: string[];
   systems?: string[];
   technicians?: string[];
-  // Nuevos campos
   nameWhoReceives?: string;
   positionWhoReceives?: string;
   imageUrlWhoReceives?: string;
 }
 
-// Función auxiliar para obtener el token de autenticación
+// NUEVA INTERFAZ PARA FILTROS
+export interface TaskFilterParams {
+  clientId?: string;
+  taskType?: string;
+  startDate?: string;
+  endDate?: string;
+  state?: string;
+  workerId?: string;
+  quotationId?: string;
+  // Podrías añadir paginación aquí si el backend la soporta para este endpoint
+  // page?: number;
+  // limit?: number;
+}
+
 async function getAuthToken(): Promise<string> {
   const session = await import("next-auth/react").then((mod) =>
     mod.getSession()
@@ -90,45 +102,45 @@ async function getAuthToken(): Promise<string> {
   return session?.accessToken || "";
 }
 
-/**
- * Función auxiliar para asegurar que los datos de trabajadores sean siempre un array
- */
 function ensureWorkersArray(
   workerIds: number | number[] | undefined
 ): number[] {
   if (!workerIds) {
     return [];
   }
-
   if (Array.isArray(workerIds)) {
     return workerIds;
   }
-
   return [workerIds];
 }
 
-/**
- * Obtiene todas las tareas
- */
-export async function getAllTasks(): Promise<Task[]> {
+// MODIFICADO: getAllTasks ahora puede tomar filtros
+export async function getAllTasks(filters?: TaskFilterParams): Promise<Task[]> {
   try {
-    return await httpClient<Task[]>("/tasks");
+    let url = "/tasks";
+    if (filters) {
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          queryParams.append(key, String(value));
+        }
+      });
+      if (queryParams.toString()) {
+        url += `?${queryParams.toString()}`;
+      }
+    }
+    return await httpClient<Task[]>(url);
   } catch (error) {
     console.error("Error al obtener todas las tareas:", error);
     throw error;
   }
 }
 
-/**
- * Obtiene tareas por fecha y vista (diaria, semanal, mensual)
- * @param queryParams - Parámetros de consulta como string o objeto de parámetros
- */
 export async function getTasksByDate(
   queryParams: string | TasksByDateParams
 ): Promise<TasksByDateResponse> {
   try {
     let queryString: string;
-
     if (typeof queryParams === "string") {
       queryString = queryParams;
     } else {
@@ -137,7 +149,6 @@ export async function getTasksByDate(
       params.append("view", queryParams.view);
       queryString = params.toString();
     }
-
     return await httpClient<TasksByDateResponse>(
       `/tasks/by-date?${queryString}`
     );
@@ -147,16 +158,11 @@ export async function getTasksByDate(
   }
 }
 
-/**
- * Obtiene las tareas asignadas al trabajador actual
- * @param queryParams - Parámetros de consulta como string o objeto
- */
 export async function getWorkerTasks(
   queryParams: string | TasksByDateParams
 ): Promise<TasksByDateResponse> {
   try {
     let queryString: string;
-
     if (typeof queryParams === "string") {
       queryString = queryParams;
     } else {
@@ -165,7 +171,6 @@ export async function getWorkerTasks(
       params.append("view", queryParams.view);
       queryString = params.toString();
     }
-
     return await httpClient<TasksByDateResponse>(
       `/tasks/worker?${queryString}`
     );
@@ -175,24 +180,16 @@ export async function getWorkerTasks(
   }
 }
 
-/**
- * Crea una nueva tarea
- */
 export async function createTask(taskData: Task): Promise<TaskResponse> {
   try {
-    // Preprocesamiento de datos para evitar problemas con valores nulos
     const processedData = {
       ...taskData,
-      // Si quotationId es null, lo convertimos a undefined para que no se envíe
       quotationId: taskData.quotationId || undefined,
-      // Asegurar que se envíen arrays vacíos en lugar de null
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
-      // Asegurar que assignedWorkerIds sea siempre un array
       assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
-
     return await httpClient<TaskResponse>("/tasks", {
       method: "POST",
       body: JSON.stringify(processedData),
@@ -203,28 +200,19 @@ export async function createTask(taskData: Task): Promise<TaskResponse> {
   }
 }
 
-/**
- * Actualiza una tarea existente
- */
 export async function updateTask(
   id: string,
   taskData: Task
 ): Promise<TaskResponse> {
   try {
-    // Preprocesamos los datos para manejar valores nulos y evitar errores de validación
     const processedData = {
       ...taskData,
-      // Si quotationId es null, lo convertimos a undefined para que no se envíe
       quotationId: taskData.quotationId || undefined,
-      // Asegurar que se envíen arrays vacíos en lugar de null
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
-      // Asegurar que assignedWorkerIds sea siempre un array
       assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
-
-    // Eliminar propiedades que no deberían enviarse al backend
     if (processedData.client) delete processedData.client;
     if (processedData.quotation) delete processedData.quotation;
     if (processedData.assignedWorkers) delete processedData.assignedWorkers;
@@ -232,15 +220,12 @@ export async function updateTask(
     if (processedData.createdAt) delete processedData.createdAt;
     if (processedData.updatedAt) delete processedData.updatedAt;
 
-    console.log("Datos procesados para actualizar:", processedData);
-
     try {
       return await httpClient<TaskResponse>(`/tasks/${id}`, {
         method: "PUT",
         body: JSON.stringify(processedData),
       });
     } catch (error: any) {
-      // Si el error contiene "Forbidden" y está relacionado con SendGrid
       if (
         error.message &&
         error.message.includes("Forbidden") &&
@@ -250,21 +235,16 @@ export async function updateTask(
         console.warn(
           "Error de envío de correo detectado. La tarea se actualizó pero no se pudieron enviar notificaciones."
         );
-
-        // Intentar recuperar los datos de la tarea actualizada a pesar del error de correo
         try {
-          const task = await httpClient<Task>(`/tasks/${id}`);
+          const task = await httpClient<Task>(`/tasks/${id}`); // Asumiendo que tienes un endpoint para obtener una tarea por ID
           return {
             message: "Task updated successfully but email notifications failed",
             task,
           };
         } catch (getError) {
-          // Si también falla al obtener la tarea actualizada, lanzar el error original
           throw error;
         }
       }
-
-      // Para cualquier otro tipo de error, propagarlo normalmente
       throw error;
     }
   } catch (error) {
@@ -273,9 +253,6 @@ export async function updateTask(
   }
 }
 
-/**
- * Elimina una tarea
- */
 export async function deleteTask(id: string): Promise<{ message: string }> {
   try {
     return await httpClient<{ message: string }>(`/tasks/${id}`, {
@@ -287,9 +264,6 @@ export async function deleteTask(id: string): Promise<{ message: string }> {
   }
 }
 
-/**
- * Inicia una tarea (cambia el estado de PENDIENTE a EN_CURSO)
- */
 export async function startTask(taskId: number): Promise<TaskResponse> {
   try {
     return await httpClient<TaskResponse>("/tasks/start", {
@@ -302,14 +276,10 @@ export async function startTask(taskId: number): Promise<TaskResponse> {
   }
 }
 
-/**
- * Finaliza una tarea
- */
 export async function finalizeTask(
   data: FinalizeTaskData
 ): Promise<TaskResponse> {
   try {
-    // Asegurar que los arrays estén definidos
     const processedData = {
       ...data,
       mediaUrls: data.mediaUrls || [],
@@ -317,18 +287,15 @@ export async function finalizeTask(
       systems: data.systems || [],
       technicians: data.technicians || [],
     };
-
     return await httpClient<TaskResponse>("/tasks/finalize", {
       method: "POST",
-      body: JSON.stringify(processedData),
+      body: JSON.stringify(processedData), // Enviar como JSON si el backend espera JSON
     });
   } catch (error) {
-    // Capturar específicamente el error de correo (403 Forbidden de SendGrid)
     if (error instanceof Error && error.message.includes("Forbidden")) {
       console.warn(
         "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada"
       );
-      // Podríamos intentar obtener la tarea actualizada
       try {
         const taskResponse = await httpClient<{ task: Task }>(
           `/tasks/${data.taskId}`,
@@ -341,7 +308,6 @@ export async function finalizeTask(
           task: taskResponse.task,
         };
       } catch (secondError) {
-        // Si también falla la recuperación de la tarea, lanzamos el error original
         throw error;
       }
     }
@@ -350,25 +316,19 @@ export async function finalizeTask(
   }
 }
 
-/**
- * Descarga el PDF del informe técnico de una tarea finalizada
- */
 export async function downloadTaskReport(taskId: string): Promise<Blob> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/report-pdf`,
       {
         headers: {
-          // Incluir token de autenticación
           Authorization: `Bearer ${await getAuthToken()}`,
         },
       }
     );
-
     if (!response.ok) {
       throw new Error(`Error al descargar el informe: ${response.statusText}`);
     }
-
     return response.blob();
   } catch (error) {
     console.error(
@@ -379,11 +339,6 @@ export async function downloadTaskReport(taskId: string): Promise<Blob> {
   }
 }
 
-/**
- * Sube una imagen relacionada con una tarea directamente usando FormData
- * @param file Archivo a subir
- * @param type Tipo de imagen (work, who-receives, etc.)
- */
 export async function uploadTaskImageFormData(
   file: File,
   type: string = "work"
@@ -392,13 +347,10 @@ export async function uploadTaskImageFormData(
     const formData = new FormData();
     formData.append("image", file);
     formData.append("type", type);
-
-    // Obtener token para la petición
     const session = await import("next-auth/react").then((mod) =>
       mod.getSession()
     );
     const accessToken = session?.accessToken;
-
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`,
       {
@@ -409,17 +361,14 @@ export async function uploadTaskImageFormData(
         body: formData,
       }
     );
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({
         message: `Error ${response.status}: ${response.statusText}`,
       }));
-
       throw new Error(
         errorData.message || `Error al subir imagen: ${response.statusText}`
       );
     }
-
     const result = await response.json();
     return result.imageUrl;
   } catch (error) {

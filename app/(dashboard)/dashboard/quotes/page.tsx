@@ -288,12 +288,7 @@ export default function QuotesPage() {
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Filtrar por cliente" />
                   </SelectTrigger>
-                  <SelectContent
-                    // Aplicar altura máxima al contenido completo
-                    style={{ maxHeight: "300px", overflowY: "auto" }}
-                    // Alternativa usando la clase de tailwind directamente:
-                    // className="max-h-[300px] overflow-y-auto"
-                  >
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
                     <SelectItem value="all">Todos los clientes</SelectItem>
 
                     {/* Etiqueta con cantidad de clientes */}

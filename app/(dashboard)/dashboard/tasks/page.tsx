@@ -1,14 +1,14 @@
-// web\app\(dashboard)\dashboard\tasks\page.tsx
+// app/(dashboard)/dashboard/tasks/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { useSession } from "next-auth/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getClients } from "@/services/clients";
+import { getClients, Client } from "@/services/clients"; // Import Client interface
 import { getUsers, User } from "@/services/users";
 import {
-  getAllTasks,
+  // getAllTasks, // Reemplazado por getFilteredTasks
   getTasksByDate,
   createTask,
   updateTask,
@@ -18,31 +18,59 @@ import {
   type Task,
   type TasksByDateParams,
   type FinalizeTaskData,
+  type TaskFilterParams, // Nueva interfaz de filtros
+  getAllTasks as getFilteredTasks, // Renombrar para claridad
 } from "@/services/tasks";
-import { Loader2 } from "lucide-react";
-
-// Componentes refactorizados con loaders
-import TaskFilters from "@/components/tasks/TaskFilters";
+import {
+  Loader2,
+  Search,
+  Filter as FilterIcon,
+  Calendar as CalendarIconLucide,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Plus,
+} from "lucide-react";
+// TaskFilters ya no se usa, se integran los filtros directamente en esta página
+// import TaskFilters from "@/components/tasks/TaskFilters";
 import TaskList from "@/components/tasks/TaskList";
 import TaskForm from "@/components/tasks/TaskForm";
 import FinalizeTaskForm from "@/components/tasks/FinalizeTaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import { useNotification } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// Interfaces
-interface TasksFilterOptions {
-  view: "daily" | "weekly" | "monthly";
-  date: string;
-  state?: string;
-}
+// Constantes para tipos y estados de tareas
+const TASK_TYPES_OPTIONS = [
+  "REVISION",
+  "REPARACION",
+  "MANTENCION",
+  "INSTALACION",
+].map((type) => ({
+  value: type,
+  label: type.charAt(0) + type.slice(1).toLowerCase(),
+}));
+const TASK_STATES_OPTIONS = [
+  { value: "ALL", label: "Todos los estados" },
+  { value: "PENDIENTE", label: "Pendiente" },
+  { value: "EN_CURSO", label: "En Curso" },
+  { value: "FINALIZADO", label: "Finalizado" },
+];
 
 export default function TasksPage() {
   const { data: session } = useSession();
   const { addNotification } = useNotification();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingTask, setIsSavingTask] = useState(false);
@@ -50,169 +78,115 @@ export default function TasksPage() {
   const [isFinalizingTask, setIsFinalizingTask] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState<TasksFilterOptions>({
-    view: "weekly",
-    date: new Date().toISOString().split("T")[0],
-  });
+
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
-  const [clients, setClients] = useState<any[]>([]);
+
+  const [clients, setClients] = useState<Client[]>([]);
   const [workers, setWorkers] = useState<User[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true); // Para clientes y workers
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
   const [isStartingTask, setIsStartingTask] = useState(false);
 
-  // Verificar si el usuario tiene el rol ADMIN
-  const isAdmin = () => {
-    return session?.user?.role === "ADMIN";
-  };
+  // Nuevos estados para filtros de búsqueda
+  const [searchFilters, setSearchFilters] = useState<TaskFilterParams>({
+    clientId: undefined,
+    taskType: undefined,
+    startDate: undefined,
+    endDate: undefined,
+    state: "ALL", // Mostrar todos por defecto
+  });
+  const [searchTerm, setSearchTerm] = useState(""); // Para búsqueda por texto general
 
-  // Cargar tareas al cambiar los filtros
-  useEffect(() => {
-    fetchTasks();
-  }, [filters]);
+  const isAdmin = () => session?.user?.role === "ADMIN";
 
-  // Cargar clientes y usuarios (trabajadores) al montar
   useEffect(() => {
-    const fetchData = async () => {
+    const loadInitialData = async () => {
       setIsLoadingData(true);
       setIsLoadingClients(true);
       setIsLoadingWorkers(true);
       try {
-        // Cargar clientes
-        try {
-          const clientsData = await getClients();
-          if (!clientsData || !Array.isArray(clientsData)) {
-            console.error("Datos de clientes inválidos:", clientsData);
-            addNotification("error", "Error al cargar los datos de clientes");
-          } else {
-            console.log("Clientes cargados:", clientsData);
-            setClients(clientsData);
-          }
-        } catch (error) {
-          console.error("Error al cargar clientes:", error);
-          addNotification("error", "Error al cargar los clientes");
-        } finally {
-          setIsLoadingClients(false);
-        }
-
-        // Cargar trabajadores
-        try {
-          const workersData = await getUsers();
-          if (!workersData || !Array.isArray(workersData)) {
-            console.error("Datos de trabajadores inválidos:", workersData);
-            addNotification("error", "Error al cargar los trabajadores");
-            setWorkers([]);
-          } else {
-            console.log("Usuarios recibidos del API:", workersData);
-
-            // Procesar los datos de trabajadores para asegurar que tengan todos los campos necesarios
-            const processedWorkers = workersData.map((worker) => ({
-              ...worker,
-              // Asegurar que exista un nombre (usar email si no hay nombre)
-              name: worker.name || worker.email || `Técnico ${worker.id}`,
-              // Asegurar que tenga un rol (asumir WORKER si no es ADMIN explícitamente)
-              role: worker.role === "ADMIN" ? "ADMIN" : "WORKER",
-              // Asegurar que tenga un email
-              email: worker.email || "",
-            }));
-
-            setWorkers(processedWorkers);
-          }
-        } catch (error) {
-          console.error("Error al cargar trabajadores:", error);
-          addNotification("error", "Error al cargar los trabajadores");
-        } finally {
-          setIsLoadingWorkers(false);
-        }
+        const clientsData = await getClients();
+        setClients(clientsData || []);
       } catch (err) {
-        console.error("Error al cargar datos:", err);
-        setError("Error al cargar datos necesarios");
-        addNotification("error", "Error al cargar los datos");
+        addNotification("error", "Error al cargar clientes");
+        console.error("Error fetching clients:", err);
       } finally {
-        setIsLoadingData(false);
+        setIsLoadingClients(false);
       }
+
+      try {
+        const workersData = await getUsers();
+        const processedWorkers = (workersData || []).map((worker) => ({
+          ...worker,
+          name: worker.name || worker.email || `Técnico ${worker.id}`,
+          role: worker.role || "WORKER",
+          email: worker.email || "",
+        }));
+        setWorkers(processedWorkers);
+      } catch (err) {
+        addNotification("error", "Error al cargar técnicos");
+        console.error("Error fetching workers:", err);
+      } finally {
+        setIsLoadingWorkers(false);
+      }
+      setIsLoadingData(false);
     };
+    loadInitialData();
+  }, [addNotification]);
 
-    fetchData();
-  }, []);
+  useEffect(() => {
+    fetchTasks();
+  }, [searchFilters]); // Quitar searchTerm de aquí, se filtrará en el frontend
 
-  // Función para cargar tareas según filtros
   const fetchTasks = async () => {
     setIsLoading(true);
-    setIsLoadingFilters(true);
+    setError(null);
     try {
-      let tasksData;
-      if (filters.view) {
-        const params: TasksByDateParams = {
-          date: filters.date,
-          view: filters.view,
-        };
-        tasksData = await getTasksByDate(params);
-
-        if (tasksData && tasksData.tasks) {
-          setTasks(tasksData.tasks);
-        } else {
-          console.error("Formato de datos inválido:", tasksData);
-          setTasks([]);
-        }
-      } else {
-        tasksData = await getAllTasks();
-        if (Array.isArray(tasksData)) {
-          setTasks(tasksData);
-        } else {
-          console.error("Formato de datos inválido:", tasksData);
-          setTasks([]);
-        }
-      }
-      setError(null);
+      const tasksData = await getFilteredTasks(searchFilters);
+      setTasks(tasksData || []);
     } catch (err) {
       console.error("Error al cargar tareas:", err);
       setError("Error al cargar las tareas. Intente nuevamente.");
       setTasks([]);
+      addNotification("error", "Error al cargar tareas");
     } finally {
-      // Agregamos un pequeño retraso para mostrar el loader
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsLoadingFilters(false);
-      }, 500);
+      setIsLoading(false);
     }
   };
 
-  // Filtrar tareas por estado o término de búsqueda
-  const filteredTasks = tasks.filter((task) => {
-    // Filtrar por término de búsqueda (con validación)
-    const matchesSearch =
-      (task.title || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (task.description || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      (task.client && task.client.name
-        ? task.client.name.toLowerCase().includes(searchTerm.toLowerCase())
-        : false);
-
-    // Filtrar por estado
-    const matchesState = !filters.state || task.state === filters.state;
-
-    return matchesSearch && matchesState;
-  });
-
-  // Función para agregar un nuevo trabajador a la lista local
-  const handleUserCreated = (newUser: User) => {
-    console.log("Nuevo usuario creado:", newUser);
-    setWorkers((prevWorkers) => [...prevWorkers, newUser]);
+  const handleSearchFilterChange = (
+    filterName: keyof TaskFilterParams,
+    value: string | undefined
+  ) => {
+    setSearchFilters((prev) => ({
+      ...prev,
+      [filterName]: value === "ALL" || value === "" ? undefined : value,
+    }));
   };
 
-  // Función para agregar un nuevo cliente a la lista local
-  const handleClientCreated = (newClient: any) => {
-    console.log("Nuevo cliente creado:", newClient);
-    setClients((prevClients) => [...prevClients, newClient]);
+  const handleDateRangeChange = (range: { start?: Date; end?: Date }) => {
+    setSearchFilters((prev) => ({
+      ...prev,
+      startDate: range.start?.toISOString().split("T")[0],
+      endDate: range.end?.toISOString().split("T")[0],
+    }));
   };
 
-  // Handlers
+  const filteredTasksBySearchTerm = useMemo(() => {
+    if (!searchTerm) return tasks; // Si no hay término de búsqueda, devolver todas las tareas cargadas por los filtros
+    return tasks.filter(
+      (task) =>
+        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (task.description &&
+          task.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (task.client &&
+          task.client.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [tasks, searchTerm]);
+
   const handleAddTask = () => {
     setCurrentTask(null);
     setIsEditing(true);
@@ -233,17 +207,16 @@ export default function TasksPage() {
   };
 
   const handleStartTask = async (task: Task) => {
+    setIsStartingTask(true);
     try {
-      setIsStartingTask(true);
       const result = await startTask(task.id!);
       if (result && result.task) {
-        setTasks((tasks) =>
-          tasks.map((t) => (t.id === task.id ? result.task : t))
+        setTasks((prevTasks) =>
+          prevTasks.map((t) => (t.id === task.id ? result.task : t))
         );
         addNotification("success", "Tarea iniciada correctamente");
       }
     } catch (error) {
-      console.error("Error al iniciar tarea:", error);
       addNotification("error", "Error al iniciar la tarea");
     } finally {
       setIsStartingTask(false);
@@ -255,81 +228,39 @@ export default function TasksPage() {
     setIsDeleteConfirmOpen(true);
   };
 
-  const handleFilterChange = (newFilters: TasksFilterOptions) => {
-    setFilters(newFilters);
-  };
-
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-  };
-
   const handleSaveTask = async (taskData: Task) => {
+    setIsSavingTask(true);
     try {
-      setIsSavingTask(true);
       if (currentTask && currentTask.id) {
-        // Actualizar tarea existente
-        const updatedTask = await updateTask(
-          currentTask.id.toString(),
-          taskData
+        const updated = await updateTask(currentTask.id.toString(), taskData);
+        setTasks(
+          tasks.map((t) => (t.id === currentTask.id ? updated.task : t))
         );
-
-        if (updatedTask && updatedTask.task) {
-          setTasks((tasks) =>
-            tasks.map((t) => (t.id === currentTask.id ? updatedTask.task : t))
-          );
-          addNotification("success", "Tarea actualizada correctamente");
-        } else {
-          throw new Error(
-            "La respuesta del servidor no incluyó la tarea actualizada"
-          );
-        }
+        addNotification("success", "Tarea actualizada");
       } else {
-        // Crear nueva tarea
-        const newTask = await createTask(taskData);
-
-        if (newTask && newTask.task) {
-          setTasks((tasks) => [...tasks, newTask.task]);
-          addNotification("success", "Tarea creada correctamente");
-        } else {
-          throw new Error(
-            "La respuesta del servidor no incluyó la nueva tarea"
-          );
-        }
+        const created = await createTask(taskData);
+        setTasks([...tasks, created.task]);
+        addNotification("success", "Tarea creada");
       }
       setIsEditing(false);
       setCurrentTask(null);
-      setError(null);
     } catch (err) {
-      console.error("Error al guardar la tarea:", err);
-      setError("Error al guardar la tarea");
-      addNotification("error", "Error al guardar la tarea");
+      addNotification("error", "Error al guardar tarea");
     } finally {
       setIsSavingTask(false);
     }
   };
 
   const handleFinalizeSubmit = async (data: FinalizeTaskData) => {
+    setIsFinalizingTask(true);
     try {
-      setIsFinalizingTask(true);
       const result = await finalizeTask(data);
-
-      if (result && result.task) {
-        setTasks((tasks) =>
-          tasks.map((t) => (t.id === data.taskId ? result.task : t))
-        );
-        setIsFinalizing(false);
-        setCurrentTask(null);
-        setError(null);
-        addNotification("success", "Tarea finalizada correctamente");
-      } else {
-        throw new Error(
-          "La respuesta del servidor no incluyó la tarea finalizada"
-        );
-      }
+      setTasks(tasks.map((t) => (t.id === data.taskId ? result.task : t)));
+      setIsFinalizing(false);
+      setCurrentTask(null);
+      addNotification("success", "Tarea finalizada");
     } catch (err) {
-      console.error("Error al finalizar la tarea:", err);
-      setError("Error al finalizar la tarea");
-      addNotification("error", "Error al finalizar la tarea");
+      addNotification("error", "Error al finalizar tarea");
     } finally {
       setIsFinalizingTask(false);
     }
@@ -337,17 +268,13 @@ export default function TasksPage() {
 
   const handleDeleteTask = async () => {
     if (!taskToDelete || !taskToDelete.id) return;
-
+    setIsDeletingTask(true);
     try {
-      setIsDeletingTask(true);
       await deleteTask(taskToDelete.id.toString());
-      setTasks((tasks) => tasks.filter((task) => task.id !== taskToDelete.id));
-      setError(null);
-      addNotification("success", "Tarea eliminada correctamente");
+      setTasks(tasks.filter((task) => task.id !== taskToDelete.id));
+      addNotification("success", "Tarea eliminada");
     } catch (err) {
-      console.error("Error al eliminar la tarea:", err);
-      setError("Error al eliminar la tarea");
-      addNotification("error", "Error al eliminar la tarea");
+      addNotification("error", "Error al eliminar tarea");
     } finally {
       setIsDeletingTask(false);
       setIsDeleteConfirmOpen(false);
@@ -355,41 +282,19 @@ export default function TasksPage() {
     }
   };
 
-  // Mostrar pantalla de carga mientras se obtienen los datos iniciales
-  if (isLoadingData) {
+  if (isLoadingData && !tasks.length) {
+    // Mostrar loader principal solo si no hay tareas y se están cargando datos iniciales
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-content-emphasis">Tareas</h1>
-          <p className="text-content-subtle mt-2">
+          <h1 className="text-3xl font-bold">Tareas</h1>
+          <p className="text-content-subtle mt-1">
             Gestiona las tareas y trabajos del equipo técnico
           </p>
         </div>
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
           <p>Cargando datos necesarios...</p>
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isLoadingClients
-                    ? "bg-yellow-400 animate-pulse"
-                    : "bg-green-500"
-                }`}
-              ></div>
-              <span className="text-sm">Clientes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isLoadingWorkers
-                    ? "bg-yellow-400 animate-pulse"
-                    : "bg-green-500"
-                }`}
-              ></div>
-              <span className="text-sm">Técnicos</span>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -398,8 +303,8 @@ export default function TasksPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-content-emphasis">Tareas</h1>
-        <p className="text-content-subtle mt-2">
+        <h1 className="text-3xl font-bold">Tareas</h1>
+        <p className="text-content-subtle mt-1">
           Gestiona las tareas y trabajos del equipo técnico
         </p>
       </div>
@@ -414,7 +319,7 @@ export default function TasksPage() {
             onFinalize={handleFinalizeTask}
             onStart={handleStartTask}
           />
-          <div className="flex justify-center">
+          <div className="flex justify-center mt-4">
             <Button
               variant="outline"
               onClick={() => setViewingTask(null)}
@@ -426,18 +331,135 @@ export default function TasksPage() {
         </>
       ) : (
         <Card className="p-6">
-          <TaskFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
-            onAddTask={handleAddTask}
-            isAdmin={isAdmin()}
-            isLoading={isLoadingFilters}
-          />
+          {/* Filtros de Búsqueda */}
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <div className="space-y-1">
+              <label htmlFor="clientFilter" className="text-sm font-medium">
+                Cliente
+              </label>
+              <Select
+                value={searchFilters.clientId || ""}
+                onValueChange={(value) =>
+                  handleSearchFilterChange(
+                    "clientId",
+                    value === "ALL" ? undefined : value
+                  )
+                }
+                disabled={isLoadingClients || isLoading}
+              >
+                <SelectTrigger id="clientFilter">
+                  {isLoadingClients ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SelectValue placeholder="Todos los clientes" />
+                  )}
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="ALL">Todos los clientes</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id!.toString()}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="taskTypeFilter" className="text-sm font-medium">
+                Tipo de Tarea
+              </label>
+              <Select
+                value={searchFilters.taskType || ""}
+                onValueChange={(value) =>
+                  handleSearchFilterChange(
+                    "taskType",
+                    value === "ALL" ? undefined : value
+                  )
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger id="taskTypeFilter">
+                  <SelectValue placeholder="Todos los tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos los tipos</SelectItem>
+                  {TASK_TYPES_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1 md:col-span-2 lg:col-span-1">
+              <label className="text-sm font-medium">Rango de Fechas</label>
+              <DateRangePicker
+                value={{
+                  start: searchFilters.startDate
+                    ? new Date(searchFilters.startDate + "T00:00:00Z")
+                    : undefined,
+                  end: searchFilters.endDate
+                    ? new Date(searchFilters.endDate + "T23:59:59Z")
+                    : undefined,
+                }}
+                onChange={(range) =>
+                  handleDateRangeChange({ start: range.from, end: range.to })
+                }
+                // className="w-full" // Asegúrate que el DateRangePicker pueda tomar el ancho completo
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="stateFilter" className="text-sm font-medium">
+                Estado
+              </label>
+              <Select
+                value={searchFilters.state || "ALL"}
+                onValueChange={(value) =>
+                  handleSearchFilterChange("state", value)
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger id="stateFilter">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_STATES_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="relative md:col-span-2 lg:col-span-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por título, descripción o cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full"
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end mb-4">
+            {isAdmin() && (
+              <Button
+                onClick={handleAddTask}
+                disabled={isLoadingData || isLoading}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nueva Tarea
+              </Button>
+            )}
+          </div>
 
           <TaskList
-            tasks={filteredTasks}
+            tasks={filteredTasksBySearchTerm}
             isLoading={isLoading}
             isAdmin={isAdmin()}
             onEdit={handleEditTask}
@@ -451,13 +473,12 @@ export default function TasksPage() {
       {error && (
         <div className="text-center p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
           {error}
-          <button className="ml-2 underline" onClick={() => fetchTasks()}>
+          <button className="ml-2 underline" onClick={fetchTasks}>
             Reintentar
           </button>
         </div>
       )}
 
-      {/* Formulario para crear/editar tarea */}
       <TaskForm
         isOpen={isEditing}
         task={currentTask}
@@ -465,14 +486,11 @@ export default function TasksPage() {
         workers={workers}
         onSave={handleSaveTask}
         onClose={() => setIsEditing(false)}
-        onUserCreated={handleUserCreated}
-        onClientCreated={handleClientCreated}
         isLoading={isSavingTask}
         isLoadingClients={isLoadingClients}
         isLoadingWorkers={isLoadingWorkers}
       />
 
-      {/* Formulario para finalizar tarea */}
       <FinalizeTaskForm
         isOpen={isFinalizing}
         task={currentTask}
