@@ -1,7 +1,13 @@
 // C:\workspace\gestion\web\components\tasks\TaskDetail.tsx
 import { useState, useEffect } from "react";
 import { Task } from "@/services/tasks";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -93,7 +99,6 @@ export default function TaskDetail({
     }
   };
 
-  // Componente para mostrar la imagen ampliada
   const ImagePreview = () => {
     if (!selectedImage) return null;
 
@@ -219,17 +224,14 @@ export default function TaskDetail({
       </CardHeader>
 
       <CardContent>
-        {/* Descripción de la tarea */}
         {task.description && (
           <div className="mb-4">
             <p className="text-sm text-content-subtle">{task.description}</p>
           </div>
         )}
 
-        {/* Información de la cotización si existe */}
         {task.quotationId && <QuotationInfo quotationId={task.quotationId} />}
 
-        {/* Información básica */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <h3 className="font-medium mb-2">Información del Cliente</h3>
@@ -313,7 +315,6 @@ export default function TaskDetail({
           </div>
         </div>
 
-        {/* Técnicos asignados */}
         <div className="mb-4">
           <h3 className="font-medium mb-2">Técnicos Asignados</h3>
           {task.assignedWorkers && task.assignedWorkers.length > 0 ? (
@@ -341,7 +342,6 @@ export default function TaskDetail({
           )}
         </div>
 
-        {/* Categorías */}
         {task.categories && task.categories.length > 0 && (
           <div className="mb-4">
             <h3 className="font-medium mb-2">Categorías</h3>
@@ -355,7 +355,6 @@ export default function TaskDetail({
           </div>
         )}
 
-        {/* Mostrar más detalles si la tarea está finalizada */}
         {task.state === "FINALIZADO" && (
           <div className="border-t border-border pt-4 mt-4">
             <div className="bg-accent/10 p-3 rounded-md mb-4">
@@ -377,7 +376,6 @@ export default function TaskDetail({
               </div>
             )}
 
-            {/* Información de la persona que recibió el trabajo */}
             {task.metadata?.receivedBy && (
               <div className="mb-6 border border-border rounded-lg p-4">
                 <h3 className="font-medium mb-3">Información de Recepción</h3>
@@ -430,7 +428,6 @@ export default function TaskDetail({
               </div>
             )}
 
-            {/* Galería de imágenes */}
             {task.mediaUrls && task.mediaUrls.length > 0 && (
               <div className="mb-6">
                 <h3 className="font-medium mb-3 flex items-center">
@@ -462,8 +459,18 @@ export default function TaskDetail({
           </div>
         )}
       </CardContent>
+      <CardFooter className="flex justify-end">
+        {isAdmin && task.state === "FINALIZADO" && task.id && (
+          <DownloadTaskReportButton
+            taskId={task.id}
+            variant="default"
+            className="w-full md:w-auto"
+            label="Descargar Informe Técnico"
+            showIcon
+          />
+        )}
+      </CardFooter>
 
-      {/* Visor de imágenes en grande */}
       <ImagePreview />
     </Card>
   );

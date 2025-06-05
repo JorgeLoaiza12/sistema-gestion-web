@@ -1,4 +1,4 @@
-//web\services\quotations.ts
+//web/services/quotations.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -6,6 +6,7 @@ export interface QuotationItem {
   productId: number;
   quantity: number;
   price?: number;
+  itemMarkup?: number;
   total?: number;
   product: {
     id: number;
@@ -17,6 +18,7 @@ export interface QuotationItem {
 }
 
 export interface QuotationCategory {
+  id?: string; // Puede ser útil para el frontend
   name: string;
   items: QuotationItem[];
 }
@@ -36,8 +38,8 @@ export interface Quotation {
   status?: string;
   createdAt?: string;
   updatedAt?: string;
-  amount?: number; // Para compatibilidad con la vista de tareas
-  advancePercentage?: number; // Nuevo campo para el porcentaje de abono
+  amount?: number;
+  advancePercentage?: number;
 }
 
 export interface Pagination {
@@ -69,12 +71,10 @@ export interface QuotationsParams {
   endDate?: string;
 }
 
-// Obtener cotizaciones filtradas y paginadas
 export async function getQuotationsData(
   params: QuotationsParams = {}
 ): Promise<QuotationsDataResponse> {
   const queryParams = new URLSearchParams();
-
   if (params.page !== undefined)
     queryParams.append("page", params.page.toString());
   if (params.limit !== undefined)
@@ -85,10 +85,8 @@ export async function getQuotationsData(
   if (params.status) queryParams.append("status", params.status);
   if (params.startDate) queryParams.append("startDate", params.startDate);
   if (params.endDate) queryParams.append("endDate", params.endDate);
-
   const queryString = queryParams.toString();
   const url = `/quotations/data${queryString ? `?${queryString}` : ""}`;
-
   return httpClient<QuotationsDataResponse>(url);
 }
 
@@ -103,7 +101,6 @@ export async function getQuotationsByDateRange(
   const queryParams = new URLSearchParams();
   queryParams.append("startDate", startDate);
   queryParams.append("endDate", endDate);
-
   return httpClient<Quotation[]>(`/quotations?${queryParams.toString()}`);
 }
 
@@ -111,7 +108,6 @@ export async function getQuotationById(id: string): Promise<Quotation> {
   return httpClient<Quotation>(`/quotations/${id}`);
 }
 
-// Obtener cotizaciones por cliente
 export async function getQuotationsByClient(
   clientId: number
 ): Promise<Quotation[]> {
@@ -122,7 +118,6 @@ export async function getQuotationsByClient(
       `Error al obtener cotizaciones del cliente ${clientId}:`,
       error
     );
-    // En caso de error, devolver un array vacío para manejar mejor el error en los componentes
     return [];
   }
 }
@@ -130,29 +125,29 @@ export async function getQuotationsByClient(
 export async function createQuotation(
   quotation: Quotation
 ): Promise<QuotationResponse> {
-  // Calcular los totales de items con ganancia del 35% antes de enviar
   const calculatedQuotation = {
     ...quotation,
-    status: quotation.status || "SENT", // Estado por defecto
+    status: quotation.status || "SENT",
     advancePercentage:
       quotation.advancePercentage !== undefined
         ? quotation.advancePercentage
-        : 50, // Usar el valor proporcionado o 50% por defecto
+        : 50,
     categories: quotation.categories.map((category) => ({
       ...category,
-      items: category.items.map((item) => {
-        const providerPrice =
-          item.price || (item.product ? item.product.price : 0);
-        const total = providerPrice * item.quantity;
-        return {
-          ...item,
-          price: providerPrice, // Precio del proveedor
-          total: total, // Total sin ganancia (el backend calculará la ganancia)
-        };
-      }),
+      items: category.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price:
+          typeof item.price === "number"
+            ? item.price
+            : item.product
+            ? item.product.unitPrice
+            : undefined,
+        itemMarkup:
+          typeof item.itemMarkup === "number" ? item.itemMarkup : undefined,
+      })),
     })),
   };
-
   return httpClient<QuotationResponse>("/quotations", {
     method: "POST",
     body: JSON.stringify(calculatedQuotation),
@@ -163,29 +158,28 @@ export async function updateQuotation(
   id: string,
   quotation: Quotation
 ): Promise<QuotationResponse> {
-  // Calcular los totales de items con ganancia del 35% antes de enviar
   const calculatedQuotation = {
     ...quotation,
-    // Incluir el porcentaje de abono si está definido
     advancePercentage:
       quotation.advancePercentage !== undefined
         ? quotation.advancePercentage
-        : undefined,
+        : undefined, // Evitar enviar si es undefined para que el backend no lo tome como 0
     categories: quotation.categories.map((category) => ({
       ...category,
-      items: category.items.map((item) => {
-        const providerPrice =
-          item.price || (item.product ? item.product.price : 0);
-        const total = providerPrice * item.quantity;
-        return {
-          ...item,
-          price: providerPrice, // Precio del proveedor
-          total: total, // Total sin ganancia (el backend calculará la ganancia)
-        };
-      }),
+      items: category.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price:
+          typeof item.price === "number"
+            ? item.price
+            : item.product
+            ? item.product.unitPrice
+            : undefined,
+        itemMarkup:
+          typeof item.itemMarkup === "number" ? item.itemMarkup : undefined,
+      })),
     })),
   };
-
   return httpClient<QuotationResponse>(`/quotations/${id}`, {
     method: "PUT",
     body: JSON.stringify(calculatedQuotation),
@@ -203,7 +197,7 @@ export async function updateQuotationStatus(
   status: string
 ): Promise<QuotationResponse> {
   return httpClient<QuotationResponse>(`/quotations/${id}/status`, {
-    method: "PUT", // Cambiado de PATCH a PUT para coincidir con el backend
+    method: "PUT",
     body: JSON.stringify({ status }),
   });
 }
@@ -219,7 +213,6 @@ export async function sendQuotationEmail(
 export async function downloadQuotationPDF(id: string): Promise<Blob> {
   const session = await getSession();
   const token = session?.accessToken || "";
-
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/quotations/${id}/pdf`,
     {
@@ -228,28 +221,34 @@ export async function downloadQuotationPDF(id: string): Promise<Blob> {
       },
     }
   );
-
   if (!response.ok) {
     throw new Error("Error al descargar la cotización");
   }
-
   return response.blob();
 }
 
-// Función para obtener estadísticas de cotizaciones
 export async function getQuotationStats(
   params: QuotationsParams = {}
 ): Promise<any> {
   const queryParams = new URLSearchParams();
-
   if (params.startDate) queryParams.append("startDate", params.startDate);
   if (params.endDate) queryParams.append("endDate", params.endDate);
   if (params.status) queryParams.append("status", params.status);
   if (params.clientId !== undefined)
     queryParams.append("clientId", params.clientId.toString());
-
   const queryString = queryParams.toString();
   const url = `/quotations/stats${queryString ? `?${queryString}` : ""}`;
-
   return httpClient<any>(url);
+}
+
+// Nueva función para obtener el PDF para vista previa (enviando datos)
+export async function getPreviewQuotationPDF(
+  quotationData: Quotation
+): Promise<Blob> {
+  return httpClient<Blob>("/quotations/preview-pdf", {
+    method: "POST",
+    body: JSON.stringify(quotationData),
+    headers: { "Content-Type": "application/json" },
+    responseType: "blob", // Indicar a httpClient que esperamos un Blob
+  });
 }

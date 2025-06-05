@@ -1,4 +1,4 @@
-// web\components\tasks\TaskList.tsx
+// web/components/tasks/TaskList.tsx
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
@@ -11,6 +11,7 @@ import {
   Trash,
   Loader2,
   Eye,
+  FileText as DownloadIcon, // Renombrar para evitar conflicto con el componente
 } from "lucide-react";
 import { Task } from "@/services/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import DownloadTaskReportButton from "@/components/tasks/DownloadTaskReportButton"; // Importar el componente
 
 interface TaskListProps {
   tasks: Task[];
@@ -45,7 +47,6 @@ export default function TaskList({
     action: "edit" | "delete" | "finalize" | "view" | null;
   }>({ id: null, action: null });
 
-  // Obtener estado formateado para mostrar
   const getStateDisplay = (state: string) => {
     switch (state) {
       case "PENDIENTE":
@@ -80,8 +81,6 @@ export default function TaskList({
   ) => {
     setLoadingTaskAction({ id: taskId, action });
 
-    // Simular una pequeña demora antes de ejecutar la acción real
-    // Esto es opcional, pero proporciona retroalimentación visual al usuario
     setTimeout(() => {
       switch (action) {
         case "edit":
@@ -102,14 +101,12 @@ export default function TaskList({
           break;
       }
 
-      // Limpiar el estado de carga
       setTimeout(() => {
         setLoadingTaskAction({ id: null, action: null });
       }, 300);
     }, 300);
   };
 
-  // Columnas para la tabla de tareas
   const columns: ColumnDef<Task>[] = [
     {
       accessorKey: "title",
@@ -187,7 +184,6 @@ export default function TaskList({
           return <span className="text-content-subtle">Sin asignar</span>;
         }
 
-        // Mostrar hasta 2 técnicos directamente
         const displayLimit = 2;
         const displayedWorkers = assignedWorkers.slice(0, displayLimit);
         const remainingCount = totalWorkers - displayLimit;
@@ -288,6 +284,19 @@ export default function TaskList({
               )}
             </Button>
           )}
+          {/* Botón de descarga de informe para ADMIN y tareas FINALIZADAS */}
+          {isAdmin &&
+            row.original.state === "FINALIZADO" &&
+            row.original.id && (
+              <DownloadTaskReportButton
+                taskId={row.original.id}
+                variant="ghost" // Cambiado a ghost para consistencia con otros botones de acción
+                size="sm"
+                label="" // Sin etiqueta para que solo muestre el icono
+                showIcon={true}
+                className="p-0 h-auto w-auto" // Ajustar padding y tamaño
+              />
+            )}
         </div>
       ),
     },
