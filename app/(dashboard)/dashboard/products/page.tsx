@@ -1,3 +1,4 @@
+// app\(dashboard)\dashboard\products\page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -39,10 +40,7 @@ export default function ProductsPage() {
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addNotification } = useNotification();
-
-  // Estado para guardar el archivo de imagen
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
-
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -60,7 +58,6 @@ export default function ProductsPage() {
     { value: "price_desc", label: "Precio mayor a menor" },
   ];
 
-  // Obtener productos del backend al montar el componente
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -77,7 +74,6 @@ export default function ProductsPage() {
     fetchProducts();
   }, []);
 
-  // Filtrar productos y ordenarlos según el valor de sortBy
   const filteredProducts = products
     .filter((product) =>
       (product.name || "").toLowerCase().includes(searchTerm.toLowerCase())
@@ -140,7 +136,6 @@ export default function ProductsPage() {
 
   const handleDeleteProduct = async () => {
     if (!productToDelete) return;
-
     try {
       setIsDeletingProduct(true);
       await deleteProduct(productToDelete.id?.toString() || "");
@@ -160,33 +155,29 @@ export default function ProductsPage() {
     }
   };
 
-  const handleSaveProduct = async () => {
-    // Validación básica
+  const handleSaveProduct = async (): Promise<boolean> => {
     if (!formData.name || !formData.unitPrice) {
       setError("El nombre y precio unitario son obligatorios");
-      return;
+      return false;
     }
 
     try {
-      // Convertir y validar valores numéricos
       const unitPrice = roundUp(parseFloat(formData.unitPrice));
       const markup = parseFloat(formData.markup);
 
       if (isNaN(unitPrice) || unitPrice <= 0) {
         setError("El precio unitario debe ser un número mayor que cero");
-        return;
+        return false;
       }
 
       if (isNaN(markup) || markup < 0) {
         setError("El porcentaje de ganancia debe ser un número no negativo");
-        return;
+        return false;
       }
 
-      // Calcular el precio final con el markup
       const markupAmount = Math.ceil((unitPrice * markup) / 100);
       const finalPrice = unitPrice + markupAmount;
 
-      // Crear un FormData para enviar los datos y la imagen
       const productFormData = new FormData();
       productFormData.append("name", formData.name);
       productFormData.append("description", formData.description || "");
@@ -194,55 +185,39 @@ export default function ProductsPage() {
       productFormData.append("markup", markup.toString());
       productFormData.append("price", finalPrice.toString());
 
-      // Manejar la imagen
       if (selectedImageFile) {
-        // Si hay un archivo seleccionado, añadirlo directamente
         productFormData.append("image", selectedImageFile);
-      } else if (
-        formData.imageUrl &&
-        formData.imageUrl.startsWith("data:image")
-      ) {
-        // Si hay una imagen en formato Base64, convertirla a Blob y File
-        const blob = await fetch(formData.imageUrl).then((r) => r.blob());
-        const imageFile = new File([blob], "product-image.png", {
-          type: "image/png",
-        });
-        productFormData.append("image", imageFile);
       } else if (formData.imageUrl && currentProduct) {
-        // Si hay una URL de imagen existente y estamos editando, mantenerla
         productFormData.append("imageUrl", formData.imageUrl);
       }
 
       if (currentProduct) {
-        // Actualizar producto existente
         const response = await updateProduct(
           currentProduct.id?.toString() || "",
-          productFormData,
-          undefined // Ya no pasamos el archivo por separado
+          productFormData
         );
-
         const updatedProduct = response.product;
         setProducts(
           products.map((p) => (p.id === currentProduct.id ? updatedProduct : p))
         );
         addNotification("success", "Producto actualizado correctamente");
       } else {
-        // Crear nuevo producto usando FormData
         const response = await createProduct(productFormData);
         const newProduct = response.product;
         setProducts([...products, newProduct]);
         addNotification("success", "Producto creado correctamente");
       }
 
-      // Limpiar estados y cerrar el formulario
       setIsEditing(false);
       setCurrentProduct(null);
       setSelectedImageFile(null);
       setError(null);
+      return true;
     } catch (err) {
       setError("Error al guardar el producto");
       addNotification("error", "Error al guardar el producto");
       console.error(err);
+      return false;
     }
   };
 
@@ -255,8 +230,6 @@ export default function ProductsPage() {
 
     try {
       setIsUploading(true);
-
-      // Mostrar vista previa de la imagen inmediatamente
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target && event.target.result) {
@@ -277,7 +250,6 @@ export default function ProductsPage() {
     }
   };
 
-  // Columnas para el DataTable
   const columns: ColumnDef<Product>[] = [
     {
       id: "product",
@@ -325,9 +297,7 @@ export default function ProductsPage() {
       cell: ({ row }) => {
         const unitPrice = roundUp(row.original.unitPrice || 0);
         const markup = row.original.markup || 0;
-        // Calcular el monto exacto de ganancia
         const markupAmount = Math.ceil((unitPrice * markup) / 100);
-
         return (
           <div className="flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-content-subtle" />
@@ -449,7 +419,6 @@ export default function ProductsPage() {
         isLoading={isDeletingProduct}
       />
 
-      {/* Input oculto para subir archivos */}
       <input
         type="file"
         ref={fileInputRef}

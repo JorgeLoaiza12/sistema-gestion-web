@@ -1,3 +1,4 @@
+// components\products\ProductForm.tsx
 import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Product } from "@/services/products";
 import { EntityForm } from "@/components/ui/entity-form";
@@ -24,7 +25,7 @@ interface ProductFormProps {
       imageUrl: string;
     }>
   >;
-  onSave: () => boolean | Promise<boolean>;
+  onSave: () => Promise<boolean>;
   onCancel: () => void;
   onUploadImage: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -45,20 +46,16 @@ export default function ProductForm({
   isSubmitting = false,
   error = null,
 }: ProductFormProps) {
-  // Calcular el precio final en tiempo real
   const unitPrice = parseFloat(formData.unitPrice) || 0;
   const markup = parseFloat(formData.markup) || 0;
   const markupAmount = Math.ceil((unitPrice * markup) / 100);
   const finalPrice = unitPrice + markupAmount;
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    e.stopPropagation(); // Muy importante para evitar la propagación
-    onSave();
-    return false; // Prevenir comportamiento por defecto
+    await onSave();
   };
 
-  // Input oculto para cargar imágenes
   const fileInput = (
     <input
       type="file"
@@ -72,19 +69,12 @@ export default function ProductForm({
   return (
     <EntityForm
       isOpen={true}
-      onClose={(e) => {
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        onCancel();
-      }}
+      onClose={onCancel}
       onSubmit={handleSubmit}
       title={currentProduct ? "Editar Producto" : "Agregar Producto"}
       isLoading={isSubmitting}
       error={error}
       maxWidth="max-w-md"
-      preventClose={true} // Esto previene el cierre accidental
     >
       {fileInput}
 
@@ -168,11 +158,7 @@ export default function ProductForm({
           <Button
             type="button"
             variant="outline"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              fileInputRef.current?.click();
-            }}
+            onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
             className="w-full"
           >

@@ -1,7 +1,6 @@
-// web\app\(dashboard)\dashboard\agenda\page.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +45,7 @@ import { formatDate, formatTime, getWeekDayName } from "@/utils/date-format";
 import TaskDetail from "@/components/tasks/TaskDetail";
 
 export default function AgendaPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { addNotification } = useNotification();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,16 +62,14 @@ export default function AgendaPage() {
   const [filterState, setFilterState] = useState<string>("all");
   const [isChangingDate, setIsChangingDate] = useState(false);
 
-  // Formatear rango de fechas para el título
   const getDateRangeTitle = () => {
     const date = new Date(selectedDate);
 
     if (viewMode === "daily") {
-      return formatDate(date, "dd MMMM yyyy");
+      return formatDate(date, "dd MMMM");
     }
 
     if (viewMode === "weekly") {
-      // Encontrar el primer día de la semana (domingo)
       const day = date.getDay();
       const startOfWeek = new Date(date);
       startOfWeek.setDate(date.getDate() - day);
@@ -82,26 +79,20 @@ export default function AgendaPage() {
 
       return `${formatDate(startOfWeek, "dd MMM")} - ${formatDate(
         endOfWeek,
-        "dd MMM yyyy"
+        "dd MMM"
       )}`;
     }
 
     if (viewMode === "monthly") {
-      return formatDate(date, "MMMM yyyy");
+      return formatDate(date, "MMMM");
     }
 
     return formatDate(date);
   };
 
-  // Cargar tareas al cambiar la fecha o el modo de vista
-  useEffect(() => {
-    fetchWorkerTasks();
-  }, [selectedDate, viewMode]);
-
-  const fetchWorkerTasks = async () => {
+  const fetchWorkerTasks = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Parámetros para la solicitud
       const queryParams = new URLSearchParams();
       queryParams.append("date", selectedDate);
       queryParams.append("view", viewMode);
@@ -123,9 +114,19 @@ export default function AgendaPage() {
       setIsLoading(false);
       setIsChangingDate(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, viewMode]);
 
-  // Manejar inicio de tarea
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchWorkerTasks();
+    } else if (status === "unauthenticated") {
+      setTasks([]);
+      setIsLoading(false);
+      setIsChangingDate(false);
+    }
+  }, [status, fetchWorkerTasks]);
+
   const handleStartTask = async (task: Task) => {
     try {
       setIsStartingTask(task.id);
@@ -146,7 +147,6 @@ export default function AgendaPage() {
     }
   };
 
-  // Función para navegar a la fecha anterior
   const goToPreviousDate = () => {
     setIsChangingDate(true);
     const date = new Date(selectedDate);
@@ -162,7 +162,6 @@ export default function AgendaPage() {
     setSelectedDate(date.toISOString().split("T")[0]);
   };
 
-  // Función para navegar a la fecha siguiente
   const goToNextDate = () => {
     setIsChangingDate(true);
     const date = new Date(selectedDate);
@@ -178,13 +177,11 @@ export default function AgendaPage() {
     setSelectedDate(date.toISOString().split("T")[0]);
   };
 
-  // Función para ir a la fecha actual
   const goToToday = () => {
     setIsChangingDate(true);
     setSelectedDate(new Date().toISOString().split("T")[0]);
   };
 
-  // Manejar finalización de tarea
   const handleFinalizeSubmit = async (data: FinalizeTaskData) => {
     try {
       const result = await finalizeTask(data);
@@ -204,13 +201,11 @@ export default function AgendaPage() {
     }
   };
 
-  // Ver detalles de la tarea
   const handleViewDetails = (task: Task) => {
     setCurrentTask(task);
     setIsViewingDetails(true);
   };
 
-  // Obtener estado formateado
   const getStateDisplay = (state: string) => {
     switch (state) {
       case "PENDIENTE":
@@ -239,7 +234,6 @@ export default function AgendaPage() {
     }
   };
 
-  // Verificar si una tarea está vencida
   const isTaskOverdue = (task: Task) => {
     if (task.state === "FINALIZADO") return false;
 
@@ -252,14 +246,12 @@ export default function AgendaPage() {
     return taskDate < today;
   };
 
-  // Filtrar tareas según el estado seleccionado
   const filteredTasks = tasks.filter((task) => {
     if (filterState === "all") return true;
     if (filterState === "overdue") return isTaskOverdue(task);
     return task.state === filterState;
   });
 
-  // Renderizar tarjetas para móvil
   const renderTaskCard = (task: Task) => {
     const date = new Date(task.startDate);
     const isTaskStarting = isStartingTask === task.id;
@@ -335,7 +327,9 @@ export default function AgendaPage() {
                 size="sm"
                 className="flex-1"
                 onClick={() => handleStartTask(task)}
-                disabled={isTaskStarting === task.id}
+                disabled={
+                  isTaskStarting === task.id || status !== "authenticated"
+                }
               >
                 {isTaskStarting === task.id ? (
                   <>
@@ -359,6 +353,7 @@ export default function AgendaPage() {
                   setCurrentTask(task);
                   setIsFinalizing(true);
                 }}
+                disabled={status !== "authenticated"}
               >
                 <CheckCircle className="h-4 w-4 mr-1" />
                 Finalizar
@@ -389,7 +384,6 @@ export default function AgendaPage() {
     );
   };
 
-  // Columnas para la DataTable
   const columns: ColumnDef<Task>[] = [
     {
       accessorKey: "title",
@@ -479,7 +473,9 @@ export default function AgendaPage() {
               variant="default"
               size="sm"
               onClick={() => handleStartTask(row.original)}
-              disabled={isStartingTask === row.original.id}
+              disabled={
+                isStartingTask === row.original.id || status !== "authenticated"
+              }
             >
               {isStartingTask === row.original.id ? (
                 <>
@@ -502,6 +498,7 @@ export default function AgendaPage() {
                 setCurrentTask(row.original);
                 setIsFinalizing(true);
               }}
+              disabled={status !== "authenticated"}
             >
               <CheckCircle className="h-4 w-4 mr-1" />
               Finalizar
@@ -529,8 +526,10 @@ export default function AgendaPage() {
     },
   ];
 
-  // Componente de carga (loading)
-  if (isLoading) {
+  if (
+    status === "loading" ||
+    (isLoading && tasks.length === 0 && status === "authenticated")
+  ) {
     return (
       <div className="space-y-8">
         <div>
@@ -564,7 +563,7 @@ export default function AgendaPage() {
             size="icon"
             onClick={goToPreviousDate}
             title="Anterior"
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -573,9 +572,9 @@ export default function AgendaPage() {
             variant="outline"
             onClick={goToToday}
             className="whitespace-nowrap"
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           >
-            {isChangingDate ? (
+            {isChangingDate && status === "authenticated" ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : null}
             Hoy
@@ -586,7 +585,7 @@ export default function AgendaPage() {
             size="icon"
             onClick={goToNextDate}
             title="Siguiente"
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           >
             <ArrowRight className="h-4 w-4" />
           </Button>
@@ -601,7 +600,7 @@ export default function AgendaPage() {
               setIsChangingDate(true);
               setViewMode(value);
             }}
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           >
             <SelectTrigger className="w-full md:w-32">
               <SelectValue placeholder="Vista" />
@@ -616,7 +615,7 @@ export default function AgendaPage() {
           <Select
             value={filterState}
             onValueChange={setFilterState}
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           >
             <SelectTrigger className="w-full md:w-40">
               <SelectValue placeholder="Filtrar por estado" />
@@ -638,40 +637,51 @@ export default function AgendaPage() {
               setSelectedDate(e.target.value);
             }}
             className="w-full md:w-auto"
-            disabled={isChangingDate}
+            disabled={isChangingDate || status !== "authenticated"}
           />
         </div>
       </div>
 
-      {/* Vista móvil - Tarjetas */}
-      <div className="lg:hidden">
-        {filteredTasks.length === 0 ? (
-          <div className="text-center py-12 bg-accent/10 rounded-lg">
-            <Calendar className="h-12 w-12 mx-auto text-content-subtle mb-2" />
-            <h3 className="text-lg font-medium">No hay tareas</h3>
-            <p className="text-content-subtle">
-              No se encontraron tareas para el período seleccionado
-            </p>
+      {status !== "authenticated" && !isLoading && (
+        <div className="text-center py-12 bg-accent/10 rounded-lg">
+          <Calendar className="h-12 w-12 mx-auto text-content-subtle mb-2" />
+          <h3 className="text-lg font-medium">No has iniciado sesión</h3>
+          <p className="text-content-subtle">
+            Por favor, inicia sesión para ver y gestionar tus tareas.
+          </p>
+        </div>
+      )}
+
+      {status === "authenticated" && (
+        <>
+          <div className="lg:hidden">
+            {filteredTasks.length === 0 && !isLoading ? (
+              <div className="text-center py-12 bg-accent/10 rounded-lg">
+                <Calendar className="h-12 w-12 mx-auto text-content-subtle mb-2" />
+                <h3 className="text-lg font-medium">No hay tareas</h3>
+                <p className="text-content-subtle">
+                  No se encontraron tareas para el período seleccionado
+                </p>
+              </div>
+            ) : (
+              filteredTasks.map((task) => renderTaskCard(task))
+            )}
           </div>
-        ) : (
-          filteredTasks.map((task) => renderTaskCard(task))
-        )}
-      </div>
 
-      {/* Vista desktop - Tabla */}
-      <div className="hidden lg:block">
-        <Card>
-          <DataTable
-            columns={columns}
-            data={filteredTasks}
-            isLoading={isLoading}
-          />
-        </Card>
-      </div>
+          <div className="hidden lg:block">
+            <Card>
+              <DataTable
+                columns={columns}
+                data={filteredTasks}
+                isLoading={isLoading}
+              />
+            </Card>
+          </div>
+        </>
+      )}
 
-      {/* Modal para finalizar tarea */}
       <FinalizeTaskForm
-        isOpen={isFinalizing}
+        isOpen={isFinalizing && status === "authenticated"}
         task={currentTask}
         onSave={handleFinalizeSubmit}
         onClose={() => {
@@ -680,7 +690,6 @@ export default function AgendaPage() {
         }}
       />
 
-      {/* Modal para ver detalles de la tarea */}
       {isViewingDetails && currentTask && (
         <Dialog
           open={isViewingDetails}
@@ -700,11 +709,17 @@ export default function AgendaPage() {
               isAdmin={false}
               onEdit={() => {}}
               onDelete={() => {}}
-              onStart={(task) => handleStartTask(task)}
-              onFinalize={(task) => {
-                setIsViewingDetails(false);
-                setCurrentTask(task);
-                setIsFinalizing(true);
+              onStart={(taskToStart) => {
+                if (status === "authenticated") {
+                  handleStartTask(taskToStart);
+                }
+              }}
+              onFinalize={(taskToFinalize) => {
+                if (status === "authenticated") {
+                  setIsViewingDetails(false);
+                  setCurrentTask(taskToFinalize);
+                  setIsFinalizing(true);
+                }
               }}
             />
             <div className="flex justify-end mt-4">

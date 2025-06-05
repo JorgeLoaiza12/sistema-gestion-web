@@ -1,5 +1,5 @@
 // services/tasks.ts
-import { httpClient } from "@/lib/httpClient";
+import { httpClient } from "@/lib/httpClient"; // [cite: 1805]
 import { getSession } from "next-auth/react";
 
 export interface TaskAssignment {
@@ -37,7 +37,7 @@ export interface Task {
     rut?: string;
     address?: string;
     commune?: string;
-    administrator?: string;
+    administrator?: string; // [cite: 1806]
     butler?: string;
   };
   quotation?: {
@@ -58,28 +58,30 @@ export interface TaskResponse {
 
 export interface TasksByDateResponse {
   tasks: Task[];
-  start: string;
-  end: string;
+  start?: string; // Hacer opcional
+  end?: string; // Hacer opcional
 }
 
 export interface TasksByDateParams {
-  date: string;
-  view: "daily" | "weekly" | "monthly";
+  date?: string; // Hacer opcional si startDate y endDate están presentes
+  view?: "daily" | "weekly" | "monthly"; // Hacer opcional si startDate y endDate están presentes
+  startDate?: string; // NUEVO
+  endDate?: string; // NUEVO
 }
 
 export interface FinalizeTaskData {
-  taskId: number; // [cite: 3493]
-  technicalReport: string; // [cite: 3493]
-  observations?: string; // [cite: 3493]
-  hoursWorked: number; // [cite: 3493]
-  mediaUrls?: string[]; // [cite: 3493]
-  endDate?: string; // [cite: 3493]
-  types?: string[]; // [cite: 3493]
-  systems?: string[]; // [cite: 3493]
-  technicians?: string[]; // [cite: 3493]
-  nameWhoReceives?: string; // [cite: 3493]
-  positionWhoReceives?: string; // [cite: 3493]
-  imageUrlWhoReceives?: string; // [cite: 3493]
+  taskId: number; // [cite: 1807]
+  technicalReport: string;
+  observations?: string;
+  hoursWorked: number;
+  mediaUrls?: string[];
+  endDate?: string;
+  types?: string[];
+  systems?: string[];
+  technicians?: string[];
+  nameWhoReceives?: string;
+  positionWhoReceives?: string;
+  imageUrlWhoReceives?: string;
 }
 
 export interface TaskFilterParams {
@@ -99,87 +101,89 @@ async function getAuthToken(): Promise<string> {
   return session?.accessToken || "";
 }
 
-function ensureWorkersArray( // [cite: 3494]
-  workerIds: number | number[] | undefined
+function ensureWorkersArray(
+  workerIds: number | number[] | undefined // [cite: 1808]
 ): number[] {
   if (!workerIds) {
-    // [cite: 3494]
     return [];
   }
   if (Array.isArray(workerIds)) {
-    // [cite: 3494]
     return workerIds;
   }
-  return [workerIds]; // [cite: 3494]
+  return [workerIds];
 }
 
 export async function getAllTasks(filters?: TaskFilterParams): Promise<Task[]> {
   try {
-    let url = "/tasks"; //
+    let url = "/tasks";
     if (filters) {
-      //
-      const queryParams = new URLSearchParams(); //
+      const queryParams = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
-        // [cite: 3495]
+        // [cite: 1809]
         if (value !== undefined && value !== null && value !== "") {
-          // [cite: 3495]
-          queryParams.append(key, String(value)); // [cite: 3495]
+          queryParams.append(key, String(value));
         }
       });
       if (queryParams.toString()) {
-        // [cite: 3495]
-        url += `?${queryParams.toString()}`; // [cite: 3495]
+        url += `?${queryParams.toString()}`; // [cite: 1810]
       }
     }
     return await httpClient<Task[]>(url);
   } catch (error) {
-    console.error("Error al obtener todas las tareas:", error); //
+    console.error("Error al obtener todas las tareas:", error);
     throw error;
   }
 }
 
-export async function getTasksByDate( //
+export async function getTasksByDate(
   queryParams: string | TasksByDateParams
 ): Promise<TasksByDateResponse> {
   try {
-    let queryString: string; // [cite: 3496]
+    let queryString: string;
     if (typeof queryParams === "string") {
-      // [cite: 3496]
-      queryString = queryParams; // [cite: 3496]
+      queryString = queryParams; // [cite: 1811]
     } else {
-      const params = new URLSearchParams(); // [cite: 3496]
-      params.append("date", queryParams.date); // [cite: 3496]
-      params.append("view", queryParams.view); // [cite: 3496]
-      queryString = params.toString(); // [cite: 3496]
+      const params = new URLSearchParams();
+      if (queryParams.startDate)
+        params.append("startDate", queryParams.startDate); // MODIFICADO
+      if (queryParams.endDate) params.append("endDate", queryParams.endDate); // MODIFICADO
+      if (queryParams.date && !queryParams.startDate)
+        params.append("date", queryParams.date); // Solo si no hay rango
+      if (queryParams.view) params.append("view", queryParams.view); // Mantener view por si el backend lo usa
+      queryString = params.toString();
     }
-    return await httpClient<TasksByDateResponse>( // [cite: 3496]
+    return await httpClient<TasksByDateResponse>(
       `/tasks/by-date?${queryString}`
     );
   } catch (error) {
-    console.error("Error al obtener tareas por fecha:", error); //
+    console.error("Error al obtener tareas por fecha:", error); // [cite: 1812]
     throw error;
   }
 }
 
-export async function getWorkerTasks( //
+export async function getWorkerTasks(
   queryParams: string | TasksByDateParams
 ): Promise<TasksByDateResponse> {
   try {
-    let queryString: string; // [cite: 3497]
+    let queryString: string;
     if (typeof queryParams === "string") {
-      // [cite: 3497]
-      queryString = queryParams; // [cite: 3497]
+      queryString = queryParams;
     } else {
-      const params = new URLSearchParams(); // [cite: 3497]
-      params.append("date", queryParams.date); // [cite: 3497]
-      params.append("view", queryParams.view); // [cite: 3497]
-      queryString = params.toString(); // [cite: 3497]
+      const params = new URLSearchParams();
+      if (queryParams.startDate)
+        params.append("startDateQuery", queryParams.startDate); // Usar nombres que el backend espera
+      if (queryParams.endDate)
+        params.append("endDateQuery", queryParams.endDate);
+      if (queryParams.date && !queryParams.startDate)
+        params.append("date", queryParams.date);
+      if (queryParams.view) params.append("view", queryParams.view);
+      queryString = params.toString(); // [cite: 1813]
     }
-    return await httpClient<TasksByDateResponse>( // [cite: 3497]
+    return await httpClient<TasksByDateResponse>(
       `/tasks/worker?${queryString}`
     );
   } catch (error) {
-    console.error("Error al obtener tareas del trabajador:", error); //
+    console.error("Error al obtener tareas del trabajador:", error);
     throw error;
   }
 }
@@ -187,229 +191,202 @@ export async function getWorkerTasks( //
 export async function createTask(taskData: Task): Promise<TaskResponse> {
   try {
     const processedData = {
-      // [cite: 3498]
-      ...taskData, // [cite: 3498]
-      quotationId: taskData.quotationId || undefined, // [cite: 3498]
-      types: taskData.types || [], // [cite: 3498]
-      categories: taskData.categories || [], // [cite: 3498]
-      mediaUrls: taskData.mediaUrls || [], // [cite: 3498]
-      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds), // [cite: 3498]
+      ...taskData, // [cite: 1814]
+      quotationId: taskData.quotationId || undefined,
+      types: taskData.types || [],
+      categories: taskData.categories || [],
+      mediaUrls: taskData.mediaUrls || [],
+      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
     return await httpClient<TaskResponse>("/tasks", {
-      // [cite: 3498]
-      method: "POST", // [cite: 3498]
-      body: JSON.stringify(processedData), // [cite: 3498]
+      method: "POST", // [cite: 1815]
+      body: JSON.stringify(processedData),
     });
   } catch (error) {
-    console.error("Error al crear tarea:", error); //
+    console.error("Error al crear tarea:", error);
     throw error;
   }
 }
 
-export async function updateTask( //
-  id: string, // [cite: 3499]
-  taskData: Task // [cite: 3499]
+export async function updateTask(
+  id: string,
+  taskData: Task
 ): Promise<TaskResponse> {
   try {
     const processedData = {
-      // [cite: 3499]
-      ...taskData, // [cite: 3499]
-      quotationId: taskData.quotationId || undefined, // [cite: 3499]
-      types: taskData.types || [], // [cite: 3499]
-      categories: taskData.categories || [], // [cite: 3499]
-      mediaUrls: taskData.mediaUrls || [], // [cite: 3499]
-      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds), // [cite: 3499]
+      ...taskData,
+      quotationId: taskData.quotationId || undefined, // [cite: 1816]
+      types: taskData.types || [],
+      categories: taskData.categories || [],
+      mediaUrls: taskData.mediaUrls || [],
+      assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
     };
-    if (processedData.client) delete processedData.client; //
-    if (processedData.quotation) delete processedData.quotation; //
-    if (processedData.assignedWorkers) delete processedData.assignedWorkers; //
-    if (processedData.reminderSent) delete processedData.reminderSent; //
-    if (processedData.createdAt) delete processedData.createdAt; //
-    if (processedData.updatedAt) delete processedData.updatedAt; // [cite: 3500]
+    if (processedData.client) delete processedData.client;
+    if (processedData.quotation) delete processedData.quotation;
+    if (processedData.assignedWorkers) delete processedData.assignedWorkers;
+    if (processedData.reminderSent) delete processedData.reminderSent;
+    if (processedData.createdAt) delete processedData.createdAt; // [cite: 1817]
+    if (processedData.updatedAt) delete processedData.updatedAt;
 
     try {
       return await httpClient<TaskResponse>(`/tasks/${id}`, {
-        //
-        method: "PUT", //
-        body: JSON.stringify(processedData), //
+        method: "PUT",
+        body: JSON.stringify(processedData),
       });
     } catch (error: any) {
-      // [cite: 3500]
       if (
-        // [cite: 3500]
-        error.message && // [cite: 3500]
-        error.message.includes("Forbidden") && // [cite: 3501]
-        (error.message.includes("sendgrid") || // [cite: 3501]
-          error.message.includes("SendGrid")) // [cite: 3501]
+        error.message && // [cite: 1818]
+        error.message.includes("Forbidden") && // [cite: 1819]
+        (error.message.includes("sendgrid") ||
+          error.message.includes("SendGrid"))
       ) {
         console.warn(
-          // [cite: 3501]
-          "Error de envío de correo detectado. La tarea se actualizó pero no se pudieron enviar notificaciones." // [cite: 3501]
+          "Error de envío de correo detectado. La tarea se actualizó pero no se pudieron enviar notificaciones." // [cite: 1820]
         );
         try {
-          const task = await httpClient<Task>(`/tasks/${id}`); //
+          const task = await httpClient<Task>(`/tasks/${id}`);
           return {
-            // [cite: 3502]
-            message: "Task updated successfully but email notifications failed", // [cite: 3502]
-            task, // [cite: 3502]
+            message: "Task updated successfully but email notifications failed", // [cite: 1820]
+            task,
           };
         } catch (getError) {
-          //
-          throw error; //
+          throw error;
         }
       }
-      throw error; //
+      throw error;
     }
   } catch (error) {
-    console.error(`Error al actualizar tarea ${id}:`, error); //
-    throw error;
+    console.error(`Error al actualizar tarea ${id}:`, error);
+    throw error; // [cite: 1821]
   }
 }
 
 export async function deleteTask(id: string): Promise<{ message: string }> {
-  // [cite: 3503]
   try {
     return await httpClient<{ message: string }>(`/tasks/${id}`, {
-      // [cite: 3503]
-      method: "DELETE", // [cite: 3503]
+      // [cite: 1821]
+      method: "DELETE",
     });
   } catch (error) {
-    console.error(`Error al eliminar tarea ${id}:`, error); //
+    console.error(`Error al eliminar tarea ${id}:`, error);
     throw error;
   }
 }
 
 export async function startTask(taskId: number): Promise<TaskResponse> {
-  // [cite: 3504]
   try {
     return await httpClient<TaskResponse>("/tasks/start", {
-      // [cite: 3504]
-      method: "POST", // [cite: 3504]
-      body: JSON.stringify({ taskId }), // [cite: 3504]
+      // [cite: 1822]
+      method: "POST",
+      body: JSON.stringify({ taskId }),
     });
   } catch (error) {
-    console.error("Error al iniciar tarea:", error); // [cite: 3504]
-    throw error; //
+    console.error("Error al iniciar tarea:", error);
+    throw error;
   }
 }
 
-export async function finalizeTask( //
+export async function finalizeTask(
   data: FinalizeTaskData
 ): Promise<TaskResponse> {
   try {
     const processedData = {
-      //
-      ...data, //
-      mediaUrls: data.mediaUrls || [], //
-      types: data.types || [], //
-      systems: data.systems || [], //
-      technicians: data.technicians || [], //
+      ...data,
+      mediaUrls: data.mediaUrls || [], // [cite: 1823]
+      types: data.types || [],
+      systems: data.systems || [],
+      technicians: data.technicians || [],
     };
     return await httpClient<TaskResponse>("/tasks/finalize", {
-      // [cite: 3505]
-      method: "POST", // [cite: 3505]
-      body: JSON.stringify(processedData), // [cite: 3505]
+      method: "POST", // [cite: 1823]
+      body: JSON.stringify(processedData),
     });
   } catch (error) {
-    // [cite: 3505]
     if (error instanceof Error && error.message.includes("Forbidden")) {
-      // [cite: 3505]
+      // [cite: 1824]
       console.warn(
-        // [cite: 3506]
-        "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada" // [cite: 3506]
+        "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada" // [cite: 1825]
       );
       try {
-        const taskResponse = await httpClient<{ task: Task }>( // [cite: 3506]
-          `/tasks/${data.taskId}`, // [cite: 3506]
+        const taskResponse = await httpClient<{ task: Task }>(
+          `/tasks/${data.taskId}`, // [cite: 1825]
           {
-            // [cite: 3506]
-            method: "GET", // [cite: 3506]
+            method: "GET", // [cite: 1825]
           }
         );
         return {
-          // [cite: 3506]
-          message: "Task finalized successfully but email could not be sent", // [cite: 3507]
-          task: taskResponse.task, // [cite: 3507]
+          message: "Task finalized successfully but email could not be sent", // [cite: 1826]
+          task: taskResponse.task,
         };
       } catch (secondError) {
-        // [cite: 3507]
-        throw error; // [cite: 3507]
+        throw error; // [cite: 1826]
       }
     }
-    console.error("Error al finalizar tarea:", error); //
+    console.error("Error al finalizar tarea:", error);
     throw error;
   }
 }
 
 export async function downloadTaskReport(taskId: string): Promise<Blob> {
   try {
+    // [cite: 1827]
     const response = await fetch(
-      //
-      `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/report-pdf`, //
+      `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/report-pdf`,
       {
-        //
         headers: {
-          //
-          Authorization: `Bearer ${await getAuthToken()}`, //
+          Authorization: `Bearer ${await getAuthToken()}`,
         },
       }
     );
     if (!response.ok) {
-      // [cite: 3508]
-      throw new Error(`Error al descargar el informe: ${response.statusText}`); // [cite: 3508]
+      // [cite: 1828]
+      throw new Error(`Error al descargar el informe: ${response.statusText}`);
     }
     return response.blob();
   } catch (error) {
     console.error(
-      //
-      `Error al descargar informe técnico de tarea ${taskId}:`, //
+      `Error al descargar informe técnico de tarea ${taskId}:`,
       error
     );
     throw error;
   }
 }
 
-export async function uploadTaskImageFormData( //
-  file: File, //
-  type: string = "work" //
+export async function uploadTaskImageFormData(
+  file: File,
+  type: string = "work"
 ): Promise<string> {
+  // [cite: 1829]
   try {
-    const formData = new FormData(); //
-    formData.append("image", file); //
-    formData.append("type", type); //
-    const session = await import("next-auth/react").then(
-      (
-        mod // [cite: 3509]
-      ) => mod.getSession() // [cite: 3509]
+    const formData = new FormData();
+    formData.append("image", file);
+    formData.append("type", type);
+    const session = await import("next-auth/react").then((mod) =>
+      mod.getSession()
     );
-    const accessToken = session?.accessToken; //
+    const accessToken = session?.accessToken;
     const response = await fetch(
-      // [cite: 3509]
-      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`, // [cite: 3509]
+      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`, // [cite: 1830]
       {
-        // [cite: 3509]
-        method: "POST", // [cite: 3509]
+        method: "POST", // [cite: 1830]
         headers: {
-          // [cite: 3510]
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), // [cite: 3510]
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), // [cite: 1830]
         },
-        body: formData, // [cite: 3510]
+        body: formData, // [cite: 1831]
       }
-    ); // [cite: 3510]
+    );
     if (!response.ok) {
-      // [cite: 3510]
       const errorData = await response.json().catch(() => ({
-        // [cite: 3510]
-        message: `Error ${response.status}: ${response.statusText}`, // [cite: 3510]
+        message: `Error ${response.status}: ${response.statusText}`, // [cite: 1831]
       }));
-      throw new Error( // [cite: 3510]
-        errorData.message || `Error al subir imagen: ${response.statusText}` // [cite: 3510]
+      throw new Error(
+        errorData.message || `Error al subir imagen: ${response.statusText}` // [cite: 1832]
       );
     }
-    const result = await response.json(); //
+    const result = await response.json();
     return result.imageUrl;
   } catch (error) {
-    console.error("Error al subir imagen de tarea:", error); //
+    console.error("Error al subir imagen de tarea:", error);
     throw error;
   }
 }
@@ -423,7 +400,7 @@ export async function downloadTasksExcel(
     const queryParams = new URLSearchParams();
     if (filters) {
       if (filters.clientId) queryParams.append("clientId", filters.clientId);
-      if (filters.taskType) queryParams.append("taskType", filters.taskType);
+      if (filters.taskType) queryParams.append("taskType", filters.taskType); // [cite: 1833]
       if (filters.startDate) queryParams.append("startDate", filters.startDate);
       if (filters.endDate) queryParams.append("endDate", filters.endDate);
       if (filters.state && filters.state !== "ALL")
@@ -439,19 +416,17 @@ export async function downloadTasksExcel(
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${url}`, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token}`, // [cite: 1834]
       },
     });
 
     if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({
-          message: `Error ${response.status}: ${response.statusText}`,
-        }));
+      const errorData = await response.json().catch(() => ({
+        message: `Error ${response.status}: ${response.statusText}`,
+      }));
       throw new Error(
         errorData.message ||
-          `Error al descargar el archivo Excel: ${response.statusText}`
+          `Error al descargar el archivo Excel: ${response.statusText}` // [cite: 1835]
       );
     }
     return response.blob();

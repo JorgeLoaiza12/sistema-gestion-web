@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
@@ -29,29 +29,32 @@ export function NotificationProvider({
 }) {
   const { toast } = useToast();
 
-  const addNotification = (
-    type: NotificationType,
-    message: string,
-    action?: {
-      label: string;
-      onClick: () => void;
-    }
-  ) => {
-    const icon = getNotificationIcon(type);
+  const addNotification = useCallback(
+    (
+      type: NotificationType,
+      message: string,
+      action?: {
+        label: string;
+        onClick: () => void;
+      }
+    ) => {
+      const icon = getNotificationIcon(type);
 
-    toast({
-      variant: type === "error" ? "destructive" : "default",
-      title: getNotificationTitle(type),
-      description: message,
-      action: action ? (
-        <ToastAction altText={action.label} onClick={action.onClick}>
-          {action.label}
-        </ToastAction>
-      ) : undefined,
-      icon,
-      duration: 5000,
-    });
-  };
+      toast({
+        variant: type === "error" ? "destructive" : "default",
+        title: getNotificationTitle(type),
+        description: message,
+        action: action ? (
+          <ToastAction altText={action.label} onClick={action.onClick}>
+            {action.label}
+          </ToastAction>
+        ) : undefined,
+        icon,
+        duration: 5000,
+      });
+    },
+    [toast] // La función `toast` es la única dependencia externa
+  );
 
   return (
     <NotificationContext.Provider value={{ addNotification }}>

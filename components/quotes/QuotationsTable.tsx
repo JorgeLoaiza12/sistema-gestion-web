@@ -13,6 +13,7 @@ import {
   Mail,
   Loader2,
   Percent,
+  Hash, // Icono para el ID
 } from "lucide-react";
 import {
   downloadQuotationPDF,
@@ -43,7 +44,7 @@ interface QuotationsTableProps {
   onEdit: (quotation: Quotation) => void;
   onDelete: (quotation: Quotation) => void;
   onPageChange: (page: number) => void;
-  onStatusChange: (quotationId: string, newStatus: string) => void;
+  onStatusChange: (quotationId: string, newStatus: string) => void; //
 }
 
 export default function QuotationsTable({
@@ -68,15 +69,15 @@ export default function QuotationsTable({
   );
   const { addNotification } = useNotification();
 
-  // Calcular el total de una cotización
   const calculateTotal = (quotation: Quotation): number => {
+    //
     return roundUp(
       quotation.categories.reduce((categoryTotal, category) => {
         return (
           categoryTotal +
           category.items.reduce((itemTotal, item) => {
             const price = item.price || (item.product ? item.product.price : 0);
-            const finalPrice = Math.ceil(price + price * 0.35); // Añadir ganancia del 35%
+            const finalPrice = Math.ceil(price + price * 0.35); //
             return itemTotal + finalPrice * item.quantity;
           }, 0)
         );
@@ -89,8 +90,7 @@ export default function QuotationsTable({
       setIsDownloading(id);
       const blob = await downloadQuotationPDF(id);
 
-      // Crear un enlace para descargar el archivo
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob); //
       const a = document.createElement("a");
       a.href = url;
       a.download = `cotizacion-${id}.pdf`;
@@ -106,11 +106,12 @@ export default function QuotationsTable({
     } finally {
       setTimeout(() => {
         setIsDownloading(null);
-      }, 500); // Pequeña pausa para mostrar el estado de éxito
+      }, 500);
     }
   };
 
   const handleEmailButtonClick = (quotation: Quotation) => {
+    //
     if (quotation.id) {
       setSelectedQuotationId(quotation.id);
       setSelectedQuotation(quotation);
@@ -128,13 +129,14 @@ export default function QuotationsTable({
     } catch (err) {
       console.error("Error al enviar el correo:", err);
       addNotification("error", "Error al enviar el correo");
-      throw err; // Re-lanzar el error para que el diálogo siga abierto
+      throw err;
     } finally {
       setTimeout(() => {
+        //
         setIsSendingEmail(null);
         setSelectedQuotationId(null);
         setSelectedQuotation(null);
-      }, 500); // Pequeña pausa para mostrar el estado de éxito
+      }, 500);
     }
   };
 
@@ -143,7 +145,7 @@ export default function QuotationsTable({
       case "SENT":
         return <Badge variant="primary">Enviada</Badge>;
       case "APPROVED":
-        return <Badge variant="success">Aprobada</Badge>;
+        return <Badge variant="success">Aprobada</Badge>; //
       case "REJECTED":
         return <Badge variant="destructive">Rechazada</Badge>;
       default:
@@ -151,20 +153,35 @@ export default function QuotationsTable({
     }
   };
 
-  // Columnas para el DataTable
   const columns: ColumnDef<Quotation>[] = [
+    {
+      id: "id",
+      header: () => (
+        <div className="flex items-center">
+          <Hash className="h-4 w-4 mr-1 text-content-subtle" />
+          ID
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="font-mono text-sm text-content-emphasis">
+          {row.original.id}
+        </div>
+      ),
+      size: 80, // Ancho fijo para la columna ID
+    },
     {
       id: "title",
       header: "Título",
       cell: ({ row }) => (
         <div className="flex items-center">
           <div>
-            <p className="font-medium">{row.original.title}</p>
+            <p className="font-medium">{row.original.title}</p> {/* */}
             {row.original.description && (
               <p className="text-sm text-content-subtle">
                 {row.original.description.length > 50
                   ? `${row.original.description.substring(0, 50)}...`
-                  : row.original.description}
+                  : row.original.description}{" "}
+                {/* */}
               </p>
             )}
           </div>
@@ -174,7 +191,9 @@ export default function QuotationsTable({
     {
       id: "client",
       header: "Cliente",
-      cell: ({ row }) => (
+      cell: (
+        { row } //
+      ) => (
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-content-subtle" />
           <span>{row.original.client.name}</span>
@@ -187,6 +206,7 @@ export default function QuotationsTable({
       cell: ({ row }) => getStatusBadge(row.original.status),
     },
     {
+      //
       id: "advancePercentage",
       header: "% Abono",
       cell: ({ row }) => (
@@ -194,7 +214,7 @@ export default function QuotationsTable({
           <Percent className="h-4 w-4 text-content-subtle" />
           <span>
             {row.original.advancePercentage !== undefined
-              ? `${row.original.advancePercentage}%`
+              ? `${row.original.advancePercentage}%` //
               : "50%"}
           </span>
         </div>
@@ -207,6 +227,8 @@ export default function QuotationsTable({
         if (!row.original.validUntil) return <span>-</span>;
         return (
           <div className="flex items-center gap-2">
+            {" "}
+            {/* */}
             <Calendar className="h-4 w-4 text-content-subtle" />
             <span>
               {new Date(row.original.validUntil).toLocaleDateString()}
@@ -216,6 +238,7 @@ export default function QuotationsTable({
       },
     },
     {
+      //
       id: "total",
       header: "Total",
       cell: ({ row }) => {
@@ -227,56 +250,64 @@ export default function QuotationsTable({
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <Button
+        <div className="flex space-x-1">
+          {" "}
+          {/* MODIFICADO space-x-1 para más iconos */}
+          <Button //
             variant="ghost"
             size="sm"
             onClick={() => onEdit(row.original)}
+            title="Editar Cotización"
           >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
+            variant="ghost" //
             size="sm"
             onClick={() =>
               row.original.id && handleDownloadPDF(row.original.id)
             }
             disabled={!!isDownloading}
             className="relative"
+            title="Descargar PDF" //
           >
             {isDownloading === row.original.id ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Download className="h-4 w-4" />
             )}
-            {isDownloading === row.original.id && (
+            {isDownloading === row.original.id && ( //
               <span className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-md">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </span>
             )}
           </Button>
-          <Button
+          <Button //
             variant="ghost"
             size="sm"
             onClick={() => handleEmailButtonClick(row.original)}
             disabled={!!isSendingEmail}
             className="relative"
+            title="Enviar por Correo"
           >
-            {isSendingEmail === row.original.id ? (
+            {isSendingEmail === row.original.id ? ( //
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Mail className="h-4 w-4" />
             )}
             {isSendingEmail === row.original.id && (
               <span className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-md">
+                {" "}
+                {/* */}
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </span>
             )}
           </Button>
           <Button
-            variant="ghost"
+            variant="ghost" //
             size="sm"
             onClick={() => onDelete(row.original)}
+            title="Eliminar Cotización"
           >
             <Trash className="h-4 w-4" />
           </Button>
@@ -286,6 +317,7 @@ export default function QuotationsTable({
   ];
 
   if (isLoading) {
+    //
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -294,7 +326,7 @@ export default function QuotationsTable({
         </div>
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className="h-16 w-full" /> //
           ))}
         </div>
       </div>
@@ -307,6 +339,8 @@ export default function QuotationsTable({
         <FileText className="h-12 w-12 text-gray-300 mb-4" />
         <p className="text-lg font-medium text-gray-600">No hay cotizaciones</p>
         <p className="text-sm text-gray-500 mt-1">
+          {" "}
+          {/* */}
           {searchTerm
             ? "No se encontraron resultados para tu búsqueda"
             : "Crea tu primera cotización haciendo clic en 'Nueva Cotización'"}
@@ -317,51 +351,48 @@ export default function QuotationsTable({
 
   return (
     <>
-      <DataTable columns={columns} data={quotations} />
-
+      <DataTable columns={columns} data={quotations} /> {/* */}
       {pagination && (
         <div className="flex items-center justify-between mt-4 pt-2 border-t">
           <div className="text-sm text-gray-500">
             Mostrando {(pagination.page - 1) * pagination.limit + 1} -{" "}
             {Math.min(pagination.page * pagination.limit, pagination.total)} de{" "}
-            {pagination.total} cotizaciones
+            {pagination.total} cotizaciones {/* */}
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onPageChange(pagination.page - 1)}
-              disabled={!pagination.hasPrevPage}
+              disabled={!pagination.hasPrevPage} //
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm">
               Página {pagination.page} de {pagination.totalPages}
             </span>
-            <Button
+            <Button //
               variant="outline"
               size="sm"
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={!pagination.hasNextPage}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" /> {/* */}
             </Button>
           </div>
         </div>
       )}
-
-      {/* Diálogo de confirmación para enviar email */}
       {selectedQuotation && (
         <ConfirmDialog
           open={emailDialogOpen}
-          onOpenChange={setEmailDialogOpen}
+          onOpenChange={setEmailDialogOpen} //
           title="Enviar cotización por correo"
           description={`¿Estás seguro de enviar la cotización "${selectedQuotation.title}" por correo electrónico a ${selectedQuotation.client.name}? Se adjuntará un PDF con los detalles de la cotización.`}
           onConfirm={handleSendEmail}
           confirmLabel="Enviar correo"
           cancelLabel="Cancelar"
           isLoading={isSendingEmail === selectedQuotationId}
-        />
+        /> /* */
       )}
     </>
   );

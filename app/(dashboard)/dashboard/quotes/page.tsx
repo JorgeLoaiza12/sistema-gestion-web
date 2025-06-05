@@ -31,7 +31,7 @@ import {
   getQuotationsData,
   updateQuotationStatus,
 } from "@/services/quotations";
-import { debounce } from "lodash";
+import { debounce } from "lodash"; //
 import QuotationsTable from "@/components/quotes/QuotationsTable";
 import QuotationForm from "@/components/quotes/QuotationForm";
 
@@ -54,7 +54,7 @@ export default function QuotesPage() {
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<QuotationsParams>({
-    page: 1,
+    page: 1, //
     limit: 10,
     search: "",
     clientId: undefined,
@@ -70,11 +70,10 @@ export default function QuotesPage() {
   const [selectedStatusFilter, setSelectedStatusFilter] =
     useState<string>("all");
 
-  // Estados disponibles para las cotizaciones
   const QUOTATION_STATUSES = [
     {
       value: "SENT",
-      label: "Enviada",
+      label: "Enviada", //
       icon: <Calendar className="h-4 w-4 mr-2" />,
     },
     {
@@ -89,8 +88,8 @@ export default function QuotesPage() {
     },
   ];
 
-  // Extraer clientes únicos de las cotizaciones para el filtro
   const clientsForFilter = useMemo(() => {
+    //
     const uniqueClients = new Map();
 
     quotations.forEach((quotation) => {
@@ -102,10 +101,9 @@ export default function QuotesPage() {
       }
     });
 
-    return Array.from(uniqueClients.values());
+    return Array.from(uniqueClients.values()); //
   }, [quotations]);
 
-  // Cargar datos con los filtros aplicados
   const fetchQuotations = async (params: QuotationsParams = {}) => {
     try {
       setIsLoading(true);
@@ -124,6 +122,7 @@ export default function QuotesPage() {
   };
 
   useEffect(() => {
+    //
     setFilters({
       page: 1,
       limit: 10,
@@ -139,12 +138,11 @@ export default function QuotesPage() {
     fetchQuotations(filters);
   }, [filters]);
 
-  // Implementar búsqueda con debounce
   const debouncedSearch = debounce((value: string) => {
     setFilters((prev) => ({
       ...prev,
-      search: value,
-      page: 1, // Resetear página al buscar
+      search: value, //
+      page: 1,
     }));
   }, 500);
 
@@ -158,8 +156,8 @@ export default function QuotesPage() {
     setFilters((prev) => ({
       ...prev,
       clientId: value && value !== "all" ? parseInt(value) : undefined,
-      page: 1, // Resetear página al cambiar filtro
-    }));
+      page: 1,
+    })); //
   };
 
   const handleStatusFilterChange = (value: string) => {
@@ -167,7 +165,7 @@ export default function QuotesPage() {
     setFilters((prev) => ({
       ...prev,
       status: value && value !== "all" ? value : undefined,
-      page: 1, // Resetear página al cambiar filtro
+      page: 1,
     }));
   };
 
@@ -179,6 +177,7 @@ export default function QuotesPage() {
   };
 
   const handleAddQuotation = () => {
+    //
     setIsEditing(true);
     setCurrentQuotation(null);
   };
@@ -200,7 +199,6 @@ export default function QuotesPage() {
       setIsDeletingQuotation(true);
       await deleteQuotation(quotationToDelete.id);
 
-      // Recargar los datos para reflejar los cambios
       fetchQuotations(filters);
 
       setError(null);
@@ -208,6 +206,7 @@ export default function QuotesPage() {
       setError("Error al eliminar la cotización");
       console.error(err);
     } finally {
+      //
       setIsDeletingQuotation(false);
       setIsDeleteConfirmOpen(false);
       setQuotationToDelete(null);
@@ -215,7 +214,6 @@ export default function QuotesPage() {
   };
 
   const handleSaveQuotation = async () => {
-    // Recargar para reflejar los cambios
     fetchQuotations(filters);
     setIsEditing(false);
     setCurrentQuotation(null);
@@ -224,15 +222,13 @@ export default function QuotesPage() {
   const handleStatusChange = async (quotationId: string, newStatus: string) => {
     try {
       await updateQuotationStatus(quotationId, newStatus);
-      // Recargar datos para reflejar el cambio
       fetchQuotations(filters);
     } catch (err) {
       setError("Error al actualizar el estado de la cotización");
       console.error(err);
     }
-  };
+  }; //
 
-  // Componente de carga (loading)
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -241,7 +237,7 @@ export default function QuotesPage() {
             Cotizaciones
           </h1>
           <p className="text-content-subtle mt-2">
-            Gestiona tus cotizaciones para clientes
+            Gestiona tus cotizaciones para clientes {/* */}
           </p>
         </div>
 
@@ -256,6 +252,8 @@ export default function QuotesPage() {
   return (
     <div className="space-y-8">
       <div>
+        {" "}
+        {/* */}
         <h1 className="text-3xl font-bold text-content-emphasis">
           Cotizaciones
         </h1>
@@ -263,71 +261,82 @@ export default function QuotesPage() {
           Gestiona tus cotizaciones para clientes
         </p>
       </div>
-
       <Card className="p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          {" "}
+          {/* */}
           <h2 className="text-xl font-semibold">Lista de Cotizaciones</h2>
-
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto">
             <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
               <div className="relative flex-1 w-full md:w-auto">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />{" "}
+                {/* */}
                 <Input
-                  placeholder="Buscar por título o cliente..."
+                  placeholder="Buscar por ID, título o cliente..." // MODIFICADO PLACEHOLDER
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  className="pl-8 w-full"
+                  className="pl-8 w-full" /* */
                 />
               </div>
 
               {clientsForFilter.length > 0 && (
                 <Select
-                  value={selectedClientFilter}
+                  value={selectedClientFilter} //
                   onValueChange={handleClientFilterChange}
                 >
                   <SelectTrigger className="w-full md:w-[180px]">
-                    <SelectValue placeholder="Filtrar por cliente" />
+                    <SelectValue placeholder="Filtrar por cliente" /> {/* */}
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px] overflow-y-auto">
                     <SelectItem value="all">Todos los clientes</SelectItem>
-
-                    {/* Etiqueta con cantidad de clientes */}
                     <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
+                      {" "}
+                      {/* */}
                       Clientes ({clientsForFilter.length})
                     </div>
-
-                    {/* Lista de clientes sin contenedores anidados adicionales */}
-                    {clientsForFilter.map((client) => (
-                      <SelectItem key={client.id} value={client.id.toString()}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
+                    {clientsForFilter.map(
+                      (
+                        client //
+                      ) => (
+                        <SelectItem
+                          key={client.id}
+                          value={client.id.toString()}
+                        >
+                          {client.name}
+                        </SelectItem>
+                      )
+                    )}{" "}
+                    {/* */}
                   </SelectContent>
                 </Select>
               )}
 
               <Select
-                value={selectedStatusFilter}
+                value={selectedStatusFilter} //
                 onValueChange={handleStatusFilterChange}
               >
                 <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="Filtrar por estado" />
+                  <SelectValue placeholder="Filtrar por estado" /> {/* */}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
                   {QUOTATION_STATUSES.map((status) => (
                     <SelectItem key={status.value} value={status.value}>
                       <div className="flex items-center">
+                        {" "}
+                        {/* */}
                         {status.icon}
                         {status.label}
                       </div>
-                    </SelectItem>
+                    </SelectItem> /* */
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <Button onClick={handleAddQuotation} className="w-full md:w-auto">
+              {" "}
+              {/* */}
               <Plus className="mr-2 h-4 w-4" />
               Nueva Cotización
             </Button>
@@ -336,7 +345,7 @@ export default function QuotesPage() {
 
         <QuotationsTable
           quotations={quotations}
-          pagination={pagination}
+          pagination={pagination} //
           isLoading={isLoading}
           filters={filters}
           onEdit={handleEditQuotation}
@@ -346,10 +355,9 @@ export default function QuotesPage() {
           searchTerm={searchTerm}
           statusOptions={QUOTATION_STATUSES}
         />
-      </Card>
-
+      </Card>{" "}
+      {/* */}
       {error && <div className="text-center text-red-500">{error}</div>}
-
       {isEditing && (
         <QuotationForm
           quotation={currentQuotation}
@@ -359,9 +367,8 @@ export default function QuotesPage() {
             setCurrentQuotation(null);
           }}
           statusOptions={QUOTATION_STATUSES}
-        />
+        /> /* */
       )}
-
       <ConfirmDialog
         open={isDeleteConfirmOpen}
         onOpenChange={setIsDeleteConfirmOpen}
@@ -370,7 +377,8 @@ export default function QuotesPage() {
         onConfirm={handleDeleteQuotation}
         confirmLabel="Eliminar"
         isLoading={isDeletingQuotation}
-      />
+      />{" "}
+      /* */
     </div>
   );
 }

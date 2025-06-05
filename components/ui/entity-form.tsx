@@ -1,3 +1,4 @@
+// components\ui\entity-form.tsx
 "use client";
 
 import React, { ReactNode } from "react";
@@ -46,21 +47,17 @@ export function EntityForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className={maxWidth} onClick={(e) => e.stopPropagation()}>
+      <DialogContent className={maxWidth}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <CSRFProtectedForm
-          onSubmit={(e) => {
-            e.stopPropagation();
-            onSubmit(e);
-            return false;
-          }}
+          onSubmit={onSubmit}
           className={formClassName}
           isLoading={isLoading}
           error={error}
-          showSubmitButton={false} // No mostramos el botón predeterminado para poder personalizarlo en el footer
+          showSubmitButton={false}
         >
           {children}
 
@@ -69,20 +66,13 @@ export function EntityForm({
               <>
                 <Button
                   variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onClose(e);
-                  }}
+                  onClick={onClose}
                   type="button"
+                  disabled={isLoading}
                 >
                   Cancelar
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <Button type="submit" disabled={isLoading}>
                   {isLoading ? "Guardando..." : "Guardar"}
                 </Button>
               </>
