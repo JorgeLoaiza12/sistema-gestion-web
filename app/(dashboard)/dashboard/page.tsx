@@ -1,3 +1,4 @@
+// web/app/(dashboard)/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -39,7 +40,7 @@ import {
 } from "recharts";
 
 // Importación de los servicios necesarios
-import { getTasksByDate, type Task } from "@/services/tasks";
+import { getWorkerTasks, type Task } from "@/services/tasks";
 import { getQuotationStats } from "@/services/quotations";
 import { getSalesStats, getTopProducts } from "@/services/reports";
 import { getUpcomingMaintenances } from "@/services/maintenance";
@@ -103,7 +104,7 @@ export default function DashboardPage() {
     const firstDay = new Date(curr.setDate(first));
     firstDay.setHours(0, 0, 0, 0);
 
-    const lastDay = new Date(curr.setDate(last));
+    const lastDay = new Date(curr.setDate(last)); // Importante: crear nueva instancia para no modificar 'firstDay'
     lastDay.setHours(23, 59, 59, 999);
 
     return { firstDay, lastDay };
@@ -215,7 +216,7 @@ export default function DashboardPage() {
 
       if (data && data.monthlySales && data.monthlySales.length > 0) {
         // Transformar los datos para el gráfico
-        const formattedData = data.monthlySales.map((item) => ({
+        const formattedData = data.monthlySales.map((item: any) => ({
           mes: item.month,
           valor: item.total || 0,
           cantidad: item.count || 0,
@@ -330,19 +331,22 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
       // Obtener tareas de hoy
-      const todayResponse = await getTasksByDate({
+      const todayResponse = await getWorkerTasks({
+        // MODIFICADO
         date: new Date().toISOString().split("T")[0],
         view: "daily",
       });
 
       // Obtener tareas de la semana
-      const weekResponse = await getTasksByDate({
+      const weekResponse = await getWorkerTasks({
+        // MODIFICADO
         date: new Date().toISOString().split("T")[0],
         view: "weekly",
       });
 
       // Obtener tareas del mes
-      const monthResponse = await getTasksByDate({
+      const monthResponse = await getWorkerTasks({
+        // MODIFICADO
         date: new Date().toISOString().split("T")[0],
         view: "monthly",
       });
@@ -428,7 +432,7 @@ export default function DashboardPage() {
 
     // Preparar datos para gráficos solo si hay datos
     const quotationByStatusData = hasQuotationStats
-      ? quotationStats?.byStatus?.map((item) => ({
+      ? quotationStats?.byStatus?.map((item: any) => ({
           name: getStatusLabel(item.status),
           value: item.count,
           amount: item.amount,
@@ -436,7 +440,7 @@ export default function DashboardPage() {
       : [];
 
     const topProductsData = hasTopProducts
-      ? topProducts.map((product) => ({
+      ? topProducts.map((product: any) => ({
           name: product.name,
           valor: product.totalSales || 0,
           cantidad: product.count || 0,
@@ -487,7 +491,7 @@ export default function DashboardPage() {
             change={
               quotationStats?.summary?.percentChange
                 ? `${quotationStats.summary.percentChange.toFixed(1)}%`
-                : undefined
+                : "0%"
             }
             trend={quotationStats?.summary?.percentChange >= 0 ? "up" : "down"}
             icon={FileText}
@@ -498,7 +502,7 @@ export default function DashboardPage() {
             change={
               quotationStats?.summary?.amountPercentChange
                 ? `${quotationStats.summary.amountPercentChange.toFixed(1)}%`
-                : undefined
+                : "0%"
             }
             trend={
               quotationStats?.summary?.amountPercentChange >= 0 ? "up" : "down"
@@ -511,7 +515,7 @@ export default function DashboardPage() {
             change={
               quotationStats?.summary?.tasksPercentChange
                 ? `${quotationStats.summary.tasksPercentChange.toFixed(1)}%`
-                : undefined
+                : "0%"
             }
             trend={
               quotationStats?.summary?.tasksPercentChange >= 0 ? "up" : "down"
@@ -526,7 +530,7 @@ export default function DashboardPage() {
             change={
               quotationStats?.summary?.approvalRateChange
                 ? `${quotationStats.summary.approvalRateChange.toFixed(1)}%`
-                : undefined
+                : "0%"
             }
             trend={
               quotationStats?.summary?.approvalRateChange >= 0 ? "up" : "down"
@@ -804,8 +808,8 @@ export default function DashboardPage() {
           </div>
           <span className="text-3xl font-bold mt-2">{tasksThisWeek}</span>
           <span className="text-xs text-content-subtle mt-1">
-            {getWeekDates().firstDay.toLocaleDateString()} -{" "}
-            {getWeekDates().lastDay.toLocaleDateString()}
+            {getWeekDates().firstDay.toLocaleDateString("es-CL")} -{" "}
+            {getWeekDates().lastDay.toLocaleDateString("es-CL")}
           </span>
         </Card>
 
@@ -838,103 +842,147 @@ export default function DashboardPage() {
 
       {/* Tareas de la semana actual */}
       <Card className="overflow-hidden">
-  <div className="p-6 border-b">
-    <h2 className="text-xl font-semibold flex items-center">
-      <CalendarClock className="mr-2 h-5 w-5 text-primary" />
-      Tareas para esta semana
-    </h2>
-  </div>
-  <div className="p-0">
-    {tasksThisWeek > 0 ? (
-      <div className="divide-y">
-        {/* Vista de escritorio: Grid de 7 columnas */}
-        <div className="hidden md:block">
-          <div className="grid grid-cols-7 p-2 bg-accent/10 border-b">
-            <div className="text-center font-semibold">Lunes</div>
-            <div className="text-center font-semibold">Martes</div>
-            <div className="text-center font-semibold">Miércoles</div>
-            <div className="text-center font-semibold">Jueves</div>
-            <div className="text-center font-semibold">Viernes</div>
-            <div className="text-center font-semibold">Sábado</div>
-            <div className="text-center font-semibold">Domingo</div>
-          </div>
-          <div className="grid grid-cols-7 gap-1 p-2 min-h-32">
-            {Array(7).fill(0).map((_, index) => (
-              <div key={index} className="border rounded p-2 min-h-full">
-                {weeklyTasks.filter(task => {
-                  const taskDate = new Date(task.startDate);
-                  const dayOfWeek = taskDate.getDay();
-                  const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                  return adjustedDayOfWeek === index;
-                }).map(task => (
-                  <div key={task.id} className="mb-2 bg-accent/5 p-2 rounded text-sm">
-                    <p className="font-medium truncate">{task.title}</p>
-                    <p className="text-xs text-content-subtle">
-                      {formatDate(new Date(task.startDate), "HH:mm")}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-semibold flex items-center">
+            <CalendarClock className="mr-2 h-5 w-5 text-primary" />
+            Tareas para esta semana
+          </h2>
         </div>
-
-        {/* Vista móvil: Lista simple agrupada por día */}
-        <div className="md:hidden">
-          {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, idx) => {
-            const tasksForDay = weeklyTasks.filter(task => {
-              const taskDate = new Date(task.startDate);
-              const dayOfWeek = taskDate.getDay();
-              const adjustedDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-              return adjustedDayOfWeek === idx;
-            });
-
-            if (tasksForDay.length === 0) return null;
-
-            // Determinar si es hoy para resaltarlo
-            const today = new Date().getDay();
-            const adjustedToday = today === 0 ? 6 : today - 1;
-            const isToday = adjustedToday === idx;
-
-            return (
-              <div key={idx} className={`p-3 ${isToday ? 'bg-accent/10' : ''}`}>
-                <h4 className={`font-medium text-sm mb-2 ${isToday ? 'text-primary font-semibold' : 'text-content-subtle'}`}>
-                  {day} {isToday && <span className="text-xs ml-1 bg-primary text-white px-1.5 py-0.5 rounded-full">Hoy</span>}
-                </h4>
-                <div className="space-y-2">
-                  {tasksForDay.map(task => (
-                    <div key={task.id} className="bg-accent/5 p-3 rounded">
-                      <p className="font-medium">{task.title}</p>
-                      <p className="text-xs text-content-subtle mt-1">
-                        {formatDate(new Date(task.startDate), "HH:mm")}
-                        {task.client && ` - ${task.client.name}`}
-                      </p>
-                    </div>
-                  ))}
+        <div className="p-0">
+          {tasksThisWeek > 0 ? (
+            <div className="divide-y">
+              {/* Vista de escritorio: Grid de 7 columnas */}
+              <div className="hidden md:block">
+                <div className="grid grid-cols-7 p-2 bg-accent/10 border-b">
+                  <div className="text-center font-semibold">Lunes</div>
+                  <div className="text-center font-semibold">Martes</div>
+                  <div className="text-center font-semibold">Miércoles</div>
+                  <div className="text-center font-semibold">Jueves</div>
+                  <div className="text-center font-semibold">Viernes</div>
+                  <div className="text-center font-semibold">Sábado</div>
+                  <div className="text-center font-semibold">Domingo</div>
+                </div>
+                <div className="grid grid-cols-7 gap-1 p-2 min-h-32">
+                  {Array(7)
+                    .fill(0)
+                    .map((_, index) => (
+                      <div
+                        key={index}
+                        className="border rounded p-2 min-h-full"
+                      >
+                        {weeklyTasks
+                          .filter((task) => {
+                            const taskDate = new Date(task.startDate);
+                            const dayOfWeek = taskDate.getDay();
+                            // Ajustar para que lunes sea 0 y domingo 6
+                            const adjustedDayOfWeek =
+                              dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                            return adjustedDayOfWeek === index;
+                          })
+                          .map((task) => (
+                            <div
+                              key={task.id}
+                              className="mb-2 bg-accent/5 p-2 rounded text-sm"
+                            >
+                              <p className="font-medium truncate">
+                                {task.title}
+                              </p>
+                              <p className="text-xs text-content-subtle">
+                                {formatDate(new Date(task.startDate), "HH:mm")}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
                 </div>
               </div>
-            );
-          })}
+
+              {/* Vista móvil: Lista simple agrupada por día */}
+              <div className="md:hidden">
+                {[
+                  "Lunes",
+                  "Martes",
+                  "Miércoles",
+                  "Jueves",
+                  "Viernes",
+                  "Sábado",
+                  "Domingo",
+                ].map((day, idx) => {
+                  const tasksForDay = weeklyTasks.filter((task) => {
+                    const taskDate = new Date(task.startDate);
+                    const dayOfWeek = taskDate.getDay();
+                    // Ajustar para que lunes sea 0 y domingo 6
+                    const adjustedDayOfWeek =
+                      dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                    return adjustedDayOfWeek === idx;
+                  });
+
+                  if (tasksForDay.length === 0) return null;
+
+                  // Determinar si es hoy para resaltarlo
+                  const todayDayIndex = new Date().getDay();
+                  const adjustedToday =
+                    todayDayIndex === 0 ? 6 : todayDayIndex - 1;
+                  const isToday = adjustedToday === idx;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 ${isToday ? "bg-accent/10" : ""}`}
+                    >
+                      <h4
+                        className={`font-medium text-sm mb-2 ${
+                          isToday
+                            ? "text-primary font-semibold"
+                            : "text-content-subtle"
+                        }`}
+                      >
+                        {day}{" "}
+                        {isToday && (
+                          <span className="text-xs ml-1 bg-primary text-white px-1.5 py-0.5 rounded-full">
+                            Hoy
+                          </span>
+                        )}
+                      </h4>
+                      <div className="space-y-2">
+                        {tasksForDay.map((task) => (
+                          <div
+                            key={task.id}
+                            className="bg-accent/5 p-3 rounded"
+                          >
+                            <p className="font-medium">{task.title}</p>
+                            <p className="text-xs text-content-subtle mt-1">
+                              {formatDate(new Date(task.startDate), "HH:mm")}
+                              {task.client && ` - ${task.client.name}`}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+              <h3 className="text-lg font-medium">
+                ¡Semana sin tareas pendientes!
+              </h3>
+              <p className="text-content-subtle mt-2">
+                No tienes tareas asignadas para esta semana
+              </p>
+            </div>
+          )}
         </div>
-      </div>
-    ) : (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-        <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-        <h3 className="text-lg font-medium">¡Semana sin tareas pendientes!</h3>
-        <p className="text-content-subtle mt-2">
-          No tienes tareas asignadas para esta semana
-        </p>
-      </div>
-    )}
-  </div>
-  <div className="p-4 border-t bg-accent/5">
-    <Link href="/dashboard/agenda">
-      <Button variant="outline" className="w-full">
-        Ver agenda completa
-      </Button>
-    </Link>
-  </div>
-</Card>
+        <div className="p-4 border-t bg-accent/5">
+          <Link href="/dashboard/agenda">
+            <Button variant="outline" className="w-full">
+              Ver agenda completa
+            </Button>
+          </Link>
+        </div>
+      </Card>
 
       {/* Secciones de Tareas Pendientes y Trabajos Realizados */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -964,12 +1012,14 @@ export default function DashboardPage() {
                       </div>
                       <Badge
                         className={
-                          new Date(task.startDate) < new Date()
+                          new Date(task.startDate) < new Date() &&
+                          task.state !== "FINALIZADO"
                             ? "bg-red-100 text-red-800"
                             : "bg-blue-100 text-blue-800"
                         }
                       >
-                        {new Date(task.startDate) < new Date()
+                        {new Date(task.startDate) < new Date() &&
+                        task.state !== "FINALIZADO"
                           ? "Vencida"
                           : "Pendiente"}
                       </Badge>
@@ -1053,7 +1103,7 @@ export default function DashboardPage() {
   );
 }
 
-// Componente Badge
+// Componente Badge (reutilizable)
 function Badge({
   children,
   className,
