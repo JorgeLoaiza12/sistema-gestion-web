@@ -1,25 +1,25 @@
-// web\components\tasks\UserMultiSelect.tsx
+// web/components/tasks/UserMultiSelect.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Command, 
-  CommandEmpty, 
-  CommandGroup, 
-  CommandInput, 
-  CommandItem, 
-  CommandList 
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,13 @@ import { Check, ChevronsUpDown, Loader2, Plus, X, Users } from "lucide-react";
 import { User } from "@/services/users";
 import { createUser } from "@/services/users";
 import { useNotification } from "@/contexts/NotificationContext";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UserMultiSelectProps {
   workers: User[];
@@ -51,7 +57,6 @@ export default function UserMultiSelect({
   const [open, setOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [newUser, setNewUser] = useState<Partial<User>>({
     name: "",
     email: "",
@@ -61,31 +66,19 @@ export default function UserMultiSelect({
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Filtrar trabajadores según término de búsqueda
-  const filteredWorkers = workers.filter((worker) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      worker.name?.toLowerCase().includes(search) ||
-      worker.email?.toLowerCase().includes(search)
-    );
-  });
-
-  // Actualizar selecciones
   const handleSelectWorker = (workerId: number) => {
     if (selectedWorkerIds.includes(workerId)) {
-      onSelectionChange(selectedWorkerIds.filter(id => id !== workerId));
+      onSelectionChange(selectedWorkerIds.filter((id) => id !== workerId));
     } else {
       onSelectionChange([...selectedWorkerIds, workerId]);
     }
   };
 
-  // Eliminar un trabajador seleccionado
   const handleRemoveWorker = (e: React.MouseEvent, workerId: number) => {
     e.stopPropagation();
-    onSelectionChange(selectedWorkerIds.filter(id => id !== workerId));
+    onSelectionChange(selectedWorkerIds.filter((id) => id !== workerId));
   };
 
-  // Preparar para agregar nuevo usuario
   const handleAddNewUser = () => {
     setIsAddModalOpen(true);
     setNewUser({
@@ -98,9 +91,7 @@ export default function UserMultiSelect({
     setValidationError(null);
   };
 
-  // Guardar nuevo usuario
   const handleSaveNewUser = async () => {
-    // Validación básica
     if (!newUser.name) {
       setValidationError("El nombre es obligatorio");
       return;
@@ -122,7 +113,6 @@ export default function UserMultiSelect({
         if (onUserCreated) {
           onUserCreated(createdUser);
         }
-        // Seleccionar automáticamente el usuario recién creado
         if (createdUser.id) {
           handleSelectWorker(createdUser.id);
         }
@@ -137,16 +127,19 @@ export default function UserMultiSelect({
     }
   };
 
-  // Encontrar los usuarios seleccionados
-  const selectedUsers = workers.filter(worker => 
+  const selectedUsers = workers.filter((worker) =>
     selectedWorkerIds.includes(worker.id)
   );
 
-  // Texto a mostrar en el botón desplegable
   const getButtonText = () => {
     if (isLoading) return "Cargando técnicos...";
     if (selectedWorkerIds.length === 0) return "Seleccionar técnicos";
-    if (selectedWorkerIds.length === 1) return `${selectedUsers.length > 0 ? selectedUsers[0].name : '1 técnico seleccionado'}`;
+    if (selectedWorkerIds.length === 1)
+      return `${
+        selectedUsers.length > 0
+          ? selectedUsers[0].name
+          : "1 técnico seleccionado"
+      }`;
     return `${selectedWorkerIds.length} técnicos seleccionados`;
   };
 
@@ -174,18 +167,14 @@ export default function UserMultiSelect({
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0">
           <Command>
-            <CommandInput 
-              placeholder="Buscar técnico..." 
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-            />
+            <CommandInput placeholder="Buscar técnico..." />
             <CommandList>
               <CommandEmpty>
                 <div className="py-3 px-4 text-center space-y-2">
                   <p className="text-sm">No se encontraron técnicos</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full"
                     onClick={handleAddNewUser}
                   >
@@ -195,20 +184,22 @@ export default function UserMultiSelect({
                 </div>
               </CommandEmpty>
               <CommandGroup heading="Técnicos disponibles">
-                {filteredWorkers.map((worker) => {
+                {workers.map((worker) => {
                   const isSelected = selectedWorkerIds.includes(worker.id);
                   return (
                     <CommandItem
                       key={worker.id}
-                      value={worker.id.toString()}
+                      value={worker.name + " " + worker.email}
                       onSelect={() => handleSelectWorker(worker.id)}
                       className="flex items-center justify-between"
                     >
                       <div className="flex flex-col">
                         <span>{worker.name}</span>
-                        <span className="text-xs text-gray-500">{worker.email}</span>
+                        <span className="text-xs text-gray-500">
+                          {worker.email}
+                        </span>
                       </div>
-                      {isSelected && <Check className="h-4 w-4 text-primary"/>}
+                      {isSelected && <Check className="h-4 w-4 text-primary" />}
                     </CommandItem>
                   );
                 })}
@@ -229,20 +220,22 @@ export default function UserMultiSelect({
         </PopoverContent>
       </Popover>
 
-      {/* Mostrar usuarios seleccionados como badges */}
       <div className="flex flex-wrap gap-2 mt-2">
         {selectedUsers.map((user) => (
-          <Badge key={user.id} variant="secondary" className="px-2 py-1 text-sm">
+          <Badge
+            key={user.id}
+            variant="secondary"
+            className="px-2 py-1 text-sm"
+          >
             {user.name}
-            <X 
-              className="h-3 w-3 ml-1 cursor-pointer" 
+            <X
+              className="h-3 w-3 ml-1 cursor-pointer"
               onClick={(e) => handleRemoveWorker(e, user.id)}
             />
           </Badge>
         ))}
       </div>
 
-      {/* Modal para agregar nuevo usuario */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -255,7 +248,9 @@ export default function UserMultiSelect({
               <Input
                 id="name"
                 value={newUser.name || ""}
-                onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, name: e.target.value })
+                }
                 disabled={isSavingUser}
               />
             </div>
@@ -266,7 +261,9 @@ export default function UserMultiSelect({
                 id="email"
                 type="email"
                 value={newUser.email || ""}
-                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, email: e.target.value })
+                }
                 disabled={isSavingUser}
               />
             </div>
@@ -277,7 +274,9 @@ export default function UserMultiSelect({
                 id="password"
                 type="password"
                 value={newUser.password || ""}
-                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, password: e.target.value })
+                }
                 disabled={isSavingUser}
               />
             </div>
@@ -287,7 +286,9 @@ export default function UserMultiSelect({
               <Input
                 id="phone"
                 value={newUser.phone || ""}
-                onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, phone: e.target.value })
+                }
                 disabled={isSavingUser}
               />
             </div>
@@ -296,7 +297,9 @@ export default function UserMultiSelect({
               <Label htmlFor="role">Rol</Label>
               <Select
                 value={newUser.role || "WORKER"}
-                onValueChange={(value) => setNewUser({...newUser, role: value})}
+                onValueChange={(value) =>
+                  setNewUser({ ...newUser, role: value })
+                }
                 disabled={isSavingUser}
               >
                 <SelectTrigger id="role">
@@ -324,10 +327,7 @@ export default function UserMultiSelect({
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSaveNewUser}
-              disabled={isSavingUser}
-            >
+            <Button onClick={handleSaveNewUser} disabled={isSavingUser}>
               {isSavingUser ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
