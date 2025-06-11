@@ -293,7 +293,6 @@ export async function finalizeTask(
     const processedData = {
       ...data,
       mediaUrls: data.mediaUrls || [], // [cite: 1823]
-      types: data.types || [],
       systems: data.systems || [],
       technicians: data.technicians || [],
     };

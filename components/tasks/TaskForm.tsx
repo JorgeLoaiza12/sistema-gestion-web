@@ -1,4 +1,4 @@
-// web\components\tasks\TaskForm.tsx
+// web/components/tasks/TaskForm.tsx
 import { useState, useEffect } from "react";
 import { FormField, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -78,7 +78,7 @@ export default function TaskForm({
     title: "",
     description: "",
     state: "PENDIENTE",
-    types: [],
+    types: [], // Siempre inicializar como array vacío
     categories: [],
     startDate: new Date().toISOString().split("T")[0], // Solo la fecha
   });
@@ -86,7 +86,8 @@ export default function TaskForm({
   const [endDateValue, setEndDateValue] = useState<string | undefined>(
     undefined
   ); // Para manejar el input de fecha de fin
-  const [endTime, setEndTime] = useState("17:00"); // Hora de fin
+  const [endTime, setEndTime] = useState("17:00");
+  // Hora de fin
 
   const [clientQuotations, setClientQuotations] = useState<Quotation[]>([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
@@ -111,7 +112,7 @@ export default function TaskForm({
 
         setTaskForm({
           ...task,
-          types: task.types || [],
+          types: task.types || [], // Asegurarse de que types se inicialice como un array
           categories: task.categories || [],
           // Aseguramos que solo se muestre la parte de la fecha para el input type="date"
           startDate: startDateObj.toISOString().split("T")[0],
@@ -149,7 +150,7 @@ export default function TaskForm({
           title: "",
           description: "",
           state: "PENDIENTE",
-          types: [],
+          types: [], // Siempre inicializar como array vacío
           categories: [],
           startDate: defaultDate,
         });
@@ -183,7 +184,6 @@ export default function TaskForm({
 
   const handleSave = async () => {
     setFormValidationError(null);
-
     // Combinar la fecha y la hora de inicio
     const finalStartDate = new Date(`${taskForm.startDate}T${startTime}`);
     if (isNaN(finalStartDate.getTime())) {
@@ -216,7 +216,7 @@ export default function TaskForm({
         startDate: finalStartDate.toISOString(), // Convertir a ISO string para enviar
         endDate: finalEndDate ? finalEndDate.toISOString() : null, // Convertir a ISO string o null
         quotationId: taskForm.quotationId || null, // Asegurar que sea null si no hay valor
-        types: taskForm.types || [],
+        types: taskForm.types || [], // Asegurar que types siempre sea un array
         categories: taskForm.categories || [],
         assignedWorkerIds: selectedWorkerIds,
       };
@@ -313,7 +313,6 @@ export default function TaskForm({
   };
 
   if (!isOpen) return null;
-
   const isFormLoading =
     isLoading || isLoadingClients || isLoadingWorkers || isSavingInProgress;
 

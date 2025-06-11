@@ -1,3 +1,4 @@
+// web/components/tasks/FinalizeTaskForm.tsx
 import { useState, useEffect, useRef } from "react";
 import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -111,7 +112,6 @@ export default function FinalizeTaskForm({
     try {
       setIsUploadingWhoReceives(true);
       setValidationError(null);
-
       // Comprimir la imagen antes de subirla
       const compressedBlob = await compressImage(files[0], 800, 0.8);
       const compressedFile = blobToFile(
@@ -119,10 +119,8 @@ export default function FinalizeTaskForm({
         `who-receives-${Date.now()}.${files[0].name.split(".").pop()}`,
         { type: files[0].type }
       );
-
       // Subir la imagen comprimida
       const imageUrl = await uploadTaskImage(compressedFile, "who-receives");
-
       setFinalizeForm({
         ...finalizeForm,
         imageUrlWhoReceives: imageUrl,
@@ -149,7 +147,6 @@ export default function FinalizeTaskForm({
     try {
       setIsUploadingWork(true);
       setValidationError(null);
-
       // Comprimir la imagen antes de subirla
       const compressedBlob = await compressImage(files[0], 1200, 0.8);
       const compressedFile = blobToFile(
@@ -157,10 +154,8 @@ export default function FinalizeTaskForm({
         `work-${Date.now()}.${files[0].name.split(".").pop()}`,
         { type: files[0].type }
       );
-
       // Subir la imagen comprimida
       const imageUrl = await uploadTaskImage(compressedFile, "work");
-
       // Agregar nueva imagen a las existentes
       setFinalizeForm({
         ...finalizeForm,
@@ -190,7 +185,6 @@ export default function FinalizeTaskForm({
 
   const handleSubmit = async () => {
     setValidationError(null);
-
     // Validaciones
     if (!finalizeForm.technicalReport) {
       setValidationError("El informe técnico es obligatorio");
@@ -215,7 +209,6 @@ export default function FinalizeTaskForm({
 
     try {
       setIsSubmitting(true);
-
       // Aquí enviamos directamente el formulario si el usuario subió imágenes usando el formulario
       // Si no, usamos el proceso API normal
 
@@ -227,7 +220,6 @@ export default function FinalizeTaskForm({
       if (hasWhoReceivesImage || hasWorkImages) {
         // Crear un FormData para enviar los datos y los archivos
         const formData = new FormData();
-
         // Añadir los datos del formulario
         formData.append("taskId", finalizeForm.taskId.toString());
         formData.append("technicalReport", finalizeForm.technicalReport);
@@ -241,6 +233,12 @@ export default function FinalizeTaskForm({
         );
         if (finalizeForm.endDate)
           formData.append("endDate", finalizeForm.endDate);
+
+        // NO INCLUIR types aquí. El backend no debe recibirlo en finalize.
+        // const typesToSend = finalizeForm.types || [];
+        // typesToSend.forEach((type, i) => {
+        //   formData.append(`types[${i}]`, type);
+        // });
 
         // Añadir imagen de quien recibe si existe
         if (hasWhoReceivesImage) {
@@ -297,12 +295,10 @@ export default function FinalizeTaskForm({
             body: formData,
           }
         );
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({
             message: `Error ${response.status}: ${response.statusText}`,
           }));
-
           throw new Error(
             errorData.message ||
               `Error al finalizar tarea: ${response.statusText}`
@@ -310,13 +306,27 @@ export default function FinalizeTaskForm({
         }
 
         const result = await response.json();
-
         // Continuar con el flujo normal después de la operación exitosa
         setProgress(100);
         onClose();
       } else {
         // Si no hay archivos para subir, usamos el método normal
-        await onSave(finalizeForm);
+        // Asegurarse de que types NO se envíe en este caso tampoco
+        const dataToSend = {
+          taskId: finalizeForm.taskId,
+          technicalReport: finalizeForm.technicalReport,
+          observations: finalizeForm.observations,
+          hoursWorked: finalizeForm.hoursWorked,
+          mediaUrls: finalizeForm.mediaUrls,
+          nameWhoReceives: finalizeForm.nameWhoReceives,
+          positionWhoReceives: finalizeForm.positionWhoReceives,
+          imageUrlWhoReceives: finalizeForm.imageUrlWhoReceives,
+          endDate: finalizeForm.endDate,
+          technicians: finalizeForm.technicians,
+          // Excluir types del objeto que se envía como JSON
+          // types: finalizeForm.types || [], // ESTO SE ELIMINA DE AQUI
+        };
+        await onSave(dataToSend);
         setProgress(100);
       }
     } catch (error) {
