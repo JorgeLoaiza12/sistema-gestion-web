@@ -1,3 +1,4 @@
+// Ruta: app\(dashboard)\dashboard\agenda\page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -64,7 +65,6 @@ export default function AgendaPage() {
 
   const getDateRangeTitle = () => {
     const date = new Date(selectedDate);
-
     if (viewMode === "daily") {
       return formatDate(date, "dd MMMM");
     }
@@ -76,7 +76,6 @@ export default function AgendaPage() {
 
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-
       return `${formatDate(startOfWeek, "dd MMM")} - ${formatDate(
         endOfWeek,
         "dd MMM"
@@ -150,7 +149,6 @@ export default function AgendaPage() {
   const goToPreviousDate = () => {
     setIsChangingDate(true);
     const date = new Date(selectedDate);
-
     if (viewMode === "daily") {
       date.setDate(date.getDate() - 1);
     } else if (viewMode === "weekly") {
@@ -165,7 +163,6 @@ export default function AgendaPage() {
   const goToNextDate = () => {
     setIsChangingDate(true);
     const date = new Date(selectedDate);
-
     if (viewMode === "daily") {
       date.setDate(date.getDate() + 1);
     } else if (viewMode === "weekly") {
@@ -236,13 +233,11 @@ export default function AgendaPage() {
 
   const isTaskOverdue = (task: Task) => {
     if (task.state === "FINALIZADO") return false;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const taskDate = new Date(task.startDate);
     taskDate.setHours(0, 0, 0, 0);
-
     return taskDate < today;
   };
 
@@ -368,7 +363,8 @@ export default function AgendaPage() {
               <Eye className="h-4 w-4 mr-1" />
               Ver Detalles
             </Button>
-            {task.state === "FINALIZADO" && task.id && (
+            {/* Se elimina el botón de descargar informe para el trabajador
+            {task.state === "FINALIZADO" && task.id && session?.user?.role === "ADMIN" && (
               <DownloadTaskReportButton
                 taskId={task.id}
                 variant="outline"
@@ -378,6 +374,7 @@ export default function AgendaPage() {
                 className="flex-1"
               />
             )}
+            */}
           </div>
         </div>
       </Card>
@@ -504,7 +501,8 @@ export default function AgendaPage() {
               Finalizar
             </Button>
           )}
-          {row.original.state === "FINALIZADO" && row.original.id && (
+          {/* Se elimina el botón de descargar informe para el trabajador
+          {row.original.state === "FINALIZADO" && row.original.id && session?.user?.role === "ADMIN" && (
             <DownloadTaskReportButton
               taskId={row.original.id}
               variant="outline"
@@ -513,6 +511,7 @@ export default function AgendaPage() {
               showIcon={true}
             />
           )}
+          */}
           <Button
             variant="outline"
             size="sm"
@@ -706,7 +705,7 @@ export default function AgendaPage() {
             </DialogHeader>
             <TaskDetail
               task={currentTask}
-              isAdmin={false}
+              isAdmin={session?.user?.role === "ADMIN"} // Solo los admins pueden ver los detalles del informe
               onEdit={() => {}}
               onDelete={() => {}}
               onStart={(taskToStart) => {
