@@ -4,7 +4,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
-import { Trash, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Trash,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  ChevronsUpDown,
+  Loader2,
+} from "lucide-react";
 import { QuotationCategory, QuotationItem } from "@/services/quotations";
 import { Product, createProduct } from "@/services/products";
 import { formatCurrency, roundUp } from "@/utils/number-format";
@@ -17,6 +25,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 // Definición de la constante que faltaba
 const DEFAULT_PROFIT_PERCENTAGE = 35;
@@ -215,6 +236,7 @@ export default function CategoryForm({
   }) => {
     const [priceInputValue, setPriceInputValue] = useState<string>("");
     const [markupInputValue, setMarkupInputValue] = useState<string>("");
+    const [openProductSelect, setOpenProductSelect] = useState(false);
 
     useEffect(() => {
       let initialPrice = "";
@@ -266,6 +288,7 @@ export default function CategoryForm({
     const handleMarkupChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setMarkupInputValue(e.target.value);
     };
+
     const handleMarkupBlur = () => {
       const value = markupInputValue;
       if (value.trim() === "") {
@@ -301,7 +324,6 @@ export default function CategoryForm({
       (item.product
         ? item.product.markup || DEFAULT_PROFIT_PERCENTAGE
         : DEFAULT_PROFIT_PERCENTAGE);
-
     const markupAmountForItem = Math.ceil(
       (currentProviderPrice * currentMarkupPercentage) / 100
     );
@@ -342,43 +364,89 @@ export default function CategoryForm({
                 <span className="text-red-500 text-xs ml-1">*Requerido</span>
               )}
             </FormLabel>
-            <Select
-              value={item.productId ? item.productId.toString() : "0"}
-              onValueChange={(value) => {
-                if (value === "new") {
-                  setItemIndexForNewProduct(itemIndex);
-                  setIsNewProductDialogOpen(true);
-                } else {
-                  onUpdateItem(
-                    categoryIndex,
-                    itemIndex,
-                    "productId",
-                    parseInt(value)
-                  );
-                }
-              }}
-              disabled={disabled}
+            <Popover
+              open={openProductSelect}
+              onOpenChange={setOpenProductSelect}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Seleccionar producto" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="new">
-                  <div className="flex items-center">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crear nuevo producto
-                  </div>
-                </SelectItem>
-                {localProducts.map((product) => (
-                  <SelectItem
-                    key={product.id}
-                    value={product.id?.toString() || ""}
-                  >
-                    {product.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openProductSelect}
+                  className="w-full justify-between"
+                  disabled={disabled}
+                >
+                  {item.product?.name || "Seleccionar producto..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0">
+                <Command>
+                  <CommandInput placeholder="Buscar producto..." />
+                  <CommandList>
+                    <CommandEmpty>
+                      <div className="py-3 px-4 text-center space-y-2">
+                        <p className="text-sm">No se encontraron productos</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setItemIndexForNewProduct(itemIndex);
+                            setIsNewProductDialogOpen(true);
+                            setOpenProductSelect(false);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Agregar nuevo producto
+                        </Button>
+                      </div>
+                    </CommandEmpty>
+                    <CommandGroup heading="Productos disponibles">
+                      {localProducts.map((product) => (
+                        <CommandItem
+                          key={product.id}
+                          value={product.name}
+                          onSelect={() => {
+                            onUpdateItem(
+                              categoryIndex,
+                              itemIndex,
+                              "productId",
+                              product.id
+                            );
+                            setOpenProductSelect(false);
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${
+                              item.productId === product.id
+                                ? "opacity-100"
+                                : "opacity-0"
+                            }`}
+                          />
+                          {product.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                    <div className="p-2 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setItemIndexForNewProduct(itemIndex);
+                          setIsNewProductDialogOpen(true);
+                          setOpenProductSelect(false);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar nuevo producto
+                      </Button>
+                    </div>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {(!item.productId || item.productId === 0) && (
               <p className="text-red-500 text-xs mt-1">
                 Por favor, seleccione un producto
