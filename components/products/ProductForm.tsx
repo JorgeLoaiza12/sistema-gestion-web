@@ -1,11 +1,12 @@
-// components\products\ProductForm.tsx
+// components/products/ProductForm.tsx
 import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Product } from "@/services/products";
 import { EntityForm } from "@/components/ui/entity-form";
-import { Edit, Upload } from "lucide-react";
+import { Edit, Upload, Save, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/utils/number-format";
 import { Button } from "@/components/ui/button";
+import React from "react";
 
 interface ProductFormProps {
   currentProduct: Product | null;
@@ -51,8 +52,8 @@ export default function ProductForm({
   const markupAmount = Math.ceil((unitPrice * markup) / 100);
   const finalPrice = unitPrice + markupAmount;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+    e?.preventDefault();
     await onSave();
   };
 
@@ -66,15 +67,43 @@ export default function ProductForm({
     />
   );
 
+  const customFooter = (
+    <div className="flex justify-end space-x-2">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onCancel}
+        disabled={isSubmitting}
+      >
+        Cancelar
+      </Button>
+      <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
+        {isSubmitting ? (
+          <div className="flex items-center">
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <span>Guardando...</span>
+          </div>
+        ) : (
+          <div className="flex items-center">
+            <Save className="h-4 w-4 mr-2" />
+            <span>Guardar Producto</span>
+          </div>
+        )}
+      </Button>
+    </div>
+  );
+
   return (
     <EntityForm
       isOpen={true}
       onClose={onCancel}
-      onSubmit={handleSubmit}
+      onSubmit={(e) => e.preventDefault()}
       title={currentProduct ? "Editar Producto" : "Agregar Producto"}
       isLoading={isSubmitting}
       error={error}
       maxWidth="max-w-md"
+      showSubmitButton={false}
+      footerContent={customFooter}
     >
       {fileInput}
 
