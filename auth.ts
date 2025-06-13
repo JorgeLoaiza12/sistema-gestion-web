@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET as string;
 const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL as string;
+const TEN_YEARS_IN_SECONDS = 10 * 365 * 24 * 60 * 60;
 
 if (!NEXTAUTH_SECRET) {
   console.error(
@@ -14,10 +15,6 @@ if (!NEXTAUTH_SECRET) {
   console.error(
     "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   );
-  // En un entorno de producción real, podrías querer lanzar un error para detener el build/deploy
-  // if (process.env.NODE_ENV === 'production') {
-  //   throw new Error("Missing NEXTAUTH_SECRET environment variable");
-  // }
 }
 if (!NEXT_PUBLIC_API_URL && process.env.NODE_ENV !== "test") {
   console.warn(
@@ -30,16 +27,13 @@ if (!NEXT_PUBLIC_API_URL && process.env.NODE_ENV !== "test") {
   console.warn(
     "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   );
-  // if (process.env.NODE_ENV === 'production') {
-  //   throw new Error("Missing NEXT_PUBLIC_API_URL environment variable");
-  // }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 horas para la validez del JWT de NextAuth
+    maxAge: TEN_YEARS_IN_SECONDS,
   },
   providers: [
     Credentials({
@@ -50,7 +44,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials, req) {
-        // Loguear el inicio del intento de autorización
         console.log(
           "[Authorize Callback] Attempting authorization for email:",
           credentials?.email
@@ -91,10 +84,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (!response.ok) {
             let errorData = { message: `Backend returned ${response.status}` };
             try {
-              // Intentar parsear el cuerpo del error, ya que puede contener información útil
-              const errorBody = await response.text(); // Leer como texto primero
+              const errorBody = await response.text();
               if (errorBody) {
-                errorData = JSON.parse(errorBody); // Luego intentar parsear como JSON
+                errorData = JSON.parse(errorBody);
               }
             } catch (e) {
               console.warn(
@@ -105,7 +97,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               `[Authorize Callback] Backend login failed. Status: ${response.status}. Error details:`,
               errorData.message || response.statusText
             );
-            return null; // Devuelve null si el backend no valida las credenciales
+            return null;
           }
 
           const data = await response.json();
@@ -122,13 +114,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             console.log(
               `[Authorize Callback] User data and token present for user ID: ${data.user.id}. Returning user object to NextAuth.`
             );
-            // Este objeto es el que se pasa como 'user' al callback 'jwt'
             return {
-              id: data.user.id.toString(), // NextAuth espera 'id' como string
+              id: data.user.id.toString(),
               email: data.user.email as string,
               name: data.user.name as string,
               role: data.user.role as string,
-              token: data.token, // Este es el accessToken de tu backend
+              token: data.token,
             };
           } else {
             console.warn(
@@ -157,7 +148,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         `[JWT Callback] Trigger: "${trigger}", User ID from arg: ${user?.id}, Input token ID: ${token?.id}, Input token exp: ${logTokenExp}, Account provider: ${account?.provider}`
       );
 
-      // 1. Cuando el usuario inicia sesión (trigger "signIn" o "signUp" y hay objeto 'user' del provider)
       if (
         user &&
         (trigger === "signIn" || trigger === "signUp") &&
@@ -172,7 +162,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = (user as any).role as string;
         token.accessToken = (user as any).token as string;
 
-        token.exp = Math.floor(now / 1000) + 24 * 60 * 60; // 24 horas
+        token.exp = Math.floor(now / 1000) + TEN_YEARS_IN_SECONDS;
         token.error = undefined;
 
         const populatedTokenExpLog = token.exp
@@ -183,7 +173,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
       }
 
-      // 2. VERIFICACIÓN CRÍTICA para sesiones existentes (leídas de la cookie)
       if (!user && !token.id) {
         console.warn(
           "[JWT Callback] CRITICAL: Token is missing 'id' (and not initial signIn). Session likely corrupted or incomplete. Invalidating session."
@@ -194,7 +183,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         };
       }
 
-      // 3. Verificar expiración del token de NextAuth
       if (token.exp && now >= (token.exp as number) * 1000) {
         const expiredMsg = `[JWT Callback] NextAuth session JWT has EXPIRED. Original exp: ${new Date(
           (token.exp as number) * 1000
@@ -208,9 +196,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           error: "NextAuthSessionExpired",
         };
       }
-
-      // 4. Lógica de Refresco del Token del Backend (ACTUALMENTE DESACTIVADA)
-      // console.log("[JWT Callback] Backend token refresh logic is currently SKIPPED.");
 
       const finalTokenExpLog = token.exp
         ? new Date((token.exp as number) * 1000).toISOString()
