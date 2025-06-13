@@ -1,3 +1,4 @@
+// app\(dashboard)\dashboard\tasks\page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -419,9 +420,7 @@ export default function TasksPage() {
                     ? new Date(searchFilters.endDate + "T23:59:59Z")
                     : undefined,
                 }}
-                onChange={(range) =>
-                  handleDateRangeChange({ start: range.from, end: range.to })
-                }
+                onChange={(range) => handleDateRangeChange(range)}
               />
             </div>
             <div className="space-y-1">

@@ -23,7 +23,6 @@ interface ClientResponse {
 export async function getClients(): Promise<Client[]> {
   try {
     const response = await httpClient<Client[]>("/clients");
-    console.log("Clientes obtenidos:", response);
     return response;
   } catch (error) {
     console.error("Error al obtener clientes:", error);
