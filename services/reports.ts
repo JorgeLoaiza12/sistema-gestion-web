@@ -1,4 +1,4 @@
-// services/reports.ts
+// web/services/reports.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 import { QuotationsParams } from "./quotations";
@@ -98,7 +98,6 @@ export async function downloadReportExcel(filter: ReportFilter) {
   return response.blob();
 }
 
-// Obtener las estadísticas de ventas para el dashboard
 export async function getSalesStats(
   period: "week" | "month" | "year" = "month",
   startDate?: string,
@@ -123,7 +122,6 @@ export async function getSalesStats(
   }
 }
 
-// Actualización para el servicio getQuotationStats
 export async function getQuotationStats(
   params: QuotationsParams = {}
 ): Promise<any> {
@@ -141,7 +139,6 @@ export async function getQuotationStats(
   return httpClient<any>(url);
 }
 
-// Obtener las métricas de rendimiento para un trabajador específico
 export async function getWorkerPerformance(
   workerId: string,
   startDate: string,
@@ -156,12 +153,10 @@ export async function getWorkerPerformance(
   );
 }
 
-// Obtener el historial de cotizaciones y trabajos para un cliente específico
 export async function getClientHistory(clientId: string) {
   return httpClient(`/reports/client-history/${clientId}`);
 }
 
-// Obtener métricas de productos más vendidos
 export async function getTopProducts(
   limit: number = 10,
   startDate?: string,
@@ -173,4 +168,15 @@ export async function getTopProducts(
   if (endDate) params.append("endDate", endDate);
 
   return httpClient(`/reports/top-products?${params.toString()}`);
+}
+
+export async function getDashboardTaskStats(
+  startDate?: string,
+  endDate?: string
+) {
+  const params = new URLSearchParams();
+  if (startDate) params.append("startDate", startDate);
+  if (endDate) params.append("endDate", endDate);
+  const url = `/reports/dashboard-task-stats?${params.toString()}`;
+  return httpClient(url);
 }
