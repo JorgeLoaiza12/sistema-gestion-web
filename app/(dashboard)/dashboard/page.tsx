@@ -189,7 +189,8 @@ export default function DashboardPage() {
     const quotationByStatusData = hasQuotationStats
       ? quotationStats.byStatus?.map((item: any) => ({
           name: getStatusLabel(item.status),
-          value: item._count.status,
+          value: item.count,
+          amount: item.amount || 0,
         })) || []
       : [];
 
@@ -200,12 +201,12 @@ export default function DashboardPage() {
       midAngle,
       innerRadius,
       outerRadius,
-      percent,
+      value,
     }: any) => {
-      const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+      const radius = innerRadius + (outerRadius - innerRadius) * 0.7;
       const x = cx + radius * Math.cos(-midAngle * RADIAN);
       const y = cy + radius * Math.sin(-midAngle * RADIAN);
-      if (percent < 0.05) return null;
+      if (value === 0) return null;
       return (
         <text
           x={x}
@@ -213,8 +214,9 @@ export default function DashboardPage() {
           fill="white"
           textAnchor={x > cx ? "start" : "end"}
           dominantBaseline="central"
+          fontSize="12"
         >
-          {`${(percent * 100).toFixed(0)}%`}
+          {value}
         </text>
       );
     };
@@ -388,9 +390,9 @@ export default function DashboardPage() {
                     </Pie>
                     <Tooltip
                       formatter={(value, name, props) => [
-                        `${value} (${(props.payload.percent * 100).toFixed(
-                          1
-                        )}%)`,
+                        `${value} cotizaciones (${formatCurrency(
+                          props.payload.payload.amount
+                        )})`,
                         name,
                       ]}
                     />
