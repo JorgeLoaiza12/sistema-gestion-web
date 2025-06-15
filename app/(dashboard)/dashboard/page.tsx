@@ -1,7 +1,7 @@
 // web/app/(dashboard)/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSession } from "next-auth/react";
@@ -10,7 +10,6 @@ import {
   CalendarClock,
   Calendar,
   Clock,
-  Users,
   CheckCircle,
   AlertTriangle,
   ChevronRight,
@@ -19,11 +18,11 @@ import {
   FileText,
   BarChart2,
   Package as PackageIcon,
-  UserCircle,
   RefreshCcw,
   PieChart as PieChartIcon,
   BarChartHorizontal,
   Wrench,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/utils/date-format";
@@ -42,17 +41,15 @@ import {
   Cell,
 } from "recharts";
 
-import { getWorkerTasks, type Task } from "@/services/tasks";
-import { getQuotationStats } from "@/services/quotations";
 import {
-  getSalesStats,
-  getTopProducts,
-  getDashboardTaskStats,
+  getAdminDashboardData,
+  getTechnicianDashboardData,
+  downloadDashboardExcel,
 } from "@/services/reports";
-import { getUpcomingMaintenances } from "@/services/maintenance";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { useNotification } from "@/contexts/NotificationContext";
+import { Task } from "@/services/tasks";
 
 const COLORS = [
   "#b42516",
@@ -85,175 +82,52 @@ export default function DashboardPage() {
   const { data: session, status: sessionStatus } = useSession();
   const { addNotification } = useNotification();
   const [isLoading, setIsLoading] = useState(true);
-  const isInitialMount = useRef(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setMonth(new Date().getMonth() - 1)),
     end: new Date(),
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Technician-specific state
-  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
-  const [overdueItems, setOverdueItems] = useState(0);
-  const [tasksToday, setTasksToday] = useState(0);
-  const [tasksThisWeek, setTasksThisWeek] = useState(0);
-  const [tasksCompleted, setTasksCompleted] = useState(0);
-  const [weeklyTasks, setWeeklyTasks] = useState<Task[]>([]);
-
-  // Admin-specific state
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [quotationStats, setQuotationStats] = useState<any>(null);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [upcomingMaintenances, setUpcomingMaintenances] = useState<any[]>([]);
-  const [tasksByTechnician, setTasksByTechnician] = useState<any[]>([]);
-  const [tasksByClient, setTasksByClient] = useState<any[]>([]);
-  const [tasksByType, setTasksByType] = useState<any[]>([]);
+  const [adminData, setAdminData] = useState<any>(null);
+  const [technicianData, setTechnicianData] = useState<any>(null);
 
   const isAdmin = session?.user?.role === "ADMIN";
   const today = new Date();
   const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM, yyyy");
 
-  const fetchTechnicianData = useCallback(async () => {
+  const fetchData = useCallback(async () => {
+    if (sessionStatus !== "authenticated") return;
     setIsLoading(true);
-    try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const [todayResponse, weekResponse] = await Promise.all([
-        getWorkerTasks({ date: todayStr, view: "daily" }),
-        getWorkerTasks({ date: todayStr, view: "weekly" }),
-      ]);
-
-      if (todayResponse?.tasks) {
-        setTasksToday(
-          todayResponse.tasks.filter((task) => task.state !== "FINALIZADO")
-            .length
-        );
-        setUpcomingTasks(
-          todayResponse.tasks
-            .filter((task) => task.state === "PENDIENTE")
-            .slice(0, 3)
-        );
-      }
-
-      if (weekResponse?.tasks) {
-        setTasksThisWeek(
-          weekResponse.tasks.filter((task) => task.state !== "FINALIZADO")
-            .length
-        );
-        setWeeklyTasks(weekResponse.tasks);
-        setOverdueItems(
-          weekResponse.tasks.filter((task) => {
-            const taskDate = new Date(task.startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return task.state !== "FINALIZADO" && taskDate < today;
-          }).length
-        );
-        setTasksCompleted(
-          weekResponse.tasks.filter((task) => task.state === "FINALIZADO")
-            .length
-        );
-      }
-    } catch (error) {
-      console.error("Error al cargar tareas:", error);
-      addNotification("error", "Error al cargar tareas");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [addNotification]);
-
-  const fetchAdminData = useCallback(async () => {
-    setIsLoading(true);
-    if (!dateRange.start || !dateRange.end) {
-      addNotification(
-        "warning",
-        "Por favor, seleccione un rango de fechas válido."
-      );
-      setIsLoading(false);
-      return;
-    }
-    const startDate = formatDate(dateRange.start, "yyyy-MM-dd");
-    const endDate = formatDate(dateRange.end, "yyyy-MM-dd");
 
     try {
-      const [sales, stats, products, taskStats] = await Promise.all([
-        getSalesStats("month", startDate, endDate),
-        getQuotationStats({ startDate, endDate }),
-        getTopProducts(5, startDate, endDate),
-        getDashboardTaskStats(startDate, endDate),
-      ]);
-
-      if (sales && sales.monthlySales && sales.monthlySales.length > 0) {
-        setSalesData(
-          sales.monthlySales.map((item: any) => ({
-            mes: item.month,
-            valor: item.total || 0,
-            cantidad: item.count || 0,
-          }))
-        );
-      } else {
-        setSalesData([]);
-      }
-
-      setQuotationStats(stats || { summary: {}, byStatus: [] });
-      setTopProducts(products || []);
-
-      if (taskStats) {
-        setTasksByTechnician(taskStats.tasksByTechnician || []);
-        setTasksByClient(taskStats.tasksByClient || []);
-        setTasksByType(taskStats.tasksByType || []);
-      }
-    } catch (error) {
-      console.error("Error al cargar datos del dashboard admin:", error);
-      addNotification("error", "Error al cargar datos del dashboard");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [dateRange, addNotification]);
-
-  const fetchUpcomingMaintenances = useCallback(async () => {
-    try {
-      const data = await getUpcomingMaintenances(30);
-      setUpcomingMaintenances(data ? data.slice(0, 5) : []);
-    } catch (error) {
-      console.error("Error al cargar mantenimientos próximos:", error);
-      addNotification("error", "Error al cargar mantenimientos próximos");
-    }
-  }, [addNotification]);
-
-  useEffect(() => {
-    if (sessionStatus === "authenticated") {
       if (isAdmin) {
-        fetchUpcomingMaintenances();
+        const startDate = formatDate(dateRange.start, "yyyy-MM-dd");
+        const endDate = formatDate(dateRange.end, "yyyy-MM-dd");
+        const data = await getAdminDashboardData(startDate, endDate);
+        setAdminData(data);
       } else {
-        fetchTechnicianData();
+        const data = await getTechnicianDashboardData();
+        setTechnicianData(data);
       }
-    }
-  }, [sessionStatus, isAdmin, fetchTechnicianData, fetchUpcomingMaintenances]);
-
-  useEffect(() => {
-    if (sessionStatus === "authenticated" && isAdmin) {
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-        fetchAdminData();
-      } else {
-        fetchAdminData();
-      }
-    }
-  }, [sessionStatus, isAdmin, dateRange, fetchAdminData]);
-
-  const refreshAdminData = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([fetchAdminData(), fetchUpcomingMaintenances()]);
-      addNotification("success", "Datos actualizados correctamente");
     } catch (error) {
-      console.error("Error al actualizar datos:", error);
-      addNotification("error", "Error al actualizar datos");
+      console.error("Error al cargar datos del dashboard:", error);
+      addNotification("error", "Error al cargar los datos del dashboard");
     } finally {
+      setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [addNotification, fetchAdminData, fetchUpcomingMaintenances]);
+  }, [sessionStatus, isAdmin, dateRange, addNotification]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchData();
+  };
 
   const handleDateRangeChange = (range: { start: Date; end: Date }) => {
     if (range.start && range.end) {
@@ -264,7 +138,33 @@ export default function DashboardPage() {
     }
   };
 
-  if (sessionStatus === "loading" || (isLoading && isInitialMount.current)) {
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const startDate = formatDate(dateRange.start, "yyyy-MM-dd");
+      const endDate = formatDate(dateRange.end, "yyyy-MM-dd");
+      const blob = await downloadDashboardExcel(startDate, endDate);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Reporte_Dashboard_${startDate}_a_${endDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      addNotification(
+        "success",
+        "Reporte de dashboard exportado correctamente"
+      );
+    } catch (error) {
+      console.error("Error exporting dashboard to Excel:", error);
+      addNotification("error", "No se pudo exportar el reporte del dashboard");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  if (isLoading && !adminData && !technicianData) {
     return (
       <div className="flex flex-col justify-center items-center h-96">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -276,16 +176,20 @@ export default function DashboardPage() {
   }
 
   if (isAdmin) {
+    const quotationStats = adminData?.quotationStats;
+    const taskStats = adminData?.taskStats;
+    const topProducts = adminData?.topProducts;
+    const upcomingMaintenances = adminData?.upcomingMaintenances;
+
+    const hasSalesData = quotationStats?.monthlySales?.length > 0;
     const hasQuotationStats = quotationStats?.summary?.totalCount > 0;
-    const hasSalesData = salesData.length > 0;
-    const hasTopProducts = topProducts.length > 0;
-    const hasMaintenances = upcomingMaintenances.length > 0;
+    const hasTopProducts = topProducts?.length > 0;
+    const hasMaintenances = upcomingMaintenances?.length > 0;
 
     const quotationByStatusData = hasQuotationStats
-      ? quotationStats?.byStatus?.map((item: any) => ({
+      ? quotationStats.byStatus?.map((item: any) => ({
           name: getStatusLabel(item.status),
-          value: item.count,
-          amount: item.amount,
+          value: item._count.status,
         })) || []
       : [];
 
@@ -297,7 +201,6 @@ export default function DashboardPage() {
       innerRadius,
       outerRadius,
       percent,
-      index,
     }: any) => {
       const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
       const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -338,7 +241,7 @@ export default function DashboardPage() {
               variant="outline"
               size="icon"
               className="hidden sm:flex"
-              onClick={refreshAdminData}
+              onClick={handleRefresh}
               disabled={isRefreshing}
             >
               {isRefreshing ? (
@@ -346,6 +249,18 @@ export default function DashboardPage() {
               ) : (
                 <RefreshCcw className="h-4 w-4" />
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={isExporting || isRefreshing}
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+              )}
+              Exportar Excel
             </Button>
           </div>
         </div>
@@ -387,12 +302,8 @@ export default function DashboardPage() {
             value={`${(quotationStats?.summary?.approvalRate || 0).toFixed(
               1
             )}%`}
-            change={`${
-              quotationStats?.summary?.approvalRateChange?.toFixed(1) || 0
-            }%`}
-            trend={
-              quotationStats?.summary?.approvalRateChange >= 0 ? "up" : "down"
-            }
+            change={`0%`}
+            trend={"up"}
             icon={TrendingUp}
           />
         </div>
@@ -403,9 +314,9 @@ export default function DashboardPage() {
             <div className="h-80">
               {hasSalesData ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesData}>
+                  <BarChart data={quotationStats.monthlySales}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="mes" />
+                    <XAxis dataKey="month" />
                     <YAxis
                       yAxisId="left"
                       orientation="left"
@@ -425,14 +336,14 @@ export default function DashboardPage() {
                     <Legend />
                     <Bar
                       yAxisId="left"
-                      dataKey="valor"
+                      dataKey="total"
                       name="Monto ($)"
                       fill="#b42516"
                       barSize={20}
                     />
                     <Bar
                       yAxisId="right"
-                      dataKey="cantidad"
+                      dataKey="count"
                       name="Cantidad"
                       fill="#2563eb"
                       barSize={20}
@@ -501,14 +412,14 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="p-6 lg:col-span-1">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <Wrench className="h-5 w-5 mr-2 text-primary" />
-              Tareas por Tipo de Servicio
+              <Wrench className="h-5 w-5 mr-2 text-primary" /> Tareas por Tipo
+              de Servicio
             </h3>
             <div className="h-80">
-              {tasksByType.length > 0 ? (
+              {taskStats?.byType?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={tasksByType}
+                    data={taskStats.byType}
                     layout="vertical"
                     margin={{ left: 20, right: 30 }}
                   >
@@ -539,14 +450,14 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6 lg:col-span-2">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" />
-              Top 10 Clientes con más Tareas
+              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" /> Top
+              10 Clientes con más Tareas
             </h3>
             <div className="h-80">
-              {tasksByClient.length > 0 ? (
+              {taskStats?.byClient?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={tasksByClient}
+                    data={taskStats.byClient}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -582,15 +493,15 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
-              Tareas Finalizadas por Técnico
+              <PieChartIcon className="h-5 w-5 mr-2 text-primary" /> Tareas
+              Finalizadas por Técnico
             </h3>
             <div className="h-96">
-              {tasksByTechnician.length > 0 ? (
+              {taskStats?.byTechnician?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={tasksByTechnician}
+                      data={taskStats.byTechnician}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
@@ -598,7 +509,7 @@ export default function DashboardPage() {
                       outerRadius={120}
                       label
                     >
-                      {tasksByTechnician.map((entry, index) => (
+                      {taskStats.byTechnician.map((entry, index) => (
                         <Cell
                           key={`cell-tech-${index}`}
                           fill={COLORS[index % COLORS.length]}
@@ -625,8 +536,8 @@ export default function DashboardPage() {
           <Card className="overflow-hidden">
             <div className="p-6 border-b">
               <h3 className="text-lg font-semibold flex items-center">
-                <PackageIcon className="h-5 w-5 mr-2 text-primary" />
-                Productos más vendidos
+                <PackageIcon className="h-5 w-5 mr-2 text-primary" /> Productos
+                más vendidos
               </h3>
             </div>
             <div className="p-0">
@@ -680,7 +591,7 @@ export default function DashboardPage() {
           <Card className="overflow-hidden">
             <div className="p-6 border-b">
               <h3 className="text-lg font-semibold flex items-center">
-                <Calendar className="h-5 w-5 mr-2 text-primary" />
+                <Calendar className="h-5 w-5 mr-2 text-primary" />{" "}
                 Mantenimientos próximos
               </h3>
             </div>
@@ -742,7 +653,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Technician View
+  // Vista del Técnico
   return (
     <div className="space-y-8">
       <div>
@@ -760,7 +671,9 @@ export default function DashboardPage() {
             </div>
             <span className="font-medium text-content-subtle">Tareas Hoy</span>
           </div>
-          <span className="text-3xl font-bold mt-2">{tasksToday}</span>
+          <span className="text-3xl font-bold mt-2">
+            {technicianData?.tasksToday || 0}
+          </span>
           <Link
             href="/dashboard/agenda"
             className="text-primary text-sm mt-auto font-medium flex items-center"
@@ -775,7 +688,9 @@ export default function DashboardPage() {
             </div>
             <span className="font-medium text-content-subtle">Esta semana</span>
           </div>
-          <span className="text-3xl font-bold mt-2">{tasksThisWeek}</span>
+          <span className="text-3xl font-bold mt-2">
+            {technicianData?.tasksThisWeek || 0}
+          </span>
         </Card>
         <Card className="p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-2">
@@ -784,7 +699,9 @@ export default function DashboardPage() {
             </div>
             <span className="font-medium text-content-subtle">Vencidas</span>
           </div>
-          <span className="text-3xl font-bold mt-2">{overdueItems}</span>
+          <span className="text-3xl font-bold mt-2">
+            {technicianData?.overdueItems || 0}
+          </span>
         </Card>
         <Card className="p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-2">
@@ -793,7 +710,9 @@ export default function DashboardPage() {
             </div>
             <span className="font-medium text-content-subtle">Completadas</span>
           </div>
-          <span className="text-3xl font-bold mt-2">{tasksCompleted}</span>
+          <span className="text-3xl font-bold mt-2">
+            {technicianData?.tasksCompleted || 0}
+          </span>
           <span className="text-xs text-content-subtle mt-1">
             En la semana actual
           </span>
@@ -808,7 +727,7 @@ export default function DashboardPage() {
           </h2>
         </div>
         <div className="p-0">
-          {weeklyTasks.length > 0 ? (
+          {technicianData?.weeklyTasks?.length > 0 ? (
             <div className="md:hidden">
               {[
                 "Lunes",
@@ -819,8 +738,9 @@ export default function DashboardPage() {
                 "Sábado",
                 "Domingo",
               ].map((day, idx) => {
-                const tasksForDay = weeklyTasks.filter(
-                  (task) => (new Date(task.startDate).getDay() + 6) % 7 === idx
+                const tasksForDay = technicianData.weeklyTasks.filter(
+                  (task: Task) =>
+                    (new Date(task.startDate).getDay() + 6) % 7 === idx
                 );
                 if (tasksForDay.length === 0) return null;
                 const isToday = (new Date().getDay() + 6) % 7 === idx;
@@ -844,7 +764,7 @@ export default function DashboardPage() {
                       )}
                     </h4>
                     <div className="space-y-2">
-                      {tasksForDay.map((task) => (
+                      {tasksForDay.map((task: Task) => (
                         <div key={task.id} className="bg-accent/5 p-3 rounded">
                           <p className="font-medium">{task.title}</p>
                           <p className="text-xs text-content-subtle mt-1">

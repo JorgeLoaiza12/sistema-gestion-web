@@ -11,6 +11,44 @@ export interface ReportFilter {
   productId?: string;
 }
 
+export async function getAdminDashboardData(
+  startDate: string,
+  endDate: string
+) {
+  const params = new URLSearchParams({ startDate, endDate });
+  return httpClient(`/reports/admin-dashboard?${params.toString()}`);
+}
+
+export async function getTechnicianDashboardData() {
+  return httpClient(`/reports/technician-dashboard`);
+}
+
+export async function downloadDashboardExcel(
+  startDate: string,
+  endDate: string
+) {
+  const session = await getSession();
+  const token = session?.accessToken || "";
+  const params = new URLSearchParams({ startDate, endDate });
+
+  const response = await fetch(
+    `${
+      process.env.NEXT_PUBLIC_API_URL
+    }/reports/admin-dashboard/excel?${params.toString()}`,
+    {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Error al descargar el reporte de dashboard en Excel");
+  }
+
+  return response.blob();
+}
+
 export async function generateCustomReport(filter: ReportFilter) {
   const params = new URLSearchParams();
   params.append("startDate", filter.startDate);
