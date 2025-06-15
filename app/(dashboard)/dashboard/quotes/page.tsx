@@ -172,10 +172,19 @@ export default function QuotesPage() {
   };
 
   const handleDateRangeChange = (range: { start?: Date; end?: Date }) => {
+    const toYYYYMMDD = (date: Date | undefined) => {
+      if (!date) return undefined;
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = (d.getMonth() + 1).toString().padStart(2, "0");
+      const day = d.getDate().toString().padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
     setFilters((prev) => ({
       ...prev,
-      startDate: range.start?.toISOString().split("T")[0],
-      endDate: range.end?.toISOString().split("T")[0],
+      startDate: toYYYYMMDD(range.start),
+      endDate: toYYYYMMDD(range.end),
       page: 1,
     }));
   };
@@ -283,9 +292,11 @@ export default function QuotesPage() {
               <DateRangePicker
                 value={{
                   start: filters.startDate
-                    ? new Date(filters.startDate)
+                    ? new Date(filters.startDate + "T00:00:00")
                     : undefined,
-                  end: filters.endDate ? new Date(filters.endDate) : undefined,
+                  end: filters.endDate
+                    ? new Date(filters.endDate + "T00:00:00")
+                    : undefined,
                 }}
                 onChange={handleDateRangeChange}
                 className="w-full sm:w-auto"
