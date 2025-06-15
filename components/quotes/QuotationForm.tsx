@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
-import { Plus, Loader2, Save, Eye } from "lucide-react"; // Añadido Eye
+import { Plus, Loader2, Save, Eye } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import {
   type Quotation,
   createQuotation,
   updateQuotation,
-  getPreviewQuotationPDF, // Importar la nueva función
+  getPreviewQuotationPDF,
 } from "@/services/quotations";
 import { getClients, Client } from "@/services/clients";
 import { getProducts, Product } from "@/services/products";
@@ -34,7 +34,7 @@ import { formatCurrency, roundUp } from "@/utils/number-format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { httpClient } from "@/lib/httpClient"; // Asegúrate que esté importado
+import { httpClient } from "@/lib/httpClient";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
@@ -44,7 +44,7 @@ interface QuotationFormProps {
 }
 
 const IVA_RATE = 0.19;
-const DEFAULT_PROFIT_PERCENTAGE = 35; // Asegúrate que esté definido si se usa en cálculos
+const DEFAULT_PROFIT_PERCENTAGE = 35;
 
 export default function QuotationForm({
   quotation,
@@ -82,7 +82,6 @@ export default function QuotationForm({
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [savingProgress, setSavingProgress] = useState(0);
-
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
 
@@ -180,7 +179,7 @@ export default function QuotationForm({
       productId: 0,
       quantity: 1,
       price: undefined,
-      itemMarkup: undefined,
+      markupOverride: undefined,
       product: null as any,
     });
     setCategories(newCategories);
@@ -195,7 +194,7 @@ export default function QuotationForm({
   const updateItem = (
     categoryIndex: number,
     itemIndex: number,
-    field: keyof QuotationItem | "price" | "itemMarkup",
+    field: keyof QuotationItem | "price" | "markupOverride", // <-- CORREGIDO
     value: any
   ) => {
     setCategories((prevCategories) => {
@@ -216,18 +215,19 @@ export default function QuotationForm({
         if (selectedProduct) {
           itemToUpdate.product = selectedProduct;
           itemToUpdate.price = selectedProduct.unitPrice;
-          itemToUpdate.itemMarkup = selectedProduct.markup;
+          itemToUpdate.markupOverride = selectedProduct.markup;
           itemToUpdate.productId = selectedProduct.id;
         } else {
           itemToUpdate.product = null;
           itemToUpdate.price = undefined;
-          itemToUpdate.itemMarkup = undefined;
+          itemToUpdate.markupOverride = undefined;
           itemToUpdate.productId = 0;
         }
       } else if (field === "price") {
         itemToUpdate.price = value as number | undefined;
-      } else if (field === "itemMarkup") {
-        itemToUpdate.itemMarkup = value as number | undefined;
+      } else if (field === "markupOverride") {
+        // <-- CORREGIDO
+        itemToUpdate.markupOverride = value as number | undefined; // <-- CORREGIDO
       } else {
         (itemToUpdate as any)[field] = value;
       }
@@ -282,8 +282,9 @@ export default function QuotationForm({
               ? productDetails.unitPrice || 0
               : 0;
           const itemSpecificMarkup =
-            typeof item.itemMarkup === "number" && !isNaN(item.itemMarkup)
-              ? item.itemMarkup
+            typeof item.markupOverride === "number" &&
+            !isNaN(item.markupOverride)
+              ? item.markupOverride
               : productDetails
               ? productDetails.markup || DEFAULT_PROFIT_PERCENTAGE
               : DEFAULT_PROFIT_PERCENTAGE;
@@ -316,13 +317,13 @@ export default function QuotationForm({
               ? productDetails.unitPrice || 0
               : 0;
           const itemSpecificMarkup =
-            typeof item.itemMarkup === "number" && !isNaN(item.itemMarkup)
-              ? item.itemMarkup
+            typeof item.markupOverride === "number" &&
+            !isNaN(item.markupOverride)
+              ? item.markupOverride
               : productDetails
               ? productDetails.markup || DEFAULT_PROFIT_PERCENTAGE
               : DEFAULT_PROFIT_PERCENTAGE;
           const markupAmount = Math.ceil(
-            // Usar ceil para redondear hacia arriba la ganancia
             (providerPriceForItem * itemSpecificMarkup) / 100
           );
           return categoryTotal + markupAmount * (item.quantity || 1);
@@ -412,7 +413,7 @@ export default function QuotationForm({
                 (p) => p.id === item.productId
               );
               return {
-                productId: item.productId!, // Aseguramos que productId no es undefined
+                productId: item.productId!,
                 quantity: item.quantity,
                 price:
                   typeof item.price === "number"
@@ -420,11 +421,9 @@ export default function QuotationForm({
                     : productDetails
                     ? productDetails.unitPrice
                     : undefined,
-                itemMarkup:
-                  typeof item.itemMarkup === "number"
-                    ? item.itemMarkup
-                    : productDetails
-                    ? productDetails.markup
+                markupOverride:
+                  typeof item.markupOverride === "number"
+                    ? item.markupOverride
                     : undefined,
               };
             }),
@@ -446,7 +445,7 @@ export default function QuotationForm({
           name: client.name,
           email: client.email || "",
         },
-        amount: roundUp(calculateTotalWithIVA()), // Guardar el monto total redondeado
+        amount: roundUp(calculateTotalWithIVA()),
       };
       setSavingProgress(50);
       if (quotation?.id) {
@@ -464,10 +463,8 @@ export default function QuotationForm({
       setSavingProgress(0);
     } finally {
       if (!error || error === null) {
-        // Solo resetear si no hubo error o el error se limpió
-        // No hacemos setIsSaving(false) aquí si queremos que el progress bar se quede en 100%
       } else {
-        setIsSaving(false); // Si hubo error, permitir reintentar
+        setIsSaving(false);
       }
     }
   };
@@ -516,9 +513,9 @@ export default function QuotationForm({
               typeof item.price === "number"
                 ? item.price
                 : productDetails?.unitPrice,
-            itemMarkup:
-              typeof item.itemMarkup === "number"
-                ? item.itemMarkup
+            markupOverride:
+              typeof item.markupOverride === "number"
+                ? item.markupOverride
                 : productDetails?.markup,
             product: productDetails
               ? {

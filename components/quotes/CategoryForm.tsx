@@ -39,7 +39,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-// Definición de la constante que faltaba
 const DEFAULT_PROFIT_PERCENTAGE = 35;
 
 interface CategoryFormProps {
@@ -53,7 +52,7 @@ interface CategoryFormProps {
   onUpdateItem: (
     categoryIndex: number,
     itemIndex: number,
-    field: keyof QuotationItem | "price" | "itemMarkup",
+    field: keyof QuotationItem | "price" | "markupOverride", // <-- CORREGIDO
     value: any
   ) => void;
   onAddNewProduct: (product: Product) => void;
@@ -86,7 +85,7 @@ export default function CategoryForm({
     name: "",
     description: "",
     unitPrice: "",
-    markup: DEFAULT_PROFIT_PERCENTAGE.toString(), // Usar la constante
+    markup: DEFAULT_PROFIT_PERCENTAGE.toString(),
     imageUrl: "",
   });
 
@@ -105,8 +104,8 @@ export default function CategoryForm({
             : 0;
 
         const itemSpecificMarkup =
-          typeof item.itemMarkup === "number" && !isNaN(item.itemMarkup)
-            ? item.itemMarkup
+          typeof item.markupOverride === "number" && !isNaN(item.markupOverride)
+            ? item.markupOverride
             : item.product
             ? item.product.markup || DEFAULT_PROFIT_PERCENTAGE
             : DEFAULT_PROFIT_PERCENTAGE;
@@ -190,7 +189,7 @@ export default function CategoryForm({
       onUpdateItem(
         categoryIndex,
         itemIndexForNewProduct,
-        "itemMarkup",
+        "markupOverride",
         newProduct.markup
       );
       onUpdateItem(
@@ -205,7 +204,7 @@ export default function CategoryForm({
         name: "",
         description: "",
         unitPrice: "",
-        markup: DEFAULT_PROFIT_PERCENTAGE.toString(), // Usar la constante
+        markup: DEFAULT_PROFIT_PERCENTAGE.toString(),
         imageUrl: "",
       });
       setProductFormError(null);
@@ -248,15 +247,17 @@ export default function CategoryForm({
       setPriceInputValue(initialPrice);
 
       let initialMarkup = "";
-      if (item.itemMarkup !== undefined) {
-        initialMarkup = String(item.itemMarkup);
+      // <-- INICIO DE CORRECCIÓN
+      if (item.markupOverride !== undefined && item.markupOverride !== null) {
+        initialMarkup = String(item.markupOverride);
       } else if (item.product && item.product.markup !== undefined) {
         initialMarkup = String(item.product.markup);
       } else {
-        initialMarkup = String(DEFAULT_PROFIT_PERCENTAGE); // Usar la constante
+        initialMarkup = String(DEFAULT_PROFIT_PERCENTAGE);
       }
+      // <-- FIN DE CORRECCIÓN
       setMarkupInputValue(initialMarkup);
-    }, [item.price, item.itemMarkup, item.product?.id]);
+    }, [item.price, item.markupOverride, item.product?.id]); // <-- CORREGIDO
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setPriceInputValue(e.target.value);
@@ -292,7 +293,7 @@ export default function CategoryForm({
     const handleMarkupBlur = () => {
       const value = markupInputValue;
       if (value.trim() === "") {
-        onUpdateItem(categoryIndex, itemIndex, "itemMarkup", undefined);
+        onUpdateItem(categoryIndex, itemIndex, "markupOverride", undefined); // <-- CORREGIDO
         if (item.product && item.product.markup !== undefined) {
           setMarkupInputValue(String(item.product.markup));
         } else {
@@ -301,11 +302,12 @@ export default function CategoryForm({
       } else {
         const num = parseFloat(value);
         if (!isNaN(num) && num >= 0) {
-          onUpdateItem(categoryIndex, itemIndex, "itemMarkup", num);
+          onUpdateItem(categoryIndex, itemIndex, "markupOverride", num); // <-- CORREGIDO
         } else {
           let fallbackMarkup = "";
-          if (item.itemMarkup !== undefined) {
-            fallbackMarkup = String(item.itemMarkup);
+          if (item.markupOverride !== undefined) {
+            // <-- CORREGIDO
+            fallbackMarkup = String(item.markupOverride); // <-- CORREGIDO
           } else if (item.product && item.product.markup !== undefined) {
             fallbackMarkup = String(item.product.markup);
           } else {
@@ -607,7 +609,7 @@ export default function CategoryForm({
             onCancel={handleCloseProductDialog}
             onUploadImage={handleImageUpload}
             fileInputRef={fileInputRef}
-            isUploading={false} // Asumimos que la carga se maneja dentro de handleImageUpload
+            isUploading={false}
             isSubmitting={isCreatingProduct}
             error={productFormError}
           />

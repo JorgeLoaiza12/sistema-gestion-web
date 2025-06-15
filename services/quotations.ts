@@ -1,4 +1,4 @@
-//web/services/quotations.ts
+// web/services/quotations.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -6,7 +6,7 @@ export interface QuotationItem {
   productId: number;
   quantity: number;
   price?: number;
-  itemMarkup?: number;
+  markupOverride?: number; // <--- CORREGIDO: Renombrado de itemMarkup a markupOverride
   total?: number;
   product: {
     id: number;
@@ -18,7 +18,7 @@ export interface QuotationItem {
 }
 
 export interface QuotationCategory {
-  id?: string; // Puede ser útil para el frontend
+  id?: string;
   name: string;
   items: QuotationItem[];
 }
@@ -143,8 +143,11 @@ export async function createQuotation(
             : item.product
             ? item.product.unitPrice
             : undefined,
-        itemMarkup:
-          typeof item.itemMarkup === "number" ? item.itemMarkup : undefined,
+        // <--- CORREGIDO: Renombrado de itemMarkup a markupOverride
+        markupOverride:
+          typeof item.markupOverride === "number"
+            ? item.markupOverride
+            : undefined,
       })),
     })),
   };
@@ -163,7 +166,7 @@ export async function updateQuotation(
     advancePercentage:
       quotation.advancePercentage !== undefined
         ? quotation.advancePercentage
-        : undefined, // Evitar enviar si es undefined para que el backend no lo tome como 0
+        : undefined,
     categories: quotation.categories.map((category) => ({
       ...category,
       items: category.items.map((item) => ({
@@ -175,8 +178,11 @@ export async function updateQuotation(
             : item.product
             ? item.product.unitPrice
             : undefined,
-        itemMarkup:
-          typeof item.itemMarkup === "number" ? item.itemMarkup : undefined,
+        // <--- CORREGIDO: Renombrado de itemMarkup a markupOverride
+        markupOverride:
+          typeof item.markupOverride === "number"
+            ? item.markupOverride
+            : undefined,
       })),
     })),
   };
@@ -241,7 +247,6 @@ export async function getQuotationStats(
   return httpClient<any>(url);
 }
 
-// Nueva función para obtener el PDF para vista previa (enviando datos)
 export async function getPreviewQuotationPDF(
   quotationData: Quotation
 ): Promise<Blob> {
@@ -249,6 +254,6 @@ export async function getPreviewQuotationPDF(
     method: "POST",
     body: JSON.stringify(quotationData),
     headers: { "Content-Type": "application/json" },
-    responseType: "blob", // Indicar a httpClient que esperamos un Blob
+    responseType: "blob",
   });
 }
