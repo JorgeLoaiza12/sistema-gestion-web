@@ -411,8 +411,8 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="p-6 lg:col-span-1">
+        <div className="grid grid-cols-1 gap-6">
+          <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
               <Wrench className="h-5 w-5 mr-2 text-primary" /> Tareas por Tipo
               de Servicio
@@ -450,7 +450,47 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
-          <Card className="p-6 lg:col-span-2">
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-6 flex items-center">
+              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" />{" "}
+              Tareas por Categoría
+            </h3>
+            <div className="h-80">
+              {taskStats?.byCategory?.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={taskStats.byCategory}
+                    layout="vertical"
+                    margin={{ left: 20, right: 30 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={100}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip />
+                    <Bar
+                      dataKey="count"
+                      name="N° de Tareas"
+                      fill="#f97316"
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <BarChartHorizontal className="h-12 w-12 text-content-subtle mb-2 opacity-50" />
+                  <p className="text-content-subtle">
+                    No hay datos de tareas por categoría.
+                  </p>
+                </div>
+              )}
+            </div>
+          </Card>
+          <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
               <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" /> Top
               10 Clientes con más Tareas
@@ -492,7 +532,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
               <PieChartIcon className="h-5 w-5 mr-2 text-primary" /> Tareas
@@ -532,124 +572,127 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="overflow-hidden">
-            <div className="p-6 border-b">
-              <h3 className="text-lg font-semibold flex items-center">
-                <PackageIcon className="h-5 w-5 mr-2 text-primary" /> Productos
-                más vendidos
-              </h3>
-            </div>
-            <div className="p-0">
-              {hasTopProducts ? (
-                <div className="divide-y">
-                  {topProducts.map((product, index) => (
-                    <div
-                      key={index}
-                      className="p-4 hover:bg-accent/5 flex justify-between items-center"
-                    >
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center mr-3">
-                          <span className="font-semibold text-sm">
-                            {index + 1}
-                          </span>
+          <div className="space-y-6">
+            <Card className="overflow-hidden">
+              <div className="p-6 border-b">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <PackageIcon className="h-5 w-5 mr-2 text-primary" />{" "}
+                  Productos más vendidos
+                </h3>
+              </div>
+              <div className="p-0">
+                {hasTopProducts ? (
+                  <div className="divide-y">
+                    {topProducts.map((product, index) => (
+                      <div
+                        key={index}
+                        className="p-4 hover:bg-accent/5 flex justify-between items-center"
+                      >
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center mr-3">
+                            <span className="font-semibold text-sm">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{product.name}</h4>
+                            <p className="text-sm text-content-subtle">
+                              {product.cantidad} unidades
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium">{product.name}</h4>
-                          <p className="text-sm text-content-subtle">
-                            {product.cantidad} unidades
-                          </p>
-                        </div>
+                        <span className="font-semibold">
+                          {formatCurrency(product.valor)}
+                        </span>
                       </div>
-                      <span className="font-semibold">
-                        {formatCurrency(product.valor)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                  <PackageIcon className="h-12 w-12 text-content-subtle mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium">
-                    Sin datos de productos
-                  </h3>
-                  <p className="text-content-subtle mt-2">
-                    No hay información de ventas de productos en el período
-                    seleccionado.
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t bg-accent/5">
-              <Link href="/dashboard/products">
-                <Button variant="outline" className="w-full">
-                  Ver todos los productos
-                </Button>
-              </Link>
-            </div>
-          </Card>
-          <Card className="overflow-hidden">
-            <div className="p-6 border-b">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Calendar className="h-5 w-5 mr-2 text-primary" />{" "}
-                Mantenimientos próximos
-              </h3>
-            </div>
-            <div className="p-0">
-              {hasMaintenances ? (
-                <div className="divide-y">
-                  {upcomingMaintenances.map((maintenance) => (
-                    <div key={maintenance.id} className="p-4 hover:bg-accent/5">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">
-                            {maintenance.client
-                              ? maintenance.client.name
-                              : "Cliente sin asignar"}
-                          </h4>
-                          <p className="text-sm text-content-subtle mt-1">
-                            Próximo:{" "}
-                            {formatDate(
-                              new Date(maintenance.nextMaintenanceDate),
-                              "dd MMM, yyyy"
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <PackageIcon className="h-12 w-12 text-content-subtle mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium">
+                      Sin datos de productos
+                    </h3>
+                    <p className="text-content-subtle mt-2">
+                      No hay información de ventas de productos en el período
+                      seleccionado.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t bg-accent/5">
+                <Link href="/dashboard/products">
+                  <Button variant="outline" className="w-full">
+                    Ver todos los productos
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+            <Card className="overflow-hidden">
+              <div className="p-6 border-b">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <Calendar className="h-5 w-5 mr-2 text-primary" />{" "}
+                  Mantenimientos próximos
+                </h3>
+              </div>
+              <div className="p-0">
+                {hasMaintenances ? (
+                  <div className="divide-y">
+                    {upcomingMaintenances.map((maintenance) => (
+                      <div
+                        key={maintenance.id}
+                        className="p-4 hover:bg-accent/5"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium">
+                              {maintenance.client
+                                ? maintenance.client.name
+                                : "Cliente sin asignar"}
+                            </h4>
+                            <p className="text-sm text-content-subtle mt-1">
+                              Próximo:{" "}
+                              {formatDate(
+                                new Date(maintenance.nextMaintenanceDate),
+                                "dd MMM, yyyy"
+                              )}
+                            </p>
+                          </div>
+                          <CustomBadge
+                            className={getMaintenanceStatusClass(
+                              maintenance.nextMaintenanceDate
                             )}
-                          </p>
+                          >
+                            {getMaintenanceStatusLabel(
+                              maintenance.nextMaintenanceDate
+                            )}
+                          </CustomBadge>
                         </div>
-                        <CustomBadge
-                          className={getMaintenanceStatusClass(
-                            maintenance.nextMaintenanceDate
-                          )}
-                        >
-                          {getMaintenanceStatusLabel(
-                            maintenance.nextMaintenanceDate
-                          )}
-                        </CustomBadge>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                  <Calendar className="h-12 w-12 text-content-subtle mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium">
-                    Sin mantenimientos próximos
-                  </h3>
-                  <p className="text-content-subtle mt-2">
-                    No hay mantenimientos programados para los próximos 30 días.
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t bg-accent/5">
-              <Link href="/dashboard/maintenance">
-                <Button variant="outline" className="w-full">
-                  Ver todos los mantenimientos
-                </Button>
-              </Link>
-            </div>
-          </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <Calendar className="h-12 w-12 text-content-subtle mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium">
+                      Sin mantenimientos próximos
+                    </h3>
+                    <p className="text-content-subtle mt-2">
+                      No hay mantenimientos programados para los próximos 30
+                      días.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t bg-accent/5">
+                <Link href="/dashboard/maintenance">
+                  <Button variant="outline" className="w-full">
+                    Ver todos los mantenimientos
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     );
