@@ -88,9 +88,6 @@ export default function MaintenancePage() {
   const [workers, setWorkers] = useState<User[]>([]);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
   const [isSchedulingNext, setIsSchedulingNext] = useState<number | null>(null);
-  const [isConfirmingSchedule, setIsConfirmingSchedule] = useState(false);
-  const [maintenanceToSchedule, setMaintenanceToSchedule] =
-    useState<Maintenance | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -224,32 +221,17 @@ export default function MaintenancePage() {
     }
   };
 
-  const handleScheduleNext = (maintenance: Maintenance) => {
-    setMaintenanceToSchedule(maintenance);
-    setIsConfirmingSchedule(true);
-  };
-
-  const confirmAndProceedWithSchedule = async (createTask: boolean) => {
-    if (!maintenanceToSchedule || !maintenanceToSchedule.id) return;
-
-    setIsConfirmingSchedule(false);
-    setIsSchedulingNext(maintenanceToSchedule.id);
-
+  const handleScheduleNext = async (maintenance: Maintenance) => {
+    if (!maintenance.id) return;
+    setIsSchedulingNext(maintenance.id);
     try {
-      const response = await scheduleNextMaintenance(
-        maintenanceToSchedule.id.toString()
-      );
+      const response = await scheduleNextMaintenance(maintenance.id.toString());
       addNotification(
         "success",
         "Siguiente ciclo de mantenimiento programado."
       );
-
-      if (createTask) {
-        addNotification("info", "Abriendo formulario para la nueva tarea...");
-        handleGenerateTask(response.maintenance);
-      }
-
       await fetchMaintenances();
+      handleGenerateTask(response.maintenance);
     } catch (error) {
       addNotification(
         "error",
@@ -257,7 +239,6 @@ export default function MaintenancePage() {
       );
     } finally {
       setIsSchedulingNext(null);
-      setMaintenanceToSchedule(null);
     }
   };
 
@@ -342,7 +323,8 @@ export default function MaintenancePage() {
       cell: ({ row }) => {
         const maintenance = row.original;
         const isScheduling = isSchedulingNext === maintenance.id;
-        const hasTask = (maintenance.tasks || []).length > 0;
+        const hasTask =
+          Array.isArray(maintenance.tasks) && maintenance.tasks.length > 0;
         const hasPendingSuccessor = maintenances.some(
           (m) =>
             m.clientId === maintenance.clientId &&
@@ -374,14 +356,16 @@ export default function MaintenancePage() {
                 size="sm"
                 onClick={() => handleGenerateTask(maintenance)}
                 title="Generar Tarea de Mantenimiento"
+                className="flex items-center gap-2"
               >
                 <Wrench className="h-4 w-4" />
+                <span>Generar Tarea</span>
               </Button>
             )}
 
             {maintenance.state === "PENDIENTE" && hasTask && (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() =>
                   router.push(
@@ -389,8 +373,10 @@ export default function MaintenancePage() {
                   )
                 }
                 title="Ver tarea existente"
+                className="flex items-center gap-2"
               >
                 <Eye className="h-4 w-4" />
+                <span>Ver Tarea</span>
               </Button>
             )}
 
@@ -734,26 +720,6 @@ export default function MaintenancePage() {
         confirmLabel="Eliminar"
         isLoading={isDeleting}
       />
-
-      <ConfirmDialog
-        open={isConfirmingSchedule}
-        onOpenChange={setIsConfirmingSchedule}
-        title="Programar Siguiente Ciclo"
-        description="Esto creará un nuevo ciclo de mantenimiento para el siguiente período. ¿Deseas también generar la tarea de trabajo para este nuevo ciclo inmediatamente?"
-        onConfirm={() => confirmAndProceedWithSchedule(true)}
-        confirmLabel="Programar y Crear Tarea"
-        isLoading={isSchedulingNext === maintenanceToSchedule?.id}
-      >
-        <DialogFooter className="mt-4 sm:mt-0 sm:ml-auto">
-          <Button
-            variant="outline"
-            onClick={() => confirmAndProceedWithSchedule(false)}
-            disabled={isSchedulingNext === maintenanceToSchedule?.id}
-          >
-            Solo Programar
-          </Button>
-        </DialogFooter>
-      </ConfirmDialog>
 
       {isModalOpen && (
         <Dialog
