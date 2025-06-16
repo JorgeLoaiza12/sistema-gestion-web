@@ -1,27 +1,33 @@
 // utils/date-format.ts
 
 /**
- * Formatea una fecha en un formato específico.
+ * Formatea una fecha en un formato específico, manejando correctamente las zonas horarias.
  *
- * @param date - La fecha a formatear
+ * @param date - La fecha a formatear (Date, string o number)
  * @param format - El formato de salida (por defecto: "dd/MM/yyyy")
  * @returns La fecha formateada como string
- *
- * Formatos disponibles:
- * - dd: día con ceros iniciales
- * - MM: mes con ceros iniciales
- * - MMM: nombre corto del mes
- * - MMMM: nombre completo del mes
- * - yyyy: año con 4 dígitos
- * - HH: hora formato 24h con ceros iniciales
- * - mm: minutos con ceros iniciales
- * - ss: segundos con ceros iniciales
  */
 export function formatDate(
   date: Date | string | number,
   format: string = "dd/MM/yyyy"
 ): string {
-  const d = new Date(date);
+  if (!date) {
+    return "";
+  }
+
+  let d: Date;
+  if (typeof date === "string") {
+    // Si el string es solo una fecha (YYYY-MM-DD), añadir T00:00:00 para
+    // interpretarlo en la zona horaria local y no en UTC, evitando el problema del día anterior.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      d = new Date(`${date}T00:00:00`);
+    } else {
+      // Para strings de fecha completos (ISO con 'T' y 'Z'), el objeto Date ya es correcto.
+      d = new Date(date);
+    }
+  } else {
+    d = new Date(date);
+  }
 
   if (isNaN(d.getTime())) {
     return "Fecha inválida";
@@ -68,9 +74,9 @@ export function formatDate(
 
   return format
     .replace("dd", day)
-    .replace("MM", month)
     .replace("MMMM", monthFull)
     .replace("MMM", monthShort)
+    .replace("MM", month)
     .replace("yyyy", year.toString())
     .replace("HH", hours)
     .replace("mm", minutes)
@@ -237,8 +243,6 @@ export function daysBetween(
 
   return diffDays;
 }
-
-// ---- NUEVAS FUNCIONES PARA GESTIÓN DE ZONA HORARIA ----
 
 /**
  * Obtiene la fecha actual en formato ISO (YYYY-MM-DD) ajustada a la zona horaria local
