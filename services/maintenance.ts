@@ -1,3 +1,4 @@
+// services/maintenance.ts
 import { httpClient } from "@/lib/httpClient";
 
 export interface Maintenance {
@@ -14,7 +15,9 @@ export interface Maintenance {
   nextMaintenanceDate: string;
   frequency: "MENSUAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL";
   notes?: string;
-  taskIds?: number[];
+  tasks?: { id: number; state: string }[];
+  state?: "PENDIENTE" | "FINALIZADO";
+  nextMaintenanceId?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -24,9 +27,6 @@ export interface MaintenanceResponse {
   maintenance: Maintenance;
 }
 
-/**
- * Obtiene todos los mantenimientos
- */
 export async function getAllMaintenances(): Promise<Maintenance[]> {
   try {
     console.log("Obteniendo todos los mantenimientos...");
@@ -39,9 +39,6 @@ export async function getAllMaintenances(): Promise<Maintenance[]> {
   }
 }
 
-/**
- * Obtiene un mantenimiento por su ID
- */
 export async function getMaintenanceById(id: string): Promise<Maintenance> {
   try {
     console.log(`Obteniendo mantenimiento con ID: ${id}`);
@@ -54,9 +51,6 @@ export async function getMaintenanceById(id: string): Promise<Maintenance> {
   }
 }
 
-/**
- * Obtiene los mantenimientos de un cliente específico
- */
 export async function getMaintenancesByClient(
   clientId: string
 ): Promise<Maintenance[]> {
@@ -78,9 +72,6 @@ export async function getMaintenancesByClient(
   }
 }
 
-/**
- * Obtiene los mantenimientos próximos en un período de días específico
- */
 export async function getUpcomingMaintenances(
   days: number = 30
 ): Promise<Maintenance[]> {
@@ -100,9 +91,6 @@ export async function getUpcomingMaintenances(
   }
 }
 
-/**
- * Crea un nuevo mantenimiento
- */
 export async function createMaintenance(
   data: Maintenance
 ): Promise<MaintenanceResponse> {
@@ -120,9 +108,6 @@ export async function createMaintenance(
   }
 }
 
-/**
- * Actualiza un mantenimiento existente
- */
 export async function updateMaintenance(
   id: string,
   data: Maintenance
@@ -144,9 +129,6 @@ export async function updateMaintenance(
   }
 }
 
-/**
- * Elimina un mantenimiento
- */
 export async function deleteMaintenance(
   id: string
 ): Promise<{ message: string }> {
@@ -166,23 +148,23 @@ export async function deleteMaintenance(
   }
 }
 
-/**
- * Verifica el estado de los mantenimientos atrasados y actualiza sus fechas
- * Esta función sería útil para tests o para actualizar desde el frontend
- */
-export async function checkExpiredMaintenances(): Promise<{ updated: number }> {
+export async function scheduleNextMaintenance(
+  id: string
+): Promise<MaintenanceResponse> {
   try {
-    console.log("Verificando mantenimientos vencidos...");
-    const response = await httpClient<{ updated: number }>(
-      "/maintenance/check-expired",
+    console.log(`Programando siguiente mantenimiento desde ID: ${id}`);
+    const response = await httpClient<MaintenanceResponse>(
+      `/maintenance/${id}/schedule-next`,
       {
         method: "POST",
       }
     );
-    console.log(`Se actualizaron ${response.updated} mantenimientos vencidos`);
+    console.log(
+      `Siguiente mantenimiento programado con ID: ${response.maintenance.id}`
+    );
     return response;
   } catch (error) {
-    console.error("Error al verificar mantenimientos vencidos:", error);
+    console.error("Error al programar el siguiente mantenimiento:", error);
     throw error;
   }
 }
@@ -195,5 +177,5 @@ export default {
   createMaintenance,
   updateMaintenance,
   deleteMaintenance,
-  checkExpiredMaintenances,
+  scheduleNextMaintenance,
 };

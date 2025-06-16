@@ -1,4 +1,4 @@
-// app\(dashboard)\dashboard\tasks\page.tsx
+// app/(dashboard)/dashboard/tasks/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -47,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSearchParams } from "next/navigation";
 
 const TASK_TYPES_OPTIONS = [
   "REVISION",
@@ -67,6 +68,7 @@ const TASK_STATES_OPTIONS = [
 export default function TasksPage() {
   const { data: session } = useSession();
   const { addNotification } = useNotification();
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +147,13 @@ export default function TasksPage() {
     try {
       const tasksData = await getFilteredTasks(searchFilters);
       setTasks(tasksData || []);
+      const openTaskId = searchParams.get("openTask");
+      if (openTaskId) {
+        const taskToView = tasksData.find((t) => t.id === parseInt(openTaskId));
+        if (taskToView) {
+          setViewingTask(taskToView);
+        }
+      }
     } catch (err) {
       console.error("Error al cargar tareas:", err);
       setError("Error al cargar las tareas. Intente nuevamente.");
@@ -184,7 +193,6 @@ export default function TasksPage() {
           task.client.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [tasks, searchTerm]);
-
   const handleAddTask = () => {
     setCurrentTask(null);
     setIsEditing(true);

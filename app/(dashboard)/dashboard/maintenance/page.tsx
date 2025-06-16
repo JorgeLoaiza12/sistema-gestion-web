@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useNotification } from "@/contexts/NotificationContext";
 import {
@@ -21,6 +22,7 @@ import {
   updateMaintenance,
   deleteMaintenance,
   getMaintenancesByClient,
+  scheduleNextMaintenance,
   type Maintenance,
 } from "@/services/maintenance";
 import ClientSelect from "@/components/clients/ClientSelect";
@@ -36,6 +38,8 @@ import {
   Loader2,
   RefreshCcw,
   Wrench,
+  ChevronRight,
+  Eye,
 } from "lucide-react";
 import {
   Select,
@@ -53,8 +57,11 @@ import { getClients, Client } from "@/services/clients";
 import { getUsers, User } from "@/services/users";
 import TaskForm from "@/components/tasks/TaskForm";
 import { Task, createTask as createTaskService } from "@/services/tasks";
+import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 
 export default function MaintenancePage() {
+  const router = useRouter();
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [filteredMaintenances, setFilteredMaintenances] = useState<
     Maintenance[]
@@ -80,6 +87,10 @@ export default function MaintenancePage() {
     useState<Maintenance | null>(null);
   const [workers, setWorkers] = useState<User[]>([]);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [isSchedulingNext, setIsSchedulingNext] = useState<number | null>(null);
+  const [isConfirmingSchedule, setIsConfirmingSchedule] = useState(false);
+  const [maintenanceToSchedule, setMaintenanceToSchedule] =
+    useState<Maintenance | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -206,38 +217,78 @@ export default function MaintenancePage() {
       addNotification("success", "Tarea de mantenimiento creada correctamente");
       setIsTaskFormOpen(false);
       setMaintenanceForTask(null);
+      fetchMaintenances();
     } catch (error) {
       addNotification("error", "Error al crear la tarea de mantenimiento");
       console.error(error);
     }
   };
 
-  const getStatusBadge = (nextDate: string) => {
-    const status = getMaintenanceStatus(nextDate);
+  const handleScheduleNext = (maintenance: Maintenance) => {
+    setMaintenanceToSchedule(maintenance);
+    setIsConfirmingSchedule(true);
+  };
+
+  const confirmAndProceedWithSchedule = async (createTask: boolean) => {
+    if (!maintenanceToSchedule || !maintenanceToSchedule.id) return;
+
+    setIsConfirmingSchedule(false);
+    setIsSchedulingNext(maintenanceToSchedule.id);
+
+    try {
+      const response = await scheduleNextMaintenance(
+        maintenanceToSchedule.id.toString()
+      );
+      addNotification(
+        "success",
+        "Siguiente ciclo de mantenimiento programado."
+      );
+
+      if (createTask) {
+        addNotification("info", "Abriendo formulario para la nueva tarea...");
+        handleGenerateTask(response.maintenance);
+      }
+
+      await fetchMaintenances();
+    } catch (error) {
+      addNotification(
+        "error",
+        "Error al programar el siguiente ciclo de mantenimiento."
+      );
+    } finally {
+      setIsSchedulingNext(null);
+      setMaintenanceToSchedule(null);
+    }
+  };
+
+  const getStatusBadge = (maintenance: Maintenance) => {
+    if (maintenance.state === "FINALIZADO") {
+      return (
+        <Badge variant="success" className="flex items-center gap-1">
+          <CheckCircle className="h-3 w-3" /> <span>Finalizado</span>
+        </Badge>
+      );
+    }
+
+    const status = getMaintenanceStatus(maintenance.nextMaintenanceDate);
     switch (status) {
       case "overdue":
         return (
-          <div className="flex items-center gap-1 text-error">
-            <AlertTriangle className="h-4 w-4" /> <span>Vencido</span>
-          </div>
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> <span>Vencido</span>
+          </Badge>
         );
       case "urgent":
         return (
-          <div className="flex items-center gap-1 text-warning">
-            <Clock className="h-4 w-4" /> <span>Urgente</span>
-          </div>
-        );
-      case "upcoming":
-        return (
-          <div className="flex items-center gap-1 text-info">
-            <CalendarIconLucide className="h-4 w-4" /> <span>Próximo</span>
-          </div>
+          <Badge variant="warning" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" /> <span>Urgente</span>
+          </Badge>
         );
       default:
         return (
-          <div className="flex items-center gap-1 text-success">
-            <CheckCircle className="h-4 w-4" /> <span>Programado</span>
-          </div>
+          <Badge variant="outline" className="flex items-center gap-1">
+            <CalendarIconLucide className="h-3 w-3" /> <span>Pendiente</span>
+          </Badge>
         );
     }
   };
@@ -263,9 +314,9 @@ export default function MaintenancePage() {
       ),
     },
     {
-      accessorKey: "status",
+      accessorKey: "state",
       header: "Estado",
-      cell: ({ row }) => getStatusBadge(row.original.nextMaintenanceDate),
+      cell: ({ row }) => getStatusBadge(row.original),
     },
     {
       accessorKey: "frequency",
@@ -286,43 +337,82 @@ export default function MaintenancePage() {
       },
     },
     {
-      accessorKey: "notes",
-      header: "Notas",
-      cell: ({ row }) => (
-        <span className="truncate max-w-xs">{row.original.notes}</span>
-      ),
-    },
-    {
       id: "actions",
       header: "Acciones",
-      cell: ({ row }) => (
-        <div className="flex space-x-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleGenerateTask(row.original)}
-            title="Generar Tarea de Mantenimiento"
-          >
-            <Wrench className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openModal(row.original)}
-            title="Editar Plan"
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMaintenanceToDelete(row.original)}
-            title="Eliminar Plan"
-          >
-            <Trash className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const maintenance = row.original;
+        const isScheduling = isSchedulingNext === maintenance.id;
+        const hasTask = (maintenance.tasks || []).length > 0;
+        const hasPendingSuccessor = maintenances.some(
+          (m) =>
+            m.clientId === maintenance.clientId &&
+            m.state === "PENDIENTE" &&
+            new Date(m.createdAt!) > new Date(maintenance.createdAt!)
+        );
+
+        return (
+          <div className="flex items-center space-x-1">
+            {maintenance.state === "FINALIZADO" && !hasPendingSuccessor && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => handleScheduleNext(maintenance)}
+                title="Programar Siguiente Mantenimiento"
+                disabled={isScheduling}
+              >
+                {isScheduling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+
+            {maintenance.state === "PENDIENTE" && !hasTask && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleGenerateTask(maintenance)}
+                title="Generar Tarea de Mantenimiento"
+              >
+                <Wrench className="h-4 w-4" />
+              </Button>
+            )}
+
+            {maintenance.state === "PENDIENTE" && hasTask && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  router.push(
+                    `/dashboard/tasks?openTask=${maintenance.tasks![0].id}`
+                  )
+                }
+                title="Ver tarea existente"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openModal(maintenance)}
+              title="Editar"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMaintenanceToDelete(maintenance)}
+              title="Eliminar"
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -335,6 +425,8 @@ export default function MaintenancePage() {
     onSave: (data: Maintenance) => void;
     onCancel: () => void;
   }) => {
+    const { addNotification } = useNotification();
+    const [isSaving, setIsSaving] = useState(false);
     const [clientId, setClientId] = useState(
       maintenance ? maintenance.clientId.toString() : ""
     );
@@ -388,16 +480,19 @@ export default function MaintenancePage() {
       }
     }, [lastMaintenanceDate, frequency]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!clientId) {
-        addNotification("error", "Debes seleccionar un cliente");
+        addNotification("error", "Debes seleccionar un cliente.");
         return;
       }
       if (!lastMaintenanceDate || !nextMaintenanceDate) {
-        addNotification("error", "Las fechas son obligatorias");
+        addNotification("error", "Las fechas son obligatorias.");
         return;
       }
+
+      setIsSaving(true);
+
       const maintenanceData: Maintenance = {
         clientId: parseInt(clientId),
         lastMaintenanceDate,
@@ -405,10 +500,17 @@ export default function MaintenancePage() {
         frequency,
         notes,
       };
-      if (maintenance && maintenance.taskIds) {
-        maintenanceData.taskIds = maintenance.taskIds;
+      if (maintenance && maintenance.id) {
+        maintenanceData.id = maintenance.id;
+        maintenanceData.state = maintenance.state;
       }
-      onSave(maintenanceData);
+      try {
+        await onSave(maintenanceData);
+      } catch (error) {
+        console.error("Error en submit de formulario de mantención", error);
+      } finally {
+        setIsSaving(false);
+      }
     };
 
     return (
@@ -425,7 +527,7 @@ export default function MaintenancePage() {
           </div>
           <div>
             <label className="block text-sm font-medium">
-              Último mantenimiento
+              Fecha de Inicio (o último mantenimiento)
             </label>
             <Input
               type="date"
@@ -481,10 +583,18 @@ export default function MaintenancePage() {
           </div>
         </div>
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" type="button" onClick={onCancel}>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+          >
             Cancelar
           </Button>
-          <Button type="submit">Guardar</Button>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar
+          </Button>
         </div>
       </form>
     );
@@ -496,7 +606,7 @@ export default function MaintenancePage() {
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los planes de mantenimientos programados para tus clientes
+            Gestiona los ciclos de mantenimientos programados para tus clientes
           </p>
         </div>
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
@@ -513,12 +623,12 @@ export default function MaintenancePage() {
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los planes de mantenimientos programados para tus clientes
+            Gestiona los ciclos de mantenimientos programados para tus clientes
           </p>
         </div>
         <Button onClick={() => openModal()} disabled={isLoadingClients}>
           <Plus className="mr-2 h-4 w-4" />
-          Agregar Plan
+          Agregar Mantenimiento
         </Button>
       </div>
 
@@ -618,12 +728,32 @@ export default function MaintenancePage() {
         onOpenChange={(open) => {
           if (!open) setMaintenanceToDelete(null);
         }}
-        title="Eliminar Plan de Mantenimiento"
-        description={`¿Estás seguro de eliminar el plan del cliente ${maintenanceToDelete?.client?.name}? Esta acción no se puede deshacer.`}
+        title="Eliminar Ciclo de Mantenimiento"
+        description={`¿Estás seguro de eliminar el mantenimiento del cliente ${maintenanceToDelete?.client?.name}? Esta acción no se puede deshacer.`}
         onConfirm={handleDelete}
         confirmLabel="Eliminar"
         isLoading={isDeleting}
       />
+
+      <ConfirmDialog
+        open={isConfirmingSchedule}
+        onOpenChange={setIsConfirmingSchedule}
+        title="Programar Siguiente Ciclo"
+        description="Esto creará un nuevo ciclo de mantenimiento para el siguiente período. ¿Deseas también generar la tarea de trabajo para este nuevo ciclo inmediatamente?"
+        onConfirm={() => confirmAndProceedWithSchedule(true)}
+        confirmLabel="Programar y Crear Tarea"
+        isLoading={isSchedulingNext === maintenanceToSchedule?.id}
+      >
+        <DialogFooter className="mt-4 sm:mt-0 sm:ml-auto">
+          <Button
+            variant="outline"
+            onClick={() => confirmAndProceedWithSchedule(false)}
+            disabled={isSchedulingNext === maintenanceToSchedule?.id}
+          >
+            Solo Programar
+          </Button>
+        </DialogFooter>
+      </ConfirmDialog>
 
       {isModalOpen && (
         <Dialog
@@ -636,8 +766,8 @@ export default function MaintenancePage() {
             <DialogHeader>
               <DialogTitle>
                 {currentMaintenance
-                  ? "Editar Plan de Mantenimiento"
-                  : "Nuevo Plan de Mantenimiento"}
+                  ? "Editar Mantenimiento"
+                  : "Nuevo Mantenimiento"}
               </DialogTitle>
             </DialogHeader>
             <MaintenanceForm
@@ -661,12 +791,16 @@ export default function MaintenancePage() {
             types: ["MANTENCION"],
             state: "PENDIENTE",
             startDate: new Date().toISOString(),
-            maintenanceId: maintenanceForTask.id,
             categories: [],
           }}
           clients={allClients}
           workers={workers}
-          onSave={handleSaveTask}
+          onSave={(task) =>
+            handleSaveTask({
+              ...task,
+              maintenanceId: maintenanceForTask.id,
+            })
+          }
           onClose={() => setIsTaskFormOpen(false)}
           isLoading={isLoadingWorkers || isLoadingClients}
           isLoadingClients={isLoadingClients}
