@@ -40,9 +40,9 @@ interface TaskFormProps {
   isLoading?: boolean;
   isLoadingClients?: boolean;
   isLoadingWorkers?: boolean;
+  maintenanceId?: number;
 }
 
-// Constantes para tipos y estados de tareas
 const TASK_STATES = ["PENDIENTE", "EN_CURSO", "FINALIZADO"];
 const TASK_TYPES = ["REVISION", "REPARACION", "MANTENCION", "INSTALACION"];
 const TASK_CATEGORIES = [
@@ -72,22 +72,23 @@ export default function TaskForm({
   isLoading = false,
   isLoadingClients = false,
   isLoadingWorkers = false,
+  maintenanceId,
 }: TaskFormProps) {
   const { addNotification } = useNotification();
   const [taskForm, setTaskForm] = useState<Task>({
     title: "",
     description: "",
     state: "PENDIENTE",
-    types: [], // Siempre inicializar como array vacío
+    types: [],
     categories: [],
-    startDate: new Date().toISOString().split("T")[0], // Solo la fecha
+    startDate: new Date().toISOString().split("T")[0],
+    maintenanceId: maintenanceId || null,
   });
-  const [startTime, setStartTime] = useState("08:00"); // Hora de inicio
+  const [startTime, setStartTime] = useState("08:00");
   const [endDateValue, setEndDateValue] = useState<string | undefined>(
     undefined
-  ); // Para manejar el input de fecha de fin
+  );
   const [endTime, setEndTime] = useState("17:00");
-  // Hora de fin
 
   const [clientQuotations, setClientQuotations] = useState<Quotation[]>([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
@@ -97,7 +98,6 @@ export default function TaskForm({
     null
   );
 
-  // Para depuración
   useEffect(() => {
     console.log("Workers disponibles en TaskForm:", workers);
     console.log("Task actual:", task);
@@ -106,26 +106,24 @@ export default function TaskForm({
   useEffect(() => {
     if (isOpen) {
       if (task) {
-        // Al cargar una tarea existente, extraemos la fecha y la hora
         const startDateObj = new Date(task.startDate);
         const endDateObj = task.endDate ? new Date(task.endDate) : null;
 
         setTaskForm({
           ...task,
-          types: task.types || [], // Asegurarse de que types se inicialice como un array
+          types: task.types || [],
           categories: task.categories || [],
-          // Aseguramos que solo se muestre la parte de la fecha para el input type="date"
           startDate: startDateObj.toISOString().split("T")[0],
+          maintenanceId: task.maintenanceId || maintenanceId || null,
         });
-        setStartTime(startDateObj.toTimeString().slice(0, 5)); // "HH:MM"
+        setStartTime(startDateObj.toTimeString().slice(0, 5));
 
-        // Para endDate, si existe, extraemos fecha y hora
         if (endDateObj) {
           setEndDateValue(endDateObj.toISOString().split("T")[0]);
           setEndTime(endDateObj.toTimeString().slice(0, 5));
         } else {
           setEndDateValue(undefined);
-          setEndTime("17:00"); // Valor por defecto si no hay fecha de fin
+          setEndTime("17:00");
         }
 
         if (task.assignedWorkers && task.assignedWorkers.length > 0) {
@@ -141,7 +139,6 @@ export default function TaskForm({
           loadClientQuotations(task.clientId);
         }
       } else {
-        // Para una nueva tarea, inicializamos con fecha y hora actuales
         const now = new Date();
         const defaultDate = now.toISOString().split("T")[0];
         const defaultTime = now.toTimeString().slice(0, 5);
@@ -150,9 +147,10 @@ export default function TaskForm({
           title: "",
           description: "",
           state: "PENDIENTE",
-          types: [], // Siempre inicializar como array vacío
+          types: [],
           categories: [],
           startDate: defaultDate,
+          maintenanceId: maintenanceId || null,
         });
         setStartTime(defaultTime);
         setEndDateValue(undefined);
@@ -163,7 +161,7 @@ export default function TaskForm({
 
       setFormValidationError(null);
     }
-  }, [task, isOpen]);
+  }, [task, isOpen, maintenanceId]);
 
   const loadClientQuotations = async (clientId: number) => {
     setIsLoadingQuotations(true);
@@ -184,14 +182,12 @@ export default function TaskForm({
 
   const handleSave = async () => {
     setFormValidationError(null);
-    // Combinar la fecha y la hora de inicio
     const finalStartDate = new Date(`${taskForm.startDate}T${startTime}`);
     if (isNaN(finalStartDate.getTime())) {
       setFormValidationError("La fecha y/u hora de inicio no son válidas.");
       return;
     }
 
-    // Combinar la fecha y la hora de fin (si se proporcionaron)
     let finalEndDate: Date | null | undefined = undefined;
     if (endDateValue) {
       finalEndDate = new Date(`${endDateValue}T${endTime}`);
@@ -200,7 +196,7 @@ export default function TaskForm({
         return;
       }
     } else {
-      finalEndDate = null; // Si no hay fecha de fin, se envía como null
+      finalEndDate = null;
     }
 
     if (!taskForm.title) {
@@ -213,12 +209,13 @@ export default function TaskForm({
     try {
       const taskData: Task = {
         ...taskForm,
-        startDate: finalStartDate.toISOString(), // Convertir a ISO string para enviar
-        endDate: finalEndDate ? finalEndDate.toISOString() : null, // Convertir a ISO string o null
-        quotationId: taskForm.quotationId || null, // Asegurar que sea null si no hay valor
-        types: taskForm.types || [], // Asegurar que types siempre sea un array
+        startDate: finalStartDate.toISOString(),
+        endDate: finalEndDate ? finalEndDate.toISOString() : null,
+        quotationId: taskForm.quotationId || null,
+        types: taskForm.types || [],
         categories: taskForm.categories || [],
         assignedWorkerIds: selectedWorkerIds,
+        maintenanceId: taskForm.maintenanceId || null,
       };
       console.log("Datos de tarea a guardar:", taskData);
       await onSave(taskData);
@@ -323,7 +320,9 @@ export default function TaskForm({
     >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{task ? "Editar Tarea" : "Nueva Tarea"}</DialogTitle>
+          <DialogTitle>
+            {task && task.id ? "Editar Tarea" : "Nueva Tarea"}
+          </DialogTitle>
         </DialogHeader>
 
         {isSavingInProgress && (
@@ -452,7 +451,6 @@ export default function TaskForm({
             </Select>
           </FormField>
 
-          {/* Campos de Fecha y Hora de Inicio */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
               <FormLabel>Fecha de inicio</FormLabel>
@@ -478,7 +476,6 @@ export default function TaskForm({
             </div>
           </div>
 
-          {/* Campos de Fecha y Hora de Fin */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
               <FormLabel>Fecha de fin (opcional)</FormLabel>
@@ -495,7 +492,7 @@ export default function TaskForm({
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                disabled={isFormLoading || !endDateValue} // Deshabilita si no hay fecha de fin
+                disabled={isFormLoading || !endDateValue}
               />
             </div>
           </div>
@@ -585,10 +582,12 @@ export default function TaskForm({
             {isSavingInProgress ? (
               <div className="flex items-center">
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                <span>{task ? "Actualizando..." : "Creando..."}</span>
+                <span>
+                  {task && task.id ? "Actualizando..." : "Creando..."}
+                </span>
               </div>
             ) : (
-              <span>{task ? "Guardar cambios" : "Crear tarea"}</span>
+              <span>{task && task.id ? "Guardar cambios" : "Crear tarea"}</span>
             )}
           </Button>
         </DialogFooter>

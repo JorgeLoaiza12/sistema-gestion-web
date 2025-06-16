@@ -1,5 +1,5 @@
 // services/tasks.ts
-import { httpClient } from "@/lib/httpClient"; // [cite: 1805]
+import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
 export interface TaskAssignment {
@@ -26,7 +26,7 @@ export interface Task {
   hoursWorked?: number;
   mediaUrls?: string[];
   startDate: string;
-  endDate?: string; //
+  endDate?: string;
   assignedWorkerIds?: number[];
   assignedWorkers?: TaskAssignment[];
   client?: {
@@ -37,7 +37,7 @@ export interface Task {
     rut?: string;
     address?: string;
     commune?: string;
-    administrator?: string; // [cite: 1806]
+    administrator?: string;
     butler?: string;
   };
   quotation?: {
@@ -49,6 +49,7 @@ export interface Task {
   createdAt?: string;
   updatedAt?: string;
   metadata?: any;
+  maintenanceId?: number | null;
 }
 
 export interface TaskResponse {
@@ -58,19 +59,19 @@ export interface TaskResponse {
 
 export interface TasksByDateResponse {
   tasks: Task[];
-  start?: string; // Hacer opcional
-  end?: string; // Hacer opcional
+  start?: string;
+  end?: string;
 }
 
 export interface TasksByDateParams {
-  date?: string; // Hacer opcional si startDate y endDate están presentes
-  view?: "daily" | "weekly" | "monthly"; // Hacer opcional si startDate y endDate están presentes
-  startDate?: string; // NUEVO
-  endDate?: string; // NUEVO
+  date?: string;
+  view?: "daily" | "weekly" | "monthly";
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface FinalizeTaskData {
-  taskId: number; // [cite: 1807]
+  taskId: number;
   technicalReport: string;
   observations?: string;
   hoursWorked: number;
@@ -102,7 +103,7 @@ async function getAuthToken(): Promise<string> {
 }
 
 function ensureWorkersArray(
-  workerIds: number | number[] | undefined // [cite: 1808]
+  workerIds: number | number[] | undefined
 ): number[] {
   if (!workerIds) {
     return [];
@@ -119,13 +120,12 @@ export async function getAllTasks(filters?: TaskFilterParams): Promise<Task[]> {
     if (filters) {
       const queryParams = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
-        // [cite: 1809]
         if (value !== undefined && value !== null && value !== "") {
           queryParams.append(key, String(value));
         }
       });
       if (queryParams.toString()) {
-        url += `?${queryParams.toString()}`; // [cite: 1810]
+        url += `?${queryParams.toString()}`;
       }
     }
     return await httpClient<Task[]>(url);
@@ -141,22 +141,22 @@ export async function getTasksByDate(
   try {
     let queryString: string;
     if (typeof queryParams === "string") {
-      queryString = queryParams; // [cite: 1811]
+      queryString = queryParams;
     } else {
       const params = new URLSearchParams();
       if (queryParams.startDate)
-        params.append("startDate", queryParams.startDate); // MODIFICADO
-      if (queryParams.endDate) params.append("endDate", queryParams.endDate); // MODIFICADO
+        params.append("startDate", queryParams.startDate);
+      if (queryParams.endDate) params.append("endDate", queryParams.endDate);
       if (queryParams.date && !queryParams.startDate)
-        params.append("date", queryParams.date); // Solo si no hay rango
-      if (queryParams.view) params.append("view", queryParams.view); // Mantener view por si el backend lo usa
+        params.append("date", queryParams.date);
+      if (queryParams.view) params.append("view", queryParams.view);
       queryString = params.toString();
     }
     return await httpClient<TasksByDateResponse>(
       `/tasks/by-date?${queryString}`
     );
   } catch (error) {
-    console.error("Error al obtener tareas por fecha:", error); // [cite: 1812]
+    console.error("Error al obtener tareas por fecha:", error);
     throw error;
   }
 }
@@ -171,13 +171,13 @@ export async function getWorkerTasks(
     } else {
       const params = new URLSearchParams();
       if (queryParams.startDate)
-        params.append("startDateQuery", queryParams.startDate); // Usar nombres que el backend espera
+        params.append("startDateQuery", queryParams.startDate);
       if (queryParams.endDate)
         params.append("endDateQuery", queryParams.endDate);
       if (queryParams.date && !queryParams.startDate)
         params.append("date", queryParams.date);
       if (queryParams.view) params.append("view", queryParams.view);
-      queryString = params.toString(); // [cite: 1813]
+      queryString = params.toString();
     }
     return await httpClient<TasksByDateResponse>(
       `/tasks/worker?${queryString}`
@@ -191,15 +191,16 @@ export async function getWorkerTasks(
 export async function createTask(taskData: Task): Promise<TaskResponse> {
   try {
     const processedData = {
-      ...taskData, // [cite: 1814]
+      ...taskData,
       quotationId: taskData.quotationId || undefined,
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
       assignedWorkerIds: ensureWorkersArray(taskData.assignedWorkerIds),
+      maintenanceId: taskData.maintenanceId || undefined,
     };
     return await httpClient<TaskResponse>("/tasks", {
-      method: "POST", // [cite: 1815]
+      method: "POST",
       body: JSON.stringify(processedData),
     });
   } catch (error) {
@@ -215,7 +216,7 @@ export async function updateTask(
   try {
     const processedData = {
       ...taskData,
-      quotationId: taskData.quotationId || undefined, // [cite: 1816]
+      quotationId: taskData.quotationId || undefined,
       types: taskData.types || [],
       categories: taskData.categories || [],
       mediaUrls: taskData.mediaUrls || [],
@@ -225,7 +226,7 @@ export async function updateTask(
     if (processedData.quotation) delete processedData.quotation;
     if (processedData.assignedWorkers) delete processedData.assignedWorkers;
     if (processedData.reminderSent) delete processedData.reminderSent;
-    if (processedData.createdAt) delete processedData.createdAt; // [cite: 1817]
+    if (processedData.createdAt) delete processedData.createdAt;
     if (processedData.updatedAt) delete processedData.updatedAt;
 
     try {
@@ -235,18 +236,18 @@ export async function updateTask(
       });
     } catch (error: any) {
       if (
-        error.message && // [cite: 1818]
-        error.message.includes("Forbidden") && // [cite: 1819]
+        error.message &&
+        error.message.includes("Forbidden") &&
         (error.message.includes("sendgrid") ||
           error.message.includes("SendGrid"))
       ) {
         console.warn(
-          "Error de envío de correo detectado. La tarea se actualizó pero no se pudieron enviar notificaciones." // [cite: 1820]
+          "Error de envío de correo detectado. La tarea se actualizó pero no se pudieron enviar notificaciones."
         );
         try {
           const task = await httpClient<Task>(`/tasks/${id}`);
           return {
-            message: "Task updated successfully but email notifications failed", // [cite: 1820]
+            message: "Task updated successfully but email notifications failed",
             task,
           };
         } catch (getError) {
@@ -257,14 +258,13 @@ export async function updateTask(
     }
   } catch (error) {
     console.error(`Error al actualizar tarea ${id}:`, error);
-    throw error; // [cite: 1821]
+    throw error;
   }
 }
 
 export async function deleteTask(id: string): Promise<{ message: string }> {
   try {
     return await httpClient<{ message: string }>(`/tasks/${id}`, {
-      // [cite: 1821]
       method: "DELETE",
     });
   } catch (error) {
@@ -276,7 +276,6 @@ export async function deleteTask(id: string): Promise<{ message: string }> {
 export async function startTask(taskId: number): Promise<TaskResponse> {
   try {
     return await httpClient<TaskResponse>("/tasks/start", {
-      // [cite: 1822]
       method: "POST",
       body: JSON.stringify({ taskId }),
     });
@@ -292,33 +291,32 @@ export async function finalizeTask(
   try {
     const processedData = {
       ...data,
-      mediaUrls: data.mediaUrls || [], // [cite: 1823]
+      mediaUrls: data.mediaUrls || [],
       systems: data.systems || [],
       technicians: data.technicians || [],
     };
     return await httpClient<TaskResponse>("/tasks/finalize", {
-      method: "POST", // [cite: 1823]
+      method: "POST",
       body: JSON.stringify(processedData),
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Forbidden")) {
-      // [cite: 1824]
       console.warn(
-        "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada" // [cite: 1825]
+        "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada"
       );
       try {
         const taskResponse = await httpClient<{ task: Task }>(
-          `/tasks/${data.taskId}`, // [cite: 1825]
+          `/tasks/${data.taskId}`,
           {
-            method: "GET", // [cite: 1825]
+            method: "GET",
           }
         );
         return {
-          message: "Task finalized successfully but email could not be sent", // [cite: 1826]
+          message: "Task finalized successfully but email could not be sent",
           task: taskResponse.task,
         };
       } catch (secondError) {
-        throw error; // [cite: 1826]
+        throw error;
       }
     }
     console.error("Error al finalizar tarea:", error);
@@ -328,7 +326,6 @@ export async function finalizeTask(
 
 export async function downloadTaskReport(taskId: string): Promise<Blob> {
   try {
-    // [cite: 1827]
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/report-pdf`,
       {
@@ -338,7 +335,6 @@ export async function downloadTaskReport(taskId: string): Promise<Blob> {
       }
     );
     if (!response.ok) {
-      // [cite: 1828]
       throw new Error(`Error al descargar el informe: ${response.statusText}`);
     }
     return response.blob();
@@ -355,7 +351,6 @@ export async function uploadTaskImageFormData(
   file: File,
   type: string = "work"
 ): Promise<string> {
-  // [cite: 1829]
   try {
     const formData = new FormData();
     formData.append("image", file);
@@ -365,21 +360,21 @@ export async function uploadTaskImageFormData(
     );
     const accessToken = session?.accessToken;
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`, // [cite: 1830]
+      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`,
       {
-        method: "POST", // [cite: 1830]
+        method: "POST",
         headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), // [cite: 1830]
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: formData, // [cite: 1831]
+        body: formData,
       }
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({
-        message: `Error ${response.status}: ${response.statusText}`, // [cite: 1831]
+        message: `Error ${response.status}: ${response.statusText}`,
       }));
       throw new Error(
-        errorData.message || `Error al subir imagen: ${response.statusText}` // [cite: 1832]
+        errorData.message || `Error al subir imagen: ${response.statusText}`
       );
     }
     const result = await response.json();
@@ -399,7 +394,7 @@ export async function downloadTasksExcel(
     const queryParams = new URLSearchParams();
     if (filters) {
       if (filters.clientId) queryParams.append("clientId", filters.clientId);
-      if (filters.taskType) queryParams.append("taskType", filters.taskType); // [cite: 1833]
+      if (filters.taskType) queryParams.append("taskType", filters.taskType);
       if (filters.startDate) queryParams.append("startDate", filters.startDate);
       if (filters.endDate) queryParams.append("endDate", filters.endDate);
       if (filters.state && filters.state !== "ALL")
@@ -415,7 +410,7 @@ export async function downloadTasksExcel(
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${url}`, {
       headers: {
-        Authorization: `Bearer ${token}`, // [cite: 1834]
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -425,7 +420,7 @@ export async function downloadTasksExcel(
       }));
       throw new Error(
         errorData.message ||
-          `Error al descargar el archivo Excel: ${response.statusText}` // [cite: 1835]
+          `Error al descargar el archivo Excel: ${response.statusText}`
       );
     }
     return response.blob();

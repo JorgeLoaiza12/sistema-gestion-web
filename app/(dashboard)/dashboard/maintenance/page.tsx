@@ -20,14 +20,14 @@ import {
   createMaintenance,
   updateMaintenance,
   deleteMaintenance,
-  getMaintenancesByClient, // Importar la nueva función
+  getMaintenancesByClient,
   type Maintenance,
 } from "@/services/maintenance";
 import ClientSelect from "@/components/clients/ClientSelect";
 import {
   Plus,
   Search,
-  Calendar as CalendarIconLucide, // Renombrar para evitar conflicto
+  Calendar as CalendarIconLucide,
   Edit,
   Trash,
   AlertTriangle,
@@ -35,6 +35,7 @@ import {
   Clock,
   Loader2,
   RefreshCcw,
+  Wrench,
 } from "lucide-react";
 import {
   Select,
@@ -48,7 +49,10 @@ import {
   calculateNextMaintenanceDate,
   getMaintenanceStatus,
 } from "@/utils/maintenance-utils";
-import { getClients, Client } from "@/services/clients"; // Importar Client
+import { getClients, Client } from "@/services/clients";
+import { getUsers, User } from "@/services/users";
+import TaskForm from "@/components/tasks/TaskForm";
+import { Task, createTask as createTaskService } from "@/services/tasks";
 
 export default function MaintenancePage() {
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
@@ -66,31 +70,46 @@ export default function MaintenancePage() {
   const [maintenanceToDelete, setMaintenanceToDelete] =
     useState<Maintenance | null>(null);
   const { addNotification } = useNotification();
-  const [allClients, setAllClients] = useState<Client[]>([]); // Para el filtro de cliente
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [selectedClientFilter, setSelectedClientFilter] = useState<
     string | undefined
-  >(undefined); // Para el filtro
+  >(undefined);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
+  const [maintenanceForTask, setMaintenanceForTask] =
+    useState<Maintenance | null>(null);
+  const [workers, setWorkers] = useState<User[]>([]);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
 
   useEffect(() => {
-    const loadClients = async () => {
+    const loadData = async () => {
       setIsLoadingClients(true);
+      setIsLoadingWorkers(true);
       try {
         const clientsData = await getClients();
         setAllClients(clientsData || []);
       } catch (error) {
-        console.error("Error al cargar clientes para filtro:", error);
+        console.error("Error al cargar clientes:", error);
         addNotification("error", "Error al cargar lista de clientes");
       } finally {
         setIsLoadingClients(false);
       }
+      try {
+        const workersData = await getUsers();
+        setWorkers(workersData || []);
+      } catch (error) {
+        console.error("Error al cargar técnicos:", error);
+        addNotification("error", "Error al cargar lista de técnicos");
+      } finally {
+        setIsLoadingWorkers(false);
+      }
     };
-    loadClients();
+    loadData();
   }, [addNotification]);
 
   useEffect(() => {
     fetchMaintenances();
-  }, [viewMode, upcomingDays, selectedClientFilter]); // Añadir selectedClientFilter a las dependencias
+  }, [viewMode, upcomingDays, selectedClientFilter]);
 
   useEffect(() => {
     const filtered = maintenances.filter(
@@ -115,8 +134,7 @@ export default function MaintenancePage() {
         data = await getAllMaintenances();
       }
       setMaintenances(data);
-      setFilteredMaintenances(data); // Actualizar también aquí
-      // addNotification("success", "Mantenimientos cargados correctamente"); // Puede ser muy ruidoso
+      setFilteredMaintenances(data);
     } catch (error) {
       console.error("Error al cargar mantenimientos:", error);
       addNotification("error", "Error al cargar mantenimientos");
@@ -143,7 +161,6 @@ export default function MaintenancePage() {
       setMaintenances((prev) =>
         prev.filter((m) => m.id !== maintenanceToDelete.id)
       );
-      // setFilteredMaintenances((prev) => prev.filter((m) => m.id !== maintenanceToDelete.id)); // Se actualiza por el useEffect
       addNotification("success", "Mantenimiento eliminado correctamente");
     } catch (error) {
       addNotification("error", "Error al eliminar mantenimiento");
@@ -172,9 +189,26 @@ export default function MaintenancePage() {
         addNotification("success", "Mantenimiento creado");
       }
       closeModal();
-      fetchMaintenances(); // Recargar la lista después de guardar
+      fetchMaintenances();
     } catch (error) {
       addNotification("error", "Error al guardar mantenimiento");
+    }
+  };
+
+  const handleGenerateTask = (maintenance: Maintenance) => {
+    setMaintenanceForTask(maintenance);
+    setIsTaskFormOpen(true);
+  };
+
+  const handleSaveTask = async (taskData: Task) => {
+    try {
+      await createTaskService(taskData);
+      addNotification("success", "Tarea de mantenimiento creada correctamente");
+      setIsTaskFormOpen(false);
+      setMaintenanceForTask(null);
+    } catch (error) {
+      addNotification("error", "Error al crear la tarea de mantenimiento");
+      console.error(error);
     }
   };
 
@@ -212,20 +246,18 @@ export default function MaintenancePage() {
     {
       accessorKey: "client",
       header: "Cliente",
-      cell: ({ row }) => (
-        <span>{row.original.client?.name || "Sin cliente"}</span>
-      ),
+      cell: ({ row }) => <span>{row.original.client?.name || "N/A"}</span>,
     },
     {
       accessorKey: "lastMaintenanceDate",
-      header: "Último mantenimiento",
+      header: "Último",
       cell: ({ row }) => (
         <span>{formatDate(row.original.lastMaintenanceDate)}</span>
       ),
     },
     {
       accessorKey: "nextMaintenanceDate",
-      header: "Próximo mantenimiento",
+      header: "Próximo",
       cell: ({ row }) => (
         <span>{formatDate(row.original.nextMaintenanceDate)}</span>
       ),
@@ -264,11 +296,20 @@ export default function MaintenancePage() {
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => (
-        <div className="flex space-x-2">
+        <div className="flex space-x-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleGenerateTask(row.original)}
+            title="Generar Tarea de Mantenimiento"
+          >
+            <Wrench className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => openModal(row.original)}
+            title="Editar Plan"
           >
             <Edit className="h-4 w-4" />
           </Button>
@@ -276,6 +317,7 @@ export default function MaintenancePage() {
             variant="ghost"
             size="sm"
             onClick={() => setMaintenanceToDelete(row.original)}
+            title="Eliminar Plan"
           >
             <Trash className="h-4 w-4" />
           </Button>
@@ -315,7 +357,7 @@ export default function MaintenancePage() {
     const [notes, setNotes] = useState(
       maintenance ? maintenance.notes || "" : ""
     );
-    const [formClients, setFormClients] = useState<Client[]>([]); // Clientes para el select dentro del formulario
+    const [formClients, setFormClients] = useState<Client[]>([]);
     const [isLoadingFormClients, setIsLoadingFormClients] = useState(true);
 
     useEffect(() => {
@@ -449,13 +491,12 @@ export default function MaintenancePage() {
   };
 
   if (isLoading && !maintenances.length) {
-    // Mostrar loader principal solo si no hay mantenimientos y se está cargando
     return (
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los mantenimientos programados
+            Gestiona los planes de mantenimientos programados para tus clientes
           </p>
         </div>
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
@@ -472,12 +513,12 @@ export default function MaintenancePage() {
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
-            Gestiona los mantenimientos programados
+            Gestiona los planes de mantenimientos programados para tus clientes
           </p>
         </div>
         <Button onClick={() => openModal()} disabled={isLoadingClients}>
           <Plus className="mr-2 h-4 w-4" />
-          Agregar Mantenimiento
+          Agregar Plan
         </Button>
       </div>
 
@@ -496,7 +537,6 @@ export default function MaintenancePage() {
             </div>
           </div>
 
-          {/* Filtro por Cliente */}
           <Select
             value={selectedClientFilter || "ALL"}
             onValueChange={(value) =>
@@ -578,8 +618,8 @@ export default function MaintenancePage() {
         onOpenChange={(open) => {
           if (!open) setMaintenanceToDelete(null);
         }}
-        title="Eliminar Mantenimiento"
-        description={`¿Estás seguro de eliminar el mantenimiento del cliente ${maintenanceToDelete?.client?.name}?`}
+        title="Eliminar Plan de Mantenimiento"
+        description={`¿Estás seguro de eliminar el plan del cliente ${maintenanceToDelete?.client?.name}? Esta acción no se puede deshacer.`}
         onConfirm={handleDelete}
         confirmLabel="Eliminar"
         isLoading={isDeleting}
@@ -596,8 +636,8 @@ export default function MaintenancePage() {
             <DialogHeader>
               <DialogTitle>
                 {currentMaintenance
-                  ? "Editar Mantenimiento"
-                  : "Nuevo Mantenimiento"}
+                  ? "Editar Plan de Mantenimiento"
+                  : "Nuevo Plan de Mantenimiento"}
               </DialogTitle>
             </DialogHeader>
             <MaintenanceForm
@@ -607,6 +647,31 @@ export default function MaintenancePage() {
             />
           </DialogContent>
         </Dialog>
+      )}
+
+      {isTaskFormOpen && maintenanceForTask && (
+        <TaskForm
+          isOpen={isTaskFormOpen}
+          task={{
+            title: `Mantenimiento para ${maintenanceForTask.client?.name}`,
+            clientId: maintenanceForTask.clientId,
+            client: allClients.find(
+              (c) => c.id === maintenanceForTask.clientId.toString()
+            ),
+            types: ["MANTENCION"],
+            state: "PENDIENTE",
+            startDate: new Date().toISOString(),
+            maintenanceId: maintenanceForTask.id,
+            categories: [],
+          }}
+          clients={allClients}
+          workers={workers}
+          onSave={handleSaveTask}
+          onClose={() => setIsTaskFormOpen(false)}
+          isLoading={isLoadingWorkers || isLoadingClients}
+          isLoadingClients={isLoadingClients}
+          isLoadingWorkers={isLoadingWorkers}
+        />
       )}
     </div>
   );
