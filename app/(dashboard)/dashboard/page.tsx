@@ -180,6 +180,9 @@ export default function DashboardPage() {
     const taskStats = adminData?.taskStats;
     const topProducts = adminData?.topProducts;
     const upcomingMaintenances = adminData?.upcomingMaintenances;
+    const maintenanceFailuresByBuilding =
+      adminData?.maintenanceFailuresByBuilding;
+    const buildingNamesForChart = adminData?.buildingNamesForChart;
 
     const hasSalesData = quotationStats?.monthlySales?.length > 0;
     const hasQuotationStats = quotationStats?.summary?.totalCount > 0;
@@ -492,39 +495,41 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" /> Top
-              10 Clientes con más Tareas
+              <Wrench className="h-5 w-5 mr-2 text-primary" /> Fallas en
+              Mantenimientos por Edificio
             </h3>
             <div className="h-80">
-              {taskStats?.byClient?.length > 0 ? (
+              {maintenanceFailuresByBuilding?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={taskStats.byClient}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    data={maintenanceFailuresByBuilding}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 10 }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                    />
+                    <XAxis dataKey="category" tick={{ fontSize: 10 }} />
                     <YAxis />
                     <Tooltip />
-                    <Bar
-                      dataKey="count"
-                      name="N° de Tareas"
-                      fill="#2563eb"
-                      barSize={30}
-                    />
+                    <Legend />
+                    {buildingNamesForChart?.map((buildingName, index) => (
+                      <Bar
+                        key={buildingName}
+                        dataKey={buildingName}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <BarChartHorizontal className="h-12 w-12 text-content-subtle mb-2 opacity-50" />
+                  <Wrench className="h-12 w-12 text-content-subtle mb-2 opacity-50" />
                   <p className="text-content-subtle">
-                    No hay datos de clientes.
+                    No hay datos de fallas en mantenimientos para el período
+                    seleccionado.
                   </p>
                 </div>
               )}
