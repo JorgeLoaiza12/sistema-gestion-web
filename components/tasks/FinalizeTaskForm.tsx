@@ -65,7 +65,6 @@ export default function FinalizeTaskForm({
 
   useEffect(() => {
     if (task?.id) {
-      // Extraer nombres de técnicos de los asignados a la tarea
       const technicians = task.assignedWorkers
         ? task.assignedWorkers.map((assignment) => assignment.worker.name)
         : [];
@@ -80,13 +79,12 @@ export default function FinalizeTaskForm({
         positionWhoReceives: "",
         imageUrlWhoReceives: "",
         endDate: getTodayISOString(),
-        technicians: technicians, // Agregar lista de técnicos asignados
+        technicians: technicians,
       });
     }
     setValidationError(null);
   }, [task, isOpen]);
 
-  // Simulación de progreso durante el guardado
   useEffect(() => {
     if (isSubmitting) {
       const interval = setInterval(() => {
@@ -102,7 +100,6 @@ export default function FinalizeTaskForm({
     }
   }, [isSubmitting]);
 
-  // Función para subir imagen quien recibe
   const handleUploadWhoReceivesImage = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -112,14 +109,12 @@ export default function FinalizeTaskForm({
     try {
       setIsUploadingWhoReceives(true);
       setValidationError(null);
-      // Comprimir la imagen antes de subirla
       const compressedBlob = await compressImage(files[0], 800, 0.8);
       const compressedFile = blobToFile(
         compressedBlob,
         `who-receives-${Date.now()}.${files[0].name.split(".").pop()}`,
         { type: files[0].type }
       );
-      // Subir la imagen comprimida
       const imageUrl = await uploadTaskImage(compressedFile, "who-receives");
       setFinalizeForm({
         ...finalizeForm,
@@ -130,50 +125,51 @@ export default function FinalizeTaskForm({
       setValidationError("No se pudo subir la imagen. Intente nuevamente.");
     } finally {
       setIsUploadingWhoReceives(false);
-      // Limpiar el input
       if (fileInputWhoReceivesRef.current) {
         fileInputWhoReceivesRef.current.value = "";
       }
     }
   };
 
-  // Función para subir imagen de trabajo
   const handleUploadWorkImage = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    setIsUploadingWork(true);
+    setValidationError(null);
+
     try {
-      setIsUploadingWork(true);
-      setValidationError(null);
-      // Comprimir la imagen antes de subirla
-      const compressedBlob = await compressImage(files[0], 1200, 0.8);
-      const compressedFile = blobToFile(
-        compressedBlob,
-        `work-${Date.now()}.${files[0].name.split(".").pop()}`,
-        { type: files[0].type }
-      );
-      // Subir la imagen comprimida
-      const imageUrl = await uploadTaskImage(compressedFile, "work");
-      // Agregar nueva imagen a las existentes
-      setFinalizeForm({
-        ...finalizeForm,
-        mediaUrls: [...(finalizeForm.mediaUrls || []), imageUrl],
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const compressedBlob = await compressImage(file, 1200, 0.8);
+        const compressedFile = blobToFile(
+          compressedBlob,
+          `work-${Date.now()}-${file.name}`,
+          { type: file.type }
+        );
+        return uploadTaskImage(compressedFile, "work");
       });
+
+      const imageUrls = await Promise.all(uploadPromises);
+
+      setFinalizeForm((prevForm) => ({
+        ...prevForm,
+        mediaUrls: [...(prevForm.mediaUrls || []), ...imageUrls],
+      }));
     } catch (error) {
-      console.error("Error al subir imagen:", error);
-      setValidationError("No se pudo subir la imagen. Intente nuevamente.");
+      console.error("Error al subir imágenes:", error);
+      setValidationError(
+        "No se pudieron subir una o más imágenes. Intente nuevamente."
+      );
     } finally {
       setIsUploadingWork(false);
-      // Limpiar el input
       if (fileInputWorkRef.current) {
         fileInputWorkRef.current.value = "";
       }
     }
   };
 
-  // Eliminar imagen de trabajo
   const handleRemoveWorkImage = (urlToRemove: string) => {
     setFinalizeForm({
       ...finalizeForm,
@@ -185,7 +181,6 @@ export default function FinalizeTaskForm({
 
   const handleSubmit = async () => {
     setValidationError(null);
-    // Validaciones
     if (!finalizeForm.technicalReport) {
       setValidationError("El informe técnico es obligatorio");
       return;
@@ -196,7 +191,6 @@ export default function FinalizeTaskForm({
       return;
     }
 
-    // Validar nuevos campos obligatorios
     if (!finalizeForm.nameWhoReceives) {
       setValidationError("El nombre de quien recibe es obligatorio");
       return;
@@ -209,18 +203,12 @@ export default function FinalizeTaskForm({
 
     try {
       setIsSubmitting(true);
-      // Aquí enviamos directamente el formulario si el usuario subió imágenes usando el formulario
-      // Si no, usamos el proceso API normal
-
-      // Comprobar si tenemos imágenes para enviar como FormData
       const hasWhoReceivesImage =
         fileInputWhoReceivesRef.current?.files?.length > 0;
       const hasWorkImages = fileInputWorkRef.current?.files?.length > 0;
 
       if (hasWhoReceivesImage || hasWorkImages) {
-        // Crear un FormData para enviar los datos y los archivos
         const formData = new FormData();
-        // Añadir los datos del formulario
         formData.append("taskId", finalizeForm.taskId.toString());
         formData.append("technicalReport", finalizeForm.technicalReport);
         if (finalizeForm.observations)
@@ -234,13 +222,6 @@ export default function FinalizeTaskForm({
         if (finalizeForm.endDate)
           formData.append("endDate", finalizeForm.endDate);
 
-        // NO INCLUIR types aquí. El backend no debe recibirlo en finalize.
-        // const typesToSend = finalizeForm.types || [];
-        // typesToSend.forEach((type, i) => {
-        //   formData.append(`types[${i}]`, type);
-        // });
-
-        // Añadir imagen de quien recibe si existe
         if (hasWhoReceivesImage) {
           formData.append(
             "imageWhoReceives",
@@ -253,35 +234,29 @@ export default function FinalizeTaskForm({
           );
         }
 
-        // Añadir URLs de imágenes ya existentes
         if (finalizeForm.mediaUrls && finalizeForm.mediaUrls.length > 0) {
-          // Para enviar un array en FormData, debemos usar notación de corchetes
           finalizeForm.mediaUrls.forEach((url, i) => {
             formData.append(`mediaUrls[${i}]`, url);
           });
         }
 
-        // Añadir las listas de técnicos
         if (finalizeForm.technicians && finalizeForm.technicians.length > 0) {
           finalizeForm.technicians.forEach((tech, i) => {
             formData.append(`technicians[${i}]`, tech);
           });
         }
 
-        // Añadir nuevas imágenes de trabajo
         if (hasWorkImages) {
           Array.from(fileInputWorkRef.current.files).forEach((file) => {
             formData.append("image", file);
           });
         }
 
-        // Obtener token para la petición
         const session = await import("next-auth/react").then((mod) =>
           mod.getSession()
         );
         const accessToken = session?.accessToken;
 
-        // Enviar los datos directamente con fetch
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/tasks/finalize`,
           {
@@ -306,12 +281,9 @@ export default function FinalizeTaskForm({
         }
 
         const result = await response.json();
-        // Continuar con el flujo normal después de la operación exitosa
         setProgress(100);
         onClose();
       } else {
-        // Si no hay archivos para subir, usamos el método normal
-        // Asegurarse de que types NO se envíe en este caso tampoco
         const dataToSend = {
           taskId: finalizeForm.taskId,
           technicalReport: finalizeForm.technicalReport,
@@ -323,8 +295,6 @@ export default function FinalizeTaskForm({
           imageUrlWhoReceives: finalizeForm.imageUrlWhoReceives,
           endDate: finalizeForm.endDate,
           technicians: finalizeForm.technicians,
-          // Excluir types del objeto que se envía como JSON
-          // types: finalizeForm.types || [], // ESTO SE ELIMINA DE AQUI
         };
         await onSave(dataToSend);
         setProgress(100);
@@ -333,14 +303,12 @@ export default function FinalizeTaskForm({
       console.error("Error al finalizar la tarea:", error);
       setValidationError("Ocurrió un error al finalizar la tarea");
     } finally {
-      // Retraso para asegurar que se vea la animación completa
       setTimeout(() => {
         setIsSubmitting(false);
       }, 300);
     }
   };
 
-  // Fusionar los estados de carga
   const isFormDisabled =
     isLoading || isSubmitting || isUploadingWhoReceives || isUploadingWork;
 
@@ -357,7 +325,6 @@ export default function FinalizeTaskForm({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Barra de progreso */}
         {isSubmitting && (
           <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
             <div
@@ -370,7 +337,6 @@ export default function FinalizeTaskForm({
         <div className="space-y-4">
           <p className="font-medium">{task ? task.title : ""}</p>
 
-          {/* Mostrar los técnicos asignados */}
           {task?.assignedWorkers && task.assignedWorkers.length > 0 && (
             <div className="border rounded-md p-3 bg-blue-50">
               <div className="flex items-center gap-2 mb-2">
@@ -476,7 +442,6 @@ export default function FinalizeTaskForm({
             </div>
           </FormField>
 
-          {/* NUEVOS CAMPOS */}
           <div className="border p-4 rounded-md bg-accent/10 space-y-4">
             <h3 className="font-medium">
               Información de quien recibe el trabajo
@@ -563,7 +528,6 @@ export default function FinalizeTaskForm({
             </FormField>
           </div>
 
-          {/* Sección de fotos del trabajo realizado */}
           <div className="border p-4 rounded-md bg-accent/10 space-y-4">
             <h3 className="font-medium">Fotos del trabajo realizado</h3>
 
@@ -580,9 +544,9 @@ export default function FinalizeTaskForm({
                 onChange={handleUploadWorkImage}
                 accept="image/*"
                 style={{ display: "none" }}
+                multiple
               />
 
-              {/* Grid de imágenes */}
               {finalizeForm.mediaUrls && finalizeForm.mediaUrls.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 my-4">
                   {finalizeForm.mediaUrls.map((url, index) => (
@@ -622,14 +586,13 @@ export default function FinalizeTaskForm({
                 ) : (
                   <>
                     <Plus className="mr-2 h-4 w-4" />
-                    Agregar foto
+                    Agregar foto(s)
                   </>
                 )}
               </Button>
             </FormField>
           </div>
 
-          {/* Mensaje de validación */}
           {validationError && (
             <div className="border border-red-300 rounded-md p-3 bg-red-50 text-red-800 animate-fadeIn">
               <p className="text-sm font-medium">{validationError}</p>
