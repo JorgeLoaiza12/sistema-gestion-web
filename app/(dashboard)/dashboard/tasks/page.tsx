@@ -193,6 +193,7 @@ export default function TasksPage() {
           task.client.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [tasks, searchTerm]);
+
   const handleAddTask = () => {
     setCurrentTask(null);
     setIsEditing(true);
@@ -252,6 +253,7 @@ export default function TasksPage() {
       setCurrentTask(null);
     } catch (err) {
       addNotification("error", "Error al guardar tarea");
+      throw err;
     } finally {
       setIsSavingTask(false);
     }

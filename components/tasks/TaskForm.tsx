@@ -219,9 +219,14 @@ export default function TaskForm({
       };
       console.log("Datos de tarea a guardar:", taskData);
       await onSave(taskData);
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.errors?.[0]?.message ||
+        error?.response?.data?.message ||
+        error.message ||
+        "Ha ocurrido un error al guardar la tarea";
+      setFormValidationError(errorMessage);
       console.error("Error al guardar la tarea:", error);
-      setFormValidationError("Ha ocurrido un error al guardar la tarea");
     } finally {
       setIsSavingInProgress(false);
     }
