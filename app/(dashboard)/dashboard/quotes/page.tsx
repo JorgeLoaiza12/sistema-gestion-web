@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
+ 
   QuotationsParams,
   type Quotation,
   deleteQuotation,
@@ -50,7 +51,8 @@ export default function QuotesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentQuotation, setCurrentQuotation] = useState<Quotation | null>(
+  const [currentQuotation, setCurrentQuotation] = useState<Quotation |
+ null>(
     null
   );
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,6 +73,7 @@ export default function QuotesPage() {
   const [selectedClientFilter, setSelectedClientFilter] =
     useState<string>("all");
   const [selectedStatusFilter, setSelectedStatusFilter] =
+  
     useState<string>("all");
 
   const QUOTATION_STATUSES = [
@@ -86,7 +89,8 @@ export default function QuotesPage() {
     },
     {
       value: "REJECTED",
-      label: "Rechazada",
+      label: 
+    "Rechazada",
       icon: <XCircle className="h-4 w-4 mr-2" />,
     },
   ];
@@ -100,6 +104,7 @@ export default function QuotesPage() {
           id: quotation.client.id,
           name: quotation.client.name,
         });
+    
       }
     });
 
@@ -140,7 +145,8 @@ export default function QuotesPage() {
     fetchQuotations(filters);
   }, [filters]);
 
-  const debouncedSearch = debounce((value: string) => {
+  const debouncedSearch = debounce((value: string) => 
+    {
     setFilters((prev) => ({
       ...prev,
       search: value,
@@ -159,6 +165,7 @@ export default function QuotesPage() {
       ...prev,
       clientId: value && value !== "all" ? parseInt(value) : undefined,
       page: 1,
+  
     }));
   };
 
@@ -175,7 +182,8 @@ export default function QuotesPage() {
     const toYYYYMMDD = (date: Date | undefined) => {
       if (!date) return undefined;
       const d = new Date(date);
-      const year = d.getFullYear();
+      const 
+      year = d.getFullYear();
       const month = (d.getMonth() + 1).toString().padStart(2, "0");
       const day = d.getDate().toString().padStart(2, "0");
       return `${year}-${month}-${day}`;
@@ -197,6 +205,7 @@ export default function QuotesPage() {
   };
 
   const handleAddQuotation = () => {
+  
     setIsEditing(true);
     setCurrentQuotation(null);
   };
@@ -229,7 +238,8 @@ export default function QuotesPage() {
     }
   };
 
-  const handleSaveQuotation = async () => {
+  const handleSaveQuotation = 
+    async () => {
     fetchQuotations(filters);
     setIsEditing(false);
     setCurrentQuotation(null);
@@ -249,6 +259,7 @@ export default function QuotesPage() {
     return (
       <div className="space-y-8">
         <div>
+        
           <h1 className="text-3xl font-bold text-content-emphasis">
             Cotizaciones
           </h1>
@@ -257,6 +268,7 @@ export default function QuotesPage() {
           </p>
         </div>
         <div className="h-[500px] w-full flex flex-col items-center justify-center">
+   
           <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
           <p>Cargando cotizaciones...</p>
         </div>
@@ -270,6 +282,7 @@ export default function QuotesPage() {
         <h1 className="text-3xl font-bold text-content-emphasis">
           Cotizaciones
         </h1>
+    
         <p className="text-content-subtle mt-2">
           Gestiona tus cotizaciones para clientes
         </p>
@@ -278,70 +291,84 @@ export default function QuotesPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <h2 className="text-xl font-semibold">Lista de Cotizaciones</h2>
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto">
+ 
             <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
               <div className="relative flex-1 w-full md:w-auto">
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
+             
                   placeholder="Buscar por ID, título o cliente..."
                   value={searchTerm}
                   onChange={handleSearchChange}
                   className="pl-8 w-full"
                 />
+         
               </div>
 
               <DateRangePicker
                 value={{
                   start: filters.startDate
                     ? new Date(filters.startDate + "T00:00:00")
+            
                     : undefined,
                   end: filters.endDate
                     ? new Date(filters.endDate + "T00:00:00")
                     : undefined,
                 }}
+ 
                 onChange={handleDateRangeChange}
                 className="w-full sm:w-auto"
               />
 
               {clientsForFilter.length > 0 && (
                 <Select
+          
                   value={selectedClientFilter}
                   onValueChange={handleClientFilterChange}
                 >
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Filtrar por cliente" />
+    
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px] overflow-y-auto">
                     <SelectItem value="all">Todos los clientes</SelectItem>
                     <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
-                      Clientes ({clientsForFilter.length})
+       
+                Clientes ({clientsForFilter.length})
                     </div>
                     {clientsForFilter.map((client) => (
                       <SelectItem key={client.id} value={client.id.toString()}>
+        
                         {client.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
-                </Select>
+              
+                  </Select>
               )}
 
               <Select
                 value={selectedStatusFilter}
                 onValueChange={handleStatusFilterChange}
               >
-                <SelectTrigger className="w-full md:w-[180px]">
+              
+                  <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
-                  {QUOTATION_STATUSES.map((status) => (
+           
+                {QUOTATION_STATUSES.map((status) => (
                     <SelectItem key={status.value} value={status.value}>
                       <div className="flex items-center">
                         {status.icon}
+           
                         {status.label}
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
+ 
               </Select>
             </div>
 
@@ -349,6 +376,7 @@ export default function QuotesPage() {
               <Plus className="mr-2 h-4 w-4" />
               Nueva Cotización
             </Button>
+     
           </div>
         </div>
 
@@ -359,6 +387,7 @@ export default function QuotesPage() {
           filters={filters}
           onEdit={handleEditQuotation}
           onDelete={openDeleteConfirm}
+         
           onPageChange={handlePageChange}
           onStatusChange={handleStatusChange}
           searchTerm={searchTerm}
@@ -369,6 +398,7 @@ export default function QuotesPage() {
       {isEditing && (
         <QuotationForm
           quotation={currentQuotation}
+         
           onSave={handleSaveQuotation}
           onCancel={() => {
             setIsEditing(false);
@@ -381,6 +411,7 @@ export default function QuotesPage() {
         open={isDeleteConfirmOpen}
         onOpenChange={setIsDeleteConfirmOpen}
         title="Eliminar Cotización"
+        
         description={`¿Estás seguro que deseas eliminar la cotización "${quotationToDelete?.title}"? Esta acción no se puede deshacer.`}
         onConfirm={handleDeleteQuotation}
         confirmLabel="Eliminar"

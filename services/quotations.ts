@@ -20,7 +20,8 @@ export interface QuotationItem {
 export interface QuotationCategory {
   id?: string;
   name: string;
-  items: QuotationItem[];
+  items: 
+  QuotationItem[];
 }
 
 export interface Quotation {
@@ -40,6 +41,7 @@ export interface Quotation {
   updatedAt?: string;
   amount?: number;
   advancePercentage?: number;
+  disableEmail?: boolean; // Nuevo campo
 }
 
 export interface Pagination {
@@ -94,7 +96,8 @@ export async function getQuotations(): Promise<Quotation[]> {
   return httpClient<Quotation[]>("/quotations");
 }
 
-export async function getQuotationsByDateRange(
+export async function 
+  getQuotationsByDateRange(
   startDate: string,
   endDate: string
 ): Promise<Quotation[]> {
@@ -125,6 +128,7 @@ export async function getQuotationsByClient(
 export async function createQuotation(
   quotation: Quotation
 ): Promise<QuotationResponse> {
+ 
   const calculatedQuotation = {
     ...quotation,
     status: quotation.status || "SENT",
@@ -137,6 +141,7 @@ export async function createQuotation(
       items: category.items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
+     
         price:
           typeof item.price === "number"
             ? item.price
@@ -144,6 +149,7 @@ export async function createQuotation(
             ? item.product.unitPrice
             : undefined,
         // <--- CORREGIDO: Renombrado de itemMarkup a markupOverride
+       
         markupOverride:
           typeof item.markupOverride === "number"
             ? item.markupOverride
@@ -163,6 +169,7 @@ export async function updateQuotation(
 ): Promise<QuotationResponse> {
   const calculatedQuotation = {
     ...quotation,
+  
     advancePercentage:
       quotation.advancePercentage !== undefined
         ? quotation.advancePercentage
@@ -174,6 +181,7 @@ export async function updateQuotation(
         quantity: item.quantity,
         price:
           typeof item.price === "number"
+ 
             ? item.price
             : item.product
             ? item.product.unitPrice
@@ -181,7 +189,8 @@ export async function updateQuotation(
         // <--- CORREGIDO: Renombrado de itemMarkup a markupOverride
         markupOverride:
           typeof item.markupOverride === "number"
-            ? item.markupOverride
+   
+          ? item.markupOverride
             : undefined,
       })),
     })),
@@ -203,7 +212,8 @@ export async function updateQuotationStatus(
   status: string
 ): Promise<QuotationResponse> {
   return httpClient<QuotationResponse>(`/quotations/${id}/status`, {
-    method: "PUT",
+ 
+  method: "PUT",
     body: JSON.stringify({ status }),
   });
 }
@@ -223,7 +233,8 @@ export async function downloadQuotationPDF(id: string): Promise<Blob> {
     `${process.env.NEXT_PUBLIC_API_URL}/quotations/${id}/pdf`,
     {
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` 
+        } : {}),
       },
     }
   );
@@ -243,12 +254,14 @@ export async function getQuotationStats(
   if (params.clientId !== undefined)
     queryParams.append("clientId", params.clientId.toString());
   const queryString = queryParams.toString();
-  const url = `/quotations/stats${queryString ? `?${queryString}` : ""}`;
+  const url 
+  = `/quotations/stats${queryString ? `?${queryString}` : ""}`;
   return httpClient<any>(url);
 }
 
 export async function getPreviewQuotationPDF(
-  quotationData: Quotation
+  quotationData: 
+  Quotation
 ): Promise<Blob> {
   return httpClient<Blob>("/quotations/preview-pdf", {
     method: "POST",

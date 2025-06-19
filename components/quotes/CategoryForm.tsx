@@ -52,7 +52,7 @@ interface CategoryFormProps {
   onUpdateItem: (
     categoryIndex: number,
     itemIndex: number,
-    field: keyof QuotationItem | "price" | "markupOverride", // <-- CORREGIDO
+    field: keyof QuotationItem | "price" | "markupOverride",
     value: any
   ) => void;
   onAddNewProduct: (product: Product) => void;
@@ -235,6 +235,10 @@ export default function CategoryForm({
   }) => {
     const [priceInputValue, setPriceInputValue] = useState<string>("");
     const [markupInputValue, setMarkupInputValue] = useState<string>("");
+    // NUEVO: Estado local para la cantidad
+    const [quantityInputValue, setQuantityInputValue] = useState<string>(
+      String(item.quantity || 1)
+    );
     const [openProductSelect, setOpenProductSelect] = useState(false);
 
     useEffect(() => {
@@ -247,7 +251,6 @@ export default function CategoryForm({
       setPriceInputValue(initialPrice);
 
       let initialMarkup = "";
-      // <-- INICIO DE CORRECCIÓN
       if (item.markupOverride !== undefined && item.markupOverride !== null) {
         initialMarkup = String(item.markupOverride);
       } else if (item.product && item.product.markup !== undefined) {
@@ -255,9 +258,11 @@ export default function CategoryForm({
       } else {
         initialMarkup = String(DEFAULT_PROFIT_PERCENTAGE);
       }
-      // <-- FIN DE CORRECCIÓN
       setMarkupInputValue(initialMarkup);
-    }, [item.price, item.markupOverride, item.product?.id]); // <-- CORREGIDO
+
+      // NUEVO: Sincronizar el estado local de cantidad con la prop `item.quantity`
+      setQuantityInputValue(String(item.quantity || 1));
+    }, [item.price, item.markupOverride, item.product?.id, item.quantity]); // Añadir item.quantity a las dependencias
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setPriceInputValue(e.target.value);
@@ -293,7 +298,7 @@ export default function CategoryForm({
     const handleMarkupBlur = () => {
       const value = markupInputValue;
       if (value.trim() === "") {
-        onUpdateItem(categoryIndex, itemIndex, "markupOverride", undefined); // <-- CORREGIDO
+        onUpdateItem(categoryIndex, itemIndex, "markupOverride", undefined);
         if (item.product && item.product.markup !== undefined) {
           setMarkupInputValue(String(item.product.markup));
         } else {
@@ -302,12 +307,11 @@ export default function CategoryForm({
       } else {
         const num = parseFloat(value);
         if (!isNaN(num) && num >= 0) {
-          onUpdateItem(categoryIndex, itemIndex, "markupOverride", num); // <-- CORREGIDO
+          onUpdateItem(categoryIndex, itemIndex, "markupOverride", num);
         } else {
           let fallbackMarkup = "";
           if (item.markupOverride !== undefined) {
-            // <-- CORREGIDO
-            fallbackMarkup = String(item.markupOverride); // <-- CORREGIDO
+            fallbackMarkup = String(item.markupOverride);
           } else if (item.product && item.product.markup !== undefined) {
             fallbackMarkup = String(item.product.markup);
           } else {
@@ -316,6 +320,16 @@ export default function CategoryForm({
           setMarkupInputValue(fallbackMarkup);
         }
       }
+    };
+
+    // NUEVO: Manejadores para el input de cantidad
+    const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuantityInputValue(e.target.value); // Solo actualiza el estado local
+    };
+
+    const handleQuantityBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      const value = parseInt(e.target.value) || 1;
+      onUpdateItem(categoryIndex, itemIndex, "quantity", value); // Actualiza el estado padre al salir del foco
     };
 
     const currentProviderPrice =
@@ -330,10 +344,11 @@ export default function CategoryForm({
       (currentProviderPrice * currentMarkupPercentage) / 100
     );
     const finalPriceForItem = currentProviderPrice + markupAmountForItem;
-    const lineTotalWithMarkup = finalPriceForItem * (item.quantity || 1);
+    const lineTotalWithMarkup = finalPriceForItem * (item.quantity || 1); // Usar item.quantity directamente aquí para el cálculo
 
     return (
       <div
+        id={item.id?.toString() || (item as any)._tempId} // Añadir ID para scroll
         className={
           !item.productId || item.productId === 0
             ? "border border-red-300 rounded-md p-2 bg-red-50"
@@ -461,11 +476,9 @@ export default function CategoryForm({
               <Input
                 type="number"
                 min="1"
-                value={item.quantity || 1}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value) || 1;
-                  onUpdateItem(categoryIndex, itemIndex, "quantity", value);
-                }}
+                value={quantityInputValue} // Usa el estado local
+                onChange={handleQuantityChange} // Actualiza solo el estado local
+                onBlur={handleQuantityBlur} // Actualiza el estado padre al salir del foco
                 className="h-9"
                 required
                 disabled={disabled}

@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { httpClient } from "@/lib/httpClient";
+import { FormSwitch } from "../ui/form-switch"; // Importar el nuevo componente
 
 interface QuotationFormProps {
   quotation: Quotation | null;
@@ -42,7 +43,6 @@ interface QuotationFormProps {
   onCancel: () => void;
   statusOptions: Array<{ value: string; label: string; icon: React.ReactNode }>;
 }
-
 const IVA_RATE = 0.19;
 const DEFAULT_PROFIT_PERCENTAGE = 35;
 
@@ -84,6 +84,14 @@ export default function QuotationForm({
   const [savingProgress, setSavingProgress] = useState(0);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [disableEmail, setDisableEmail] = useState<boolean>(
+    quotation?.disableEmail || false
+  );
+
+  // Ref para el contenido del Dialog para el scroll
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  // Estado para el ID del último item añadido para hacer scroll
+  const [scrollToItemId, setScrollToItemId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchFormData = async () => {
@@ -148,6 +156,7 @@ export default function QuotationForm({
           ? JSON.parse(JSON.stringify(quotation.categories))
           : [{ name: "General", items: [] }]
       );
+      setDisableEmail(quotation.disableEmail || false);
     } else {
       setTitle("");
       setDescription("");
@@ -156,8 +165,20 @@ export default function QuotationForm({
       setAdvancePercentage(50);
       setValidUntil("");
       setCategories([{ name: "General", items: [] }]);
+      setDisableEmail(false);
     }
   }, [quotation]);
+
+  // Efecto para hacer scroll al último item añadido
+  useEffect(() => {
+    if (scrollToItemId && dialogContentRef.current) {
+      const element = document.getElementById(scrollToItemId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "end" });
+        setScrollToItemId(null); // Resetear después de hacer scroll
+      }
+    }
+  }, [scrollToItemId]);
 
   const addCategory = () => {
     setCategories([...categories, { name: "", items: [] }]);
@@ -174,71 +195,99 @@ export default function QuotationForm({
   };
 
   const addItem = (categoryIndex: number) => {
-    const newCategories = [...categories];
-    newCategories[categoryIndex].items.push({
-      productId: 0,
-      quantity: 1,
-      price: undefined,
-      markupOverride: undefined,
-      product: null as any,
-    });
-    setCategories(newCategories);
-  };
-
-  const removeItem = (categoryIndex: number, itemIndex: number) => {
-    const newCategories = [...categories];
-    newCategories[categoryIndex].items.splice(itemIndex, 1);
-    setCategories(newCategories);
-  };
-
-  const updateItem = (
-    categoryIndex: number,
-    itemIndex: number,
-    field: keyof QuotationItem | "price" | "markupOverride", // <-- CORREGIDO
-    value: any
-  ) => {
     setCategories((prevCategories) => {
-      const newCategories = JSON.parse(JSON.stringify(prevCategories));
-      const itemToUpdate = newCategories[categoryIndex].items[itemIndex];
-
-      if (!itemToUpdate) {
-        console.error("Índices inválidos para actualizar item:", {
-          categoryIndex,
-          itemIndex,
-          categories: newCategories,
-        });
-        return prevCategories;
-      }
-
-      if (field === "productId") {
-        const selectedProduct = products.find((p) => p.id === value);
-        if (selectedProduct) {
-          itemToUpdate.product = selectedProduct;
-          itemToUpdate.price = selectedProduct.unitPrice;
-          itemToUpdate.markupOverride = selectedProduct.markup;
-          itemToUpdate.productId = selectedProduct.id;
-        } else {
-          itemToUpdate.product = null;
-          itemToUpdate.price = undefined;
-          itemToUpdate.markupOverride = undefined;
-          itemToUpdate.productId = 0;
-        }
-      } else if (field === "price") {
-        itemToUpdate.price = value as number | undefined;
-      } else if (field === "markupOverride") {
-        // <-- CORREGIDO
-        itemToUpdate.markupOverride = value as number | undefined; // <-- CORREGIDO
-      } else {
-        (itemToUpdate as any)[field] = value;
-      }
+      const newCategories = [...prevCategories]; // Shallow copy of categories
+      const newItem = {
+        productId: 0,
+        quantity: 1,
+        price: undefined,
+        markupOverride: undefined,
+        product: null as any,
+        _tempId: `new-item-${Date.now()}-${Math.random()
+          .toString(36)
+          .substr(2, 9)}`, // Temp ID for scrolling
+      };
+      newCategories[categoryIndex] = {
+        ...newCategories[categoryIndex],
+        items: [...newCategories[categoryIndex].items, newItem], // Shallow copy of items
+      };
+      setScrollToItemId(newItem._tempId); // Set ID to scroll to
       return newCategories;
     });
   };
 
+  const removeItem = (categoryIndex: number, itemIndex: number) => {
+    setCategories((prevCategories) => {
+      const newCategories = [...prevCategories]; // Shallow copy of categories
+      newCategories[categoryIndex] = {
+        ...newCategories[categoryIndex],
+        items: newCategories[categoryIndex].items.filter(
+          (_, i) => i !== itemIndex
+        ), // Filter creates new array
+      };
+      return newCategories;
+    });
+  };
+
+  // REVISIÓN CRÍTICA: La actualización inmutable para evitar pérdida de foco y scroll jump
+  const updateItem = (
+    categoryIndex: number,
+    itemIndex: number,
+    field: keyof QuotationItem | "price" | "markupOverride",
+    value: any
+  ) => {
+    setCategories((prevCategories) => {
+      return prevCategories.map((cat, catIdx) => {
+        if (catIdx === categoryIndex) {
+          return {
+            ...cat, // Copia superficial de la categoría
+            items: cat.items.map((item, itemIdx) => {
+              if (itemIdx === itemIndex) {
+                const updatedItem = { ...item }; // Copia superficial del ítem
+
+                if (field === "productId") {
+                  const selectedProduct = products.find((p) => p.id === value);
+                  if (selectedProduct) {
+                    updatedItem.product = selectedProduct;
+                    updatedItem.price = selectedProduct.unitPrice;
+                    updatedItem.markupOverride = selectedProduct.markup;
+                    updatedItem.productId = selectedProduct.id;
+                    setScrollToItemId(
+                      selectedProduct.id?.toString() || updatedItem._tempId
+                    ); // Scroll a este ítem si se selecciona un producto
+                  } else {
+                    updatedItem.product = null;
+                    updatedItem.price = undefined;
+                    updatedItem.markupOverride = undefined;
+                    updatedItem.productId = 0;
+                  }
+                } else if (field === "price") {
+                  updatedItem.price = value as number | undefined;
+                } else if (field === "markupOverride") {
+                  updatedItem.markupOverride = value as number | undefined;
+                } else {
+                  (updatedItem as any)[field] = value;
+                }
+                return updatedItem;
+              }
+              return item;
+            }),
+          };
+        }
+        return cat;
+      });
+    });
+  };
+
   const handleAddNewProduct = (product: Product) => {
-    if (!products.some((p) => p.id === product.id)) {
-      setProducts((prevProducts) => [...prevProducts, product]);
-    }
+    setProducts((prevProducts) => {
+      if (!prevProducts.some((p) => p.id === product.id)) {
+        return [...prevProducts, product];
+      }
+      return prevProducts;
+    });
+    // Si el producto fue añadido y está asociado a un item, el updateItem ya maneja el scroll
+    // Si no está asociado directamente a un item, podrías añadir una lógica aquí para un scroll más general.
   };
 
   const handleAddNewClient = (client: Client) => {
@@ -246,9 +295,12 @@ export default function QuotationForm({
       setError("Error al crear el cliente: no se recibió un ID válido");
       return;
     }
-    if (!clients.some((c) => c.id === client.id)) {
-      setClients((prevClients) => [...prevClients, client]);
-    }
+    setClients((prevClients) => {
+      if (!prevClients.some((c) => c.id === client.id)) {
+        return [...prevClients, client];
+      }
+      return prevClients;
+    });
     setClientId(client.id.toString());
     setIsNewClientDialogOpen(false);
   };
@@ -446,6 +498,7 @@ export default function QuotationForm({
           email: client.email || "",
         },
         amount: roundUp(calculateTotalWithIVA()),
+        disableEmail: disableEmail, // Enviar el nuevo campo
       };
       setSavingProgress(50);
       if (quotation?.id) {
@@ -463,6 +516,7 @@ export default function QuotationForm({
       setSavingProgress(0);
     } finally {
       if (!error || error === null) {
+        // No hay un error real o ya se manejó
       } else {
         setIsSaving(false);
       }
@@ -535,6 +589,7 @@ export default function QuotationForm({
         email: client.email || "",
       },
       amount: roundUp(calculateTotalWithIVA()),
+      disableEmail: disableEmail, // Incluir el nuevo campo en la vista previa
     };
 
     setIsPreviewLoading(true);
@@ -576,12 +631,16 @@ export default function QuotationForm({
         if (!open && !isSaving) onCancel();
       }}
     >
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        ref={dialogContentRef}
+        className="max-w-7xl max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>
             {quotation ? "Editar Cotización" : "Nueva Cotización"}
           </DialogTitle>
         </DialogHeader>
+
         {isSaving && (
           <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
             <div
@@ -590,6 +649,7 @@ export default function QuotationForm({
             />
           </div>
         )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField>
@@ -601,6 +661,7 @@ export default function QuotationForm({
                 disabled={isSaving}
               />
             </FormField>
+
             <FormField>
               <FormLabel>Cliente</FormLabel>
               <div className="flex space-x-2">
@@ -687,29 +748,38 @@ export default function QuotationForm({
             </FormField>
           </div>
           {quotation && (
-            <FormField>
-              <FormLabel>Estado</FormLabel>
-              <Select
-                value={status}
-                onValueChange={setStatus}
-                disabled={isSaving}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex items-center">
-                        {option.icon}
-                        {option.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+            <>
+              <FormField>
+                <FormLabel>Estado</FormLabel>
+                <Select
+                  value={status}
+                  onValueChange={setStatus}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center">
+                          {option.icon}
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </>
           )}
+          <FormSwitch
+            label="Deshabilitar envío de correo"
+            description="Si está activado, no se enviarán correos electrónicos al cliente al crear o actualizar la cotización."
+            checked={disableEmail}
+            onCheckedChange={setDisableEmail}
+            disabled={isSaving}
+          />
           <div className="space-y-4">
             <div className="flex justify-between items-center mt-6">
               <h3 className="text-lg font-medium">Productos y Servicios</h3>
@@ -796,7 +866,7 @@ export default function QuotationForm({
               <div className="bg-pink-600/10 p-3 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm md:text-base">Saldo pendiente:</span>
-                  <span className="text-base md:text-lg font-bold">
+                  <span className="text-base md::text-lg font-bold">
                     {formatCurrency(calculateRemainingAmount())}
                   </span>
                 </div>

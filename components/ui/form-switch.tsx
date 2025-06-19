@@ -1,4 +1,5 @@
-import { Switch } from "./switch";
+// components/ui/form-switch.tsx
+import { Switch } from "./switch"; // Asegúrate de que esta ruta sea correcta
 import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { LucideIcon } from "lucide-react";
 
