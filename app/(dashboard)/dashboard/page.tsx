@@ -1,4 +1,3 @@
-// web/app/(dashboard)/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -23,6 +22,7 @@ import {
   BarChartHorizontal,
   Wrench,
   FileSpreadsheet,
+  Building,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/utils/date-format";
@@ -52,14 +52,26 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { Task } from "@/services/tasks";
 
 const COLORS = [
-  "#b42516",
-  "#2563eb",
-  "#16a34a",
-  "#eab308",
-  "#8b5cf6",
-  "#ec4899",
-  "#f97316",
-  "#14b8a6",
+  "#b42516", // Rojo
+  "#2563eb", // Azul
+  "#16a34a", // Verde
+  "#eab308", // Amarillo
+  "#8b5cf6", // Púrpura
+  "#ec4899", // Rosa
+  "#f97316", // Naranja
+  "#14b8a6", // Turquesa
+  "#64748b", // Gris azulado
+  "#a855f7", // Violeta
+  "#db2777", // Rojo frambuesa
+  "#d946b6", // Magenta
+  "#c026d3", // Púrpura oscuro
+  "#be185d", // Rojo oscuro
+  "#9f1239", // Granate
+  "#881337", // Rojo borgoña
+  "#4c0519", // Rojo muy oscuro
+  "#d4d4d4", // Gris claro
+  "#a3a3a3", // Gris medio
+  "#737373", // Gris oscuro
 ];
 
 function CustomBadge({
@@ -95,7 +107,7 @@ export default function DashboardPage() {
 
   const isAdmin = session?.user?.role === "ADMIN";
   const today = new Date();
-  const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM, yyyy");
+  const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM,EEEE");
 
   const fetchData = useCallback(async () => {
     if (sessionStatus !== "authenticated") return;
@@ -129,7 +141,7 @@ export default function DashboardPage() {
     fetchData();
   };
 
-  const handleDateRangeChange = (range: { start: Date; end: Date }) => {
+  const handleDateRangeChange = (range: { start?: Date; end?: Date }) => {
     if (range.start && range.end) {
       setDateRange({
         start: new Date(range.start),
@@ -183,11 +195,15 @@ export default function DashboardPage() {
     const maintenanceFailuresByBuilding =
       adminData?.maintenanceFailuresByBuilding;
     const buildingNamesForChart = adminData?.buildingNamesForChart;
+    const maintenanceCategoriesByClient =
+      adminData?.maintenanceCategoriesByClient;
 
     const hasSalesData = quotationStats?.monthlySales?.length > 0;
     const hasQuotationStats = quotationStats?.summary?.totalCount > 0;
     const hasTopProducts = topProducts?.length > 0;
     const hasMaintenances = upcomingMaintenances?.length > 0;
+    const hasMaintenanceCategoriesByClient =
+      maintenanceCategoriesByClient?.data?.length > 0;
 
     const quotationByStatusData = hasQuotationStats
       ? quotationStats.byStatus?.map((item: any) => ({
@@ -232,8 +248,8 @@ export default function DashboardPage() {
               Dashboard
             </h1>
             <p className="text-sm text-content-subtle">
-              {dateRange.start && formatDate(dateRange.start, "dd MMM, yyyy")} -{" "}
-              {dateRange.end && formatDate(dateRange.end, "dd MMM, yyyy")}
+              {dateRange.start && formatDate(dateRange.start, "dd MMM,EEEE")} -{" "}
+              {dateRange.end && formatDate(dateRange.end, "dd MMM,EEEE")}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -437,6 +453,7 @@ export default function DashboardPage() {
                       tick={{ fontSize: 12 }}
                     />
                     <Tooltip />
+                    <Legend />
                     <Bar
                       dataKey="count"
                       name="N° de Tareas"
@@ -535,6 +552,61 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
+          {/* Nuevo Gráfico: Total de Fallas por Edificio con Mantención */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-6 flex items-center">
+              <Building className="h-5 w-5 mr-2 text-primary" /> Top 10 Fallas
+              por Edificio con Mantención
+            </h3>
+            <div className="h-80">
+              {hasMaintenanceCategoriesByClient ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={
+                      maintenanceCategoriesByClient.data
+                        .slice() // Create a shallow copy to avoid modifying the original array
+                        .sort((a, b) => b.value - a.value) // Sort in descending order by value
+                        .slice(0, 10) // Take only the top 10
+                    }
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      interval={0}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis dataKey="value" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" name="N° Fallas">
+                      {maintenanceCategoriesByClient.data
+                        .slice()
+                        .sort((a, b) => b.value - a.value)
+                        .slice(0, 10)
+                        .map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Building className="h-12 w-12 text-content-subtle mb-2 opacity-50" />
+                  <p className="text-content-subtle">
+                    No hay datos de fallas en mantenimientos para edificios con
+                    servicio de mantención.
+                  </p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -577,6 +649,7 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
+
           <div className="space-y-6">
             <Card className="overflow-hidden">
               <div className="p-6 border-b">
@@ -659,7 +732,7 @@ export default function DashboardPage() {
                               Próximo:{" "}
                               {formatDate(
                                 new Date(maintenance.nextMaintenanceDate),
-                                "dd MMM, yyyy"
+                                "dd MMM,EEEE"
                               )}
                             </p>
                           </div>
@@ -829,7 +902,7 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <div className="flex flex-col items-center justify-center h-full text-center">
               <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
               <h3 className="text-lg font-medium">
                 ¡Semana sin tareas pendientes!

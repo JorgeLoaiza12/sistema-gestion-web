@@ -58,11 +58,6 @@ export function DateRangePicker({
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
-    // console.log("DateRangePicker props 'value' changed:", {
-    //   start: value.start && isValid(value.start) ? value.start.toISOString() : undefined,
-    //   end: value.end && isValid(value.end) ? value.end.toISOString() : undefined,
-    // });
-
     const propStart = value.start;
     const propEnd = value.end;
 
@@ -82,29 +77,23 @@ export function DateRangePicker({
       newSelectionMode = "complete";
     }
 
-    // Comparar con el estado interno 'date'
     const internalStart = date?.from;
     const internalEnd = date?.to;
 
-    // Verificar si hubo un cambio real en las props que deba reflejarse en el estado
     const propsActuallyChanged =
       validPropStart?.getTime() !== internalStart?.getTime() ||
       validPropEnd?.getTime() !== internalEnd?.getTime() ||
-      // Caso donde una fecha se vuelve undefined
       (validPropStart === undefined && internalStart !== undefined) ||
       (validPropEnd === undefined && internalEnd !== undefined);
 
     if (propsActuallyChanged) {
-      // console.log("Updating internal 'date' state due to prop change:", { from: validPropStart, to: validPropEnd });
       setDate({ from: validPropStart, to: validPropEnd });
       setSelectionMode(newSelectionMode);
     } else if (!validPropStart && !validPropEnd && date !== undefined) {
-      // Si las props se vuelven completamente undefined y el estado interno no lo es, resetear.
-      // console.log("Resetting internal 'date' state because props are undefined.");
       setDate(undefined);
       setSelectionMode("start");
     }
-  }, [value.start, value.end]); // Depender solo de value.start y value.end
+  }, [value.start, value.end]);
 
   const presets = [
     {
@@ -185,7 +174,7 @@ export function DateRangePicker({
             {date?.from && isValid(date.from) ? (
               date.to && isValid(date.to) ? (
                 <>
-                  {format(date.from, "dd MMM yy", { locale: es })} -{" "}
+                  {format(date.from, "dd MMM yy", { locale: es })} -
                   {format(date.to, "dd MMM yy", { locale: es })}
                 </>
               ) : (
@@ -197,7 +186,7 @@ export function DateRangePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-auto p-0"
+          className="w-auto p-0 max-h-[90vh] overflow-y-auto" // Added max-h-[90vh] and overflow-y-auto
           align="center"
           style={{
             backgroundColor: "white",
@@ -214,6 +203,7 @@ export function DateRangePicker({
                 : "Rango seleccionado"}
             </div>
             <TooltipProvider>
+              {/* Corrected: This was missing its closing tag */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -228,6 +218,7 @@ export function DateRangePicker({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {/* Corrected: Closing tag added */}
           </div>
 
           <div className="flex flex-wrap gap-1 p-3 border-b justify-between">

@@ -235,7 +235,6 @@ export default function CategoryForm({
   }) => {
     const [priceInputValue, setPriceInputValue] = useState<string>("");
     const [markupInputValue, setMarkupInputValue] = useState<string>("");
-    // NUEVO: Estado local para la cantidad
     const [quantityInputValue, setQuantityInputValue] = useState<string>(
       String(item.quantity || 1)
     );
@@ -260,9 +259,8 @@ export default function CategoryForm({
       }
       setMarkupInputValue(initialMarkup);
 
-      // NUEVO: Sincronizar el estado local de cantidad con la prop `item.quantity`
       setQuantityInputValue(String(item.quantity || 1));
-    }, [item.price, item.markupOverride, item.product?.id, item.quantity]); // Añadir item.quantity a las dependencias
+    }, [item.price, item.markupOverride, item.product?.id, item.quantity]);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setPriceInputValue(e.target.value);
@@ -322,14 +320,13 @@ export default function CategoryForm({
       }
     };
 
-    // NUEVO: Manejadores para el input de cantidad
     const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setQuantityInputValue(e.target.value); // Solo actualiza el estado local
+      setQuantityInputValue(e.target.value);
     };
 
     const handleQuantityBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       const value = parseInt(e.target.value) || 1;
-      onUpdateItem(categoryIndex, itemIndex, "quantity", value); // Actualiza el estado padre al salir del foco
+      onUpdateItem(categoryIndex, itemIndex, "quantity", value);
     };
 
     const currentProviderPrice =
@@ -344,11 +341,11 @@ export default function CategoryForm({
       (currentProviderPrice * currentMarkupPercentage) / 100
     );
     const finalPriceForItem = currentProviderPrice + markupAmountForItem;
-    const lineTotalWithMarkup = finalPriceForItem * (item.quantity || 1); // Usar item.quantity directamente aquí para el cálculo
+    const lineTotalWithMarkup = finalPriceForItem * (item.quantity || 1);
 
     return (
       <div
-        id={item.id?.toString() || (item as any)._tempId} // Añadir ID para scroll
+        id={item.id?.toString() || (item as any)._tempId}
         className={
           !item.productId || item.productId === 0
             ? "border border-red-300 rounded-md p-2 bg-red-50"
@@ -420,30 +417,31 @@ export default function CategoryForm({
                       </div>
                     </CommandEmpty>
                     <CommandGroup heading="Productos disponibles">
-                      {localProducts.map((product) => (
-                        <CommandItem
-                          key={product.id}
-                          value={product.name}
-                          onSelect={() => {
-                            onUpdateItem(
-                              categoryIndex,
-                              itemIndex,
-                              "productId",
-                              product.id
-                            );
-                            setOpenProductSelect(false);
-                          }}
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              item.productId === product.id
-                                ? "opacity-100"
-                                : "opacity-0"
-                            }`}
-                          />
-                          {product.name}
-                        </CommandItem>
-                      ))}
+                      {localProducts.map((product) => {
+                        const isSelected = item.productId === product.id;
+                        return (
+                          <CommandItem
+                            key={product.id}
+                            value={product.name}
+                            onSelect={() => {
+                              onUpdateItem(
+                                categoryIndex,
+                                itemIndex,
+                                "productId",
+                                product.id
+                              );
+                              setOpenProductSelect(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                isSelected ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            {product.name}
+                          </CommandItem>
+                        );
+                      })}
                     </CommandGroup>
                     <div className="p-2 border-t">
                       <Button
