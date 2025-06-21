@@ -88,6 +88,7 @@ export default function MaintenancePage() {
   const [workers, setWorkers] = useState<User[]>([]);
   const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
   const [isSchedulingNext, setIsSchedulingNext] = useState<number | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -175,6 +176,7 @@ export default function MaintenancePage() {
     } finally {
       setIsDeleting(false);
       setMaintenanceToDelete(null);
+      setIsDeleteConfirmOpen(false);
     }
   };
 
@@ -185,21 +187,39 @@ export default function MaintenancePage() {
           currentMaintenance.id.toString(),
           maintenanceData
         );
-        setMaintenances((prev) =>
-          prev.map((m) =>
-            m.id === currentMaintenance.id ? response.maintenance : m
-          )
-        );
-        addNotification("success", "Mantenimiento actualizado");
+        if (response.maintenance) {
+          setMaintenances((prev) =>
+            prev.map((m) =>
+              m.id === currentMaintenance.id ? response.maintenance : m
+            )
+          );
+          addNotification("success", "Mantenimiento actualizado");
+          closeModal();
+          fetchMaintenances(); 
+        } else {
+          throw new Error("No se recibió el mantenimiento actualizado.");
+        }
       } else {
+        // Si estamos creando
         const response = await createMaintenance(maintenanceData);
-        setMaintenances((prev) => [...prev, response.maintenance]);
-        addNotification("success", "Mantenimiento creado");
+        // Si la creación fue exitosa, añade a la lista y notifica
+        if (response.maintenance) {
+          setMaintenances((prev) => [...prev, response.maintenance]);
+          addNotification("success", "Mantenimiento creado");
+          closeModal();
+          fetchMaintenances(); // Refrescar datos después de la creación
+        } else {
+          throw new Error("No se recibió el mantenimiento creado.");
+        }
       }
-      closeModal();
-      fetchMaintenances();
     } catch (error) {
-      addNotification("error", "Error al guardar mantenimiento");
+      console.error("Error al guardar mantenimiento:", error);
+      addNotification(
+        "error",
+        `Error al guardar mantenimiento: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   };
 
@@ -231,7 +251,17 @@ export default function MaintenancePage() {
         "Siguiente ciclo de mantenimiento programado."
       );
       await fetchMaintenances();
-      handleGenerateTask(response.maintenance);
+      // Abrir el modal de tarea con la fecha de la nueva mantención pre-llenada
+      if (response.maintenance && response.maintenance.nextMaintenanceDate) {
+        setMaintenanceForTask({
+          ...response.maintenance,
+          // Convertir la fecha a formato ISO (YYYY-MM-DD) para el campo de fecha del formulario
+          startDate: new Date(response.maintenance.nextMaintenanceDate)
+            .toISOString()
+            .split("T")[0], // Usar startDate para TaskForm
+        });
+        setIsTaskFormOpen(true);
+      }
     } catch (error) {
       addNotification(
         "error",
@@ -243,6 +273,7 @@ export default function MaintenancePage() {
   };
 
   const getStatusBadge = (maintenance: Maintenance) => {
+    // Si el estado en la BD es FINALIZADO, priorizar eso
     if (maintenance.state === "FINALIZADO") {
       return (
         <Badge variant="success" className="flex items-center gap-1">
@@ -251,6 +282,7 @@ export default function MaintenancePage() {
       );
     }
 
+    // Si el estado es PENDIENTE, usar la lógica de fechas
     const status = getMaintenanceStatus(maintenance.nextMaintenanceDate);
     switch (status) {
       case "overdue":
@@ -265,12 +297,20 @@ export default function MaintenancePage() {
             <Clock className="h-3 w-3" /> <span>Urgente</span>
           </Badge>
         );
-      default:
+      case "upcoming":
         return (
-          <Badge variant="outline" className="flex items-center gap-1">
-            <CalendarIconLucide className="h-3 w-3" /> <span>Pendiente</span>
+          <Badge variant="info" className="flex items-center gap-1">
+            <CalendarIconLucide className="h-3 w-3" /> <span>Próximo</span>
           </Badge>
         );
+      case "scheduled":
+        return (
+          <Badge variant="default" className="flex items-center gap-1">
+            <CalendarIconLucide className="h-3 w-3" /> <span>Programado</span>
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">{maintenance.state}</Badge>;
     }
   };
 
@@ -323,17 +363,38 @@ export default function MaintenancePage() {
       cell: ({ row }) => {
         const maintenance = row.original;
         const isScheduling = isSchedulingNext === maintenance.id;
-        const hasTask =
-          Array.isArray(maintenance.tasks) && maintenance.tasks.length > 0;
+
+        // Verificar si hay tareas activas (PENDIENTE o EN_CURSO) asociadas a este mantenimiento
+        const hasActiveTask =
+          Array.isArray(maintenance.tasks) &&
+          maintenance.tasks.some(
+            (task) => task.state === "PENDIENTE" || task.state === "EN_CURSO"
+          );
+        // Obtener la primera tarea activa para el botón "Ver Tarea"
+        const firstActiveTask = Array.isArray(maintenance.tasks)
+          ? maintenance.tasks.find(
+              (task) => task.state === "PENDIENTE" || task.state === "EN_CURSO"
+            )
+          : undefined;
+
+        // Verificar si ya existe un siguiente ciclo de mantenimiento PENDIENTE
+        // (Esto evita que se puedan programar múltiples sucesores desde un mismo mantenimiento finalizado)
         const hasPendingSuccessor = maintenances.some(
           (m) =>
             m.clientId === maintenance.clientId &&
             m.state === "PENDIENTE" &&
-            new Date(m.createdAt!) > new Date(maintenance.createdAt!)
+            m.createdAt &&
+            maintenance.createdAt && // Asegurar que createdAt no sea undefined
+            new Date(m.createdAt) > new Date(maintenance.createdAt) &&
+            m.notes?.includes(
+              `Ciclo de seguimiento generado desde mantenimiento #${maintenance.id}`
+            ) // Asegurar que sea el sucesor
         );
 
         return (
           <div className="flex items-center space-x-1">
+            {/* Botón para Programar Siguiente Mantenimiento */}
+            {/* Se muestra si el mantenimiento actual está FINALIZADO y no hay un sucesor pendiente */}
             {maintenance.state === "FINALIZADO" && !hasPendingSuccessor && (
               <Button
                 variant="default"
@@ -343,14 +404,21 @@ export default function MaintenancePage() {
                 disabled={isScheduling}
               >
                 {isScheduling ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Programando...
+                  </>
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <>
+                    <ChevronRight className="h-4 w-4" />
+                  </>
                 )}
               </Button>
             )}
 
-            {maintenance.state === "PENDIENTE" && !hasTask && (
+            {/* Botón para Generar Tarea */}
+            {/* Se muestra si el mantenimiento está PENDIENTE y NO tiene una tarea activa */}
+            {maintenance.state === "PENDIENTE" && !hasActiveTask && (
               <Button
                 variant="outline"
                 size="sm"
@@ -363,22 +431,26 @@ export default function MaintenancePage() {
               </Button>
             )}
 
-            {maintenance.state === "PENDIENTE" && hasTask && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  router.push(
-                    `/dashboard/tasks?openTask=${maintenance.tasks![0].id}`
-                  )
-                }
-                title="Ver tarea existente"
-                className="flex items-center gap-2"
-              >
-                <Eye className="h-4 w-4" />
-                <span>Ver Tarea</span>
-              </Button>
-            )}
+            {/* Botón para Ver Tarea */}
+            {/* Se muestra si el mantenimiento está PENDIENTE y SÍ tiene una tarea activa */}
+            {maintenance.state === "PENDIENTE" &&
+              hasActiveTask &&
+              firstActiveTask?.id && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/tasks?openTask=${firstActiveTask.id}`
+                    )
+                  }
+                  title="Ver tarea existente"
+                  className="flex items-center gap-2"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>Ver Tarea</span>
+                </Button>
+              )}
 
             <Button
               variant="ghost"
@@ -391,7 +463,10 @@ export default function MaintenancePage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setMaintenanceToDelete(maintenance)}
+              onClick={() => {
+                setMaintenanceToDelete(maintenance);
+                setIsDeleteConfirmOpen(true);
+              }}
               title="Eliminar"
             >
               <Trash className="h-4 w-4" />
@@ -710,12 +785,10 @@ export default function MaintenancePage() {
       </Card>
 
       <ConfirmDialog
-        open={!!maintenanceToDelete}
-        onOpenChange={(open) => {
-          if (!open) setMaintenanceToDelete(null);
-        }}
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
         title="Eliminar Ciclo de Mantenimiento"
-        description={`¿Estás seguro de eliminar el mantenimiento del cliente ${maintenanceToDelete?.client?.name}? Esta acción no se puede deshacer.`}
+        description={`¿Estás seguro de eliminar el mantenimiento del cliente ${maintenanceToDelete?.client?.name} (ID: ${maintenanceToDelete?.id})? Esta acción no se puede deshacer.`}
         onConfirm={handleDelete}
         confirmLabel="Eliminar"
         isLoading={isDeleting}
@@ -756,7 +829,7 @@ export default function MaintenancePage() {
             ),
             types: ["MANTENCION"],
             state: "PENDIENTE",
-            startDate: new Date().toISOString(),
+            startDate: maintenanceForTask.startDate || new Date().toISOString(),
             categories: [],
           }}
           clients={allClients}
