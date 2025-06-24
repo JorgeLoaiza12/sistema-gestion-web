@@ -237,15 +237,15 @@ export default function QuotationsTable({
         );
       },
     },
-    {
-      //
-      id: "total",
-      header: "Total",
-      cell: ({ row }) => {
-        const total = calculateTotal(row.original);
-        return <span className="font-medium">{formatCurrency(total)}</span>;
-      },
-    },
+    // {
+    //   //
+    //   id: "total",
+    //   header: "Total",
+    //   cell: ({ row }) => {
+    //     const total = calculateTotal(row.original);
+    //     return <span className="font-medium">{formatCurrency(total)}</span>;
+    //   },
+    // },
     {
       id: "actions",
       header: "Acciones",
