@@ -69,22 +69,6 @@ export default function QuotationsTable({
   );
   const { addNotification } = useNotification();
 
-  const calculateTotal = (quotation: Quotation): number => {
-    //
-    return roundUp(
-      quotation.categories.reduce((categoryTotal, category) => {
-        return (
-          categoryTotal +
-          category.items.reduce((itemTotal, item) => {
-            const price = item.price || (item.product ? item.product.price : 0);
-            const finalPrice = Math.ceil(price + price * 0.35); //
-            return itemTotal + finalPrice * item.quantity;
-          }, 0)
-        );
-      }, 0)
-    );
-  };
-
   const handleDownloadPDF = async (id: string) => {
     try {
       setIsDownloading(id);
@@ -237,15 +221,17 @@ export default function QuotationsTable({
         );
       },
     },
-    // {
-    //   //
-    //   id: "total",
-    //   header: "Total",
-    //   cell: ({ row }) => {
-    //     const total = calculateTotal(row.original);
-    //     return <span className="font-medium">{formatCurrency(total)}</span>;
-    //   },
-    // },
+    {
+      id: "total",
+      header: "Monto Total",
+      cell: ({ row }) => {
+        return (
+          <span className="font-medium">
+            {formatCurrency(row.original.amount || 0)}
+          </span>
+        );
+      },
+    },
     {
       id: "actions",
       header: "Acciones",
