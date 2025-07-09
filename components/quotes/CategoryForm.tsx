@@ -52,11 +52,12 @@ interface CategoryFormProps {
   onUpdateItem: (
     categoryIndex: number,
     itemIndex: number,
-    field: keyof QuotationItem | "price" | "markupOverride",
-    value: any
+    itemUpdate: Partial<QuotationItem>
   ) => void;
   onAddNewProduct: (product: Product) => void;
   disabled?: boolean;
+  isCreatingProduct: boolean;
+  setIsCreatingProduct: (isCreating: boolean) => void;
 }
 
 export default function CategoryForm({
@@ -70,12 +71,13 @@ export default function CategoryForm({
   onUpdateItem,
   onAddNewProduct,
   disabled = false,
+  isCreatingProduct,
+  setIsCreatingProduct,
 }: CategoryFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { addNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isNewProductDialogOpen, setIsNewProductDialogOpen] = useState(false);
-  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [productFormError, setProductFormError] = useState<string | null>(null);
   const [itemIndexForNewProduct, setItemIndexForNewProduct] = useState<
     number | null
@@ -174,30 +176,15 @@ export default function CategoryForm({
       const updatedProducts = [...localProducts, newProduct];
       setLocalProducts(updatedProducts);
       onAddNewProduct(newProduct);
-      onUpdateItem(
-        categoryIndex,
-        itemIndexForNewProduct,
-        "productId",
-        newProduct.id
-      );
-      onUpdateItem(
-        categoryIndex,
-        itemIndexForNewProduct,
-        "price",
-        newProduct.unitPrice
-      );
-      onUpdateItem(
-        categoryIndex,
-        itemIndexForNewProduct,
-        "markupOverride",
-        newProduct.markup
-      );
-      onUpdateItem(
-        categoryIndex,
-        itemIndexForNewProduct,
-        "product",
-        newProduct
-      );
+
+      const itemUpdatePayload = {
+        productId: newProduct.id,
+        price: newProduct.unitPrice,
+        markupOverride: newProduct.markup,
+        product: newProduct,
+      };
+      onUpdateItem(categoryIndex, itemIndexForNewProduct, itemUpdatePayload);
+
       addNotification("success", "Producto creado correctamente");
       setIsNewProductDialogOpen(false);
       setFormData({
@@ -269,14 +256,14 @@ export default function CategoryForm({
     const handlePriceBlur = () => {
       const value = priceInputValue;
       if (value.trim() === "") {
-        onUpdateItem(categoryIndex, itemIndex, "price", undefined);
+        onUpdateItem(categoryIndex, itemIndex, { price: undefined });
         if (item.product && item.product.unitPrice !== undefined) {
           setPriceInputValue(String(item.product.unitPrice));
         }
       } else {
         const num = parseFloat(value);
         if (!isNaN(num) && num >= 0) {
-          onUpdateItem(categoryIndex, itemIndex, "price", roundUp(num));
+          onUpdateItem(categoryIndex, itemIndex, { price: roundUp(num) });
         } else {
           let fallbackPrice = "";
           if (item.price !== undefined) {
@@ -296,7 +283,7 @@ export default function CategoryForm({
     const handleMarkupBlur = () => {
       const value = markupInputValue;
       if (value.trim() === "") {
-        onUpdateItem(categoryIndex, itemIndex, "markupOverride", undefined);
+        onUpdateItem(categoryIndex, itemIndex, { markupOverride: undefined });
         if (item.product && item.product.markup !== undefined) {
           setMarkupInputValue(String(item.product.markup));
         } else {
@@ -305,7 +292,7 @@ export default function CategoryForm({
       } else {
         const num = parseFloat(value);
         if (!isNaN(num) && num >= 0) {
-          onUpdateItem(categoryIndex, itemIndex, "markupOverride", num);
+          onUpdateItem(categoryIndex, itemIndex, { markupOverride: num });
         } else {
           let fallbackMarkup = "";
           if (item.markupOverride !== undefined) {
@@ -326,7 +313,7 @@ export default function CategoryForm({
 
     const handleQuantityBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       const value = parseInt(e.target.value) || 1;
-      onUpdateItem(categoryIndex, itemIndex, "quantity", value);
+      onUpdateItem(categoryIndex, itemIndex, { quantity: value });
     };
 
     const currentProviderPrice =
@@ -424,12 +411,9 @@ export default function CategoryForm({
                             key={product.id}
                             value={product.name}
                             onSelect={() => {
-                              onUpdateItem(
-                                categoryIndex,
-                                itemIndex,
-                                "productId",
-                                product.id
-                              );
+                              onUpdateItem(categoryIndex, itemIndex, {
+                                productId: product.id,
+                              });
                               setOpenProductSelect(false);
                             }}
                           >
@@ -474,9 +458,9 @@ export default function CategoryForm({
               <Input
                 type="number"
                 min="1"
-                value={quantityInputValue} // Usa el estado local
-                onChange={handleQuantityChange} // Actualiza solo el estado local
-                onBlur={handleQuantityBlur} // Actualiza el estado padre al salir del foco
+                value={quantityInputValue}
+                onChange={handleQuantityChange}
+                onBlur={handleQuantityBlur}
                 className="h-9"
                 required
                 disabled={disabled}

@@ -25,6 +25,7 @@ import {
   createQuotation,
   updateQuotation,
   getPreviewQuotationPDF,
+  QuotationResponse,
 } from "@/services/quotations";
 import { getClients, Client } from "@/services/clients";
 import { getProducts, Product } from "@/services/products";
@@ -35,11 +36,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { httpClient } from "@/lib/httpClient";
-import { FormSwitch } from "../ui/form-switch"; // Importar el nuevo componente
+import { FormSwitch } from "../ui/form-switch";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
-  onSave: () => void;
+  onSave: (savedQuotation: Quotation | null) => void;
   onCancel: () => void;
   statusOptions: Array<{ value: string; label: string; icon: React.ReactNode }>;
 }
@@ -78,6 +79,7 @@ export default function QuotationForm({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -88,9 +90,7 @@ export default function QuotationForm({
     quotation?.disableEmail || false
   );
 
-  // Ref para el contenido del Dialog para el scroll
   const dialogContentRef = useRef<HTMLDivElement>(null);
-  // Estado para el ID del último item añadido para hacer scroll
   const [scrollToItemId, setScrollToItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,13 +169,13 @@ export default function QuotationForm({
     }
   }, [quotation]);
 
-  // Efecto para hacer scroll al último item añadido
   useEffect(() => {
     if (scrollToItemId && dialogContentRef.current) {
       const element = document.getElementById(scrollToItemId);
       if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "end" });
-        setScrollToItemId(null); // Resetear después de hacer scroll
+        // CAMBIO CLAVE: Se ajustan las opciones para un scroll más inteligente e instantáneo.
+        element.scrollIntoView({ behavior: "auto", block: "nearest" });
+        setScrollToItemId(null);
       }
     }
   }, [scrollToItemId]);
@@ -196,7 +196,7 @@ export default function QuotationForm({
 
   const addItem = (categoryIndex: number) => {
     setCategories((prevCategories) => {
-      const newCategories = [...prevCategories]; // Shallow copy of categories
+      const newCategories = [...prevCategories];
       const newItem = {
         productId: 0,
         quantity: 1,
@@ -205,70 +205,64 @@ export default function QuotationForm({
         product: null as any,
         _tempId: `new-item-${Date.now()}-${Math.random()
           .toString(36)
-          .substr(2, 9)}`, // Temp ID for scrolling
+          .substr(2, 9)}`,
       };
       newCategories[categoryIndex] = {
         ...newCategories[categoryIndex],
-        items: [...newCategories[categoryIndex].items, newItem], // Shallow copy of items
+        items: [...newCategories[categoryIndex].items, newItem],
       };
-      setScrollToItemId(newItem._tempId); // Set ID to scroll to
+      setScrollToItemId(newItem._tempId);
       return newCategories;
     });
   };
 
   const removeItem = (categoryIndex: number, itemIndex: number) => {
     setCategories((prevCategories) => {
-      const newCategories = [...prevCategories]; // Shallow copy of categories
+      const newCategories = [...prevCategories];
       newCategories[categoryIndex] = {
         ...newCategories[categoryIndex],
         items: newCategories[categoryIndex].items.filter(
           (_, i) => i !== itemIndex
-        ), // Filter creates new array
+        ),
       };
       return newCategories;
     });
   };
 
-  // REVISIÓN CRÍTICA: La actualización inmutable para evitar pérdida de foco y scroll jump
   const updateItem = (
     categoryIndex: number,
     itemIndex: number,
-    field: keyof QuotationItem | "price" | "markupOverride",
-    value: any
+    itemUpdate: Partial<QuotationItem>
   ) => {
+    const itemToScrollTo = categories[categoryIndex]?.items[itemIndex];
+    const scrollId =
+      (itemToScrollTo as any)?._tempId || itemToScrollTo?.id?.toString();
+    if (scrollId) {
+      setScrollToItemId(scrollId);
+    }
+
     setCategories((prevCategories) => {
       return prevCategories.map((cat, catIdx) => {
         if (catIdx === categoryIndex) {
           return {
-            ...cat, // Copia superficial de la categoría
+            ...cat,
             items: cat.items.map((item, itemIdx) => {
               if (itemIdx === itemIndex) {
-                const updatedItem = { ...item }; // Copia superficial del ítem
-
-                if (field === "productId") {
-                  const selectedProduct = products.find((p) => p.id === value);
+                if (itemUpdate.productId && !itemUpdate.product) {
+                  const selectedProduct = products.find(
+                    (p) => p.id === itemUpdate.productId
+                  );
                   if (selectedProduct) {
-                    updatedItem.product = selectedProduct;
-                    updatedItem.price = selectedProduct.unitPrice;
-                    updatedItem.markupOverride = selectedProduct.markup;
-                    updatedItem.productId = selectedProduct.id;
-                    setScrollToItemId(
-                      selectedProduct.id?.toString() || updatedItem._tempId
-                    ); // Scroll a este ítem si se selecciona un producto
-                  } else {
-                    updatedItem.product = null;
-                    updatedItem.price = undefined;
-                    updatedItem.markupOverride = undefined;
-                    updatedItem.productId = 0;
+                    return {
+                      ...item,
+                      productId: selectedProduct.id,
+                      price: selectedProduct.unitPrice,
+                      markupOverride: selectedProduct.markup,
+                      product: selectedProduct,
+                    };
                   }
-                } else if (field === "price") {
-                  updatedItem.price = value as number | undefined;
-                } else if (field === "markupOverride") {
-                  updatedItem.markupOverride = value as number | undefined;
-                } else {
-                  (updatedItem as any)[field] = value;
                 }
-                return updatedItem;
+                return { ...item, ...itemUpdate };
               }
               return item;
             }),
@@ -286,8 +280,6 @@ export default function QuotationForm({
       }
       return prevProducts;
     });
-    // Si el producto fue añadido y está asociado a un item, el updateItem ya maneja el scroll
-    // Si no está asociado directamente a un item, podrías añadir una lógica aquí para un scroll más general.
   };
 
   const handleAddNewClient = (client: Client) => {
@@ -394,7 +386,6 @@ export default function QuotationForm({
     const iva = calculateIVA();
     return subtotal + iva;
   };
-
   const calculateAdvanceAmount = (): number => {
     return Math.round((calculateTotalWithIVA() * advancePercentage) / 100);
   };
@@ -498,17 +489,24 @@ export default function QuotationForm({
           email: client.email || "",
         },
         amount: roundUp(calculateTotalWithIVA()),
-        disableEmail: disableEmail, // Enviar el nuevo campo
+        disableEmail: disableEmail,
       };
       setSavingProgress(50);
+
+      let response: QuotationResponse;
       if (quotation?.id) {
-        await updateQuotation(quotation.id, quotationData);
+        response = await updateQuotation(quotation.id, quotationData);
       } else {
-        await createQuotation(quotationData);
+        response = await createQuotation(quotationData);
       }
+
       setSavingProgress(100);
       setTimeout(() => {
-        onSave();
+        if (response.quotation) {
+          onSave(response.quotation);
+        } else {
+          onSave(null);
+        }
       }, 500);
     } catch (err) {
       console.error("Error al guardar la cotización:", err);
@@ -516,7 +514,6 @@ export default function QuotationForm({
       setSavingProgress(0);
     } finally {
       if (!error || error === null) {
-        // No hay un error real o ya se manejó
       } else {
         setIsSaving(false);
       }
@@ -589,7 +586,7 @@ export default function QuotationForm({
         email: client.email || "",
       },
       amount: roundUp(calculateTotalWithIVA()),
-      disableEmail: disableEmail, // Incluir el nuevo campo en la vista previa
+      disableEmail: disableEmail,
     };
 
     setIsPreviewLoading(true);
@@ -817,6 +814,8 @@ export default function QuotationForm({
                   onUpdateItem={updateItem}
                   onAddNewProduct={handleAddNewProduct}
                   disabled={isSaving}
+                  isCreatingProduct={isCreatingProduct}
+                  setIsCreatingProduct={setIsCreatingProduct}
                 />
               ))
             )}
@@ -910,7 +909,12 @@ export default function QuotationForm({
             </Button>
             <Button
               type="submit"
-              disabled={isSaving || loadingClients || loadingProducts}
+              disabled={
+                isSaving ||
+                loadingClients ||
+                loadingProducts ||
+                isCreatingProduct
+              }
               className="w-full sm:w-auto"
             >
               {isSaving ? (
