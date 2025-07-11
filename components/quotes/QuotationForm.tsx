@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel } from "@/components/ui/form";
-import { Plus, Loader2, Save, Eye } from "lucide-react";
+import { Plus, Loader2, Save, Eye, Check, ChevronsUpDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,13 +11,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"; // <--- ESTA ES LA IMPORTACIÓN QUE FALTABA
 import {
   type QuotationCategory,
   type QuotationItem,
@@ -27,7 +28,11 @@ import {
   getPreviewQuotationPDF,
   QuotationResponse,
 } from "@/services/quotations";
-import { getClients, Client } from "@/services/clients";
+import {
+  getClients,
+  createClient as createClientService,
+  Client,
+} from "@/services/clients";
 import { getProducts, Product } from "@/services/products";
 import CategoryForm from "./CategoryForm";
 import ClientForm from "./ClientForm";
@@ -37,6 +42,9 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { httpClient } from "@/lib/httpClient";
 import { FormSwitch } from "../ui/form-switch";
+import { useNotification } from "@/contexts/NotificationContext";
+import ClientSelect from "../clients/ClientSelect";
+import { cn } from "@/lib/utils";
 
 interface QuotationFormProps {
   quotation: Quotation | null;
@@ -89,6 +97,7 @@ export default function QuotationForm({
   const [disableEmail, setDisableEmail] = useState<boolean>(
     quotation?.disableEmail || false
   );
+  const { addNotification } = useNotification();
 
   const dialogContentRef = useRef<HTMLDivElement>(null);
   const [scrollToItemId, setScrollToItemId] = useState<string | null>(null);
@@ -173,7 +182,6 @@ export default function QuotationForm({
     if (scrollToItemId && dialogContentRef.current) {
       const element = document.getElementById(scrollToItemId);
       if (element) {
-        // CAMBIO CLAVE: Se ajustan las opciones para un scroll más inteligente e instantáneo.
         element.scrollIntoView({ behavior: "auto", block: "nearest" });
         setScrollToItemId(null);
       }
@@ -282,19 +290,29 @@ export default function QuotationForm({
     });
   };
 
-  const handleAddNewClient = (client: Client) => {
-    if (!client.id) {
-      setError("Error al crear el cliente: no se recibió un ID válido");
-      return;
-    }
-    setClients((prevClients) => {
-      if (!prevClients.some((c) => c.id === client.id)) {
-        return [...prevClients, client];
+  const handleAddNewClient = async (clientData: Client) => {
+    try {
+      const response = await createClientService(clientData);
+      const newClient = response.client || (response as unknown as Client);
+
+      if (newClient && newClient.id) {
+        setClients((prev) => [...prev, newClient]);
+        setClientId(newClient.id.toString());
+        addNotification("success", "Cliente creado exitosamente.");
+        setIsNewClientDialogOpen(false);
+      } else {
+        throw new Error("No se pudo crear el cliente.");
       }
-      return prevClients;
-    });
-    setClientId(client.id.toString());
-    setIsNewClientDialogOpen(false);
+    } catch (err) {
+      console.error("Error al crear cliente:", err);
+      addNotification(
+        "error",
+        `Error al crear el cliente: ${
+          err instanceof Error ? err.message : "Error desconocido"
+        }`
+      );
+      throw err;
+    }
   };
 
   const handleAdvancePercentageChange = (
@@ -380,7 +398,6 @@ export default function QuotationForm({
     const subtotal = calculateQuotationTotal();
     return Math.round(subtotal * IVA_RATE);
   };
-
   const calculateTotalWithIVA = (): number => {
     const subtotal = calculateQuotationTotal();
     const iva = calculateIVA();
@@ -661,56 +678,13 @@ export default function QuotationForm({
 
             <FormField>
               <FormLabel>Cliente</FormLabel>
-              <div className="flex space-x-2">
-                {loadingClients ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : (
-                  <Select
-                    value={clientId}
-                    onValueChange={(value) => {
-                      setClientId(value);
-                      if (value === "new") {
-                        setIsNewClientDialogOpen(true);
-                      }
-                    }}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="flex-grow">
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent
-                      className="max-h-[300px] overflow-y-auto"
-                      style={{ maxHeight: "300px", overflowY: "auto" }}
-                    >
-                      <SelectItem value="new">
-                        <div className="flex items-center">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Crear nuevo cliente
-                        </div>
-                      </SelectItem>
-                      {clients.length > 0 ? (
-                        <>
-                          <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
-                            Clientes ({clients.length})
-                          </div>
-                          {clients.map((client) => (
-                            <SelectItem
-                              key={client.id}
-                              value={client.id?.toString() || ""}
-                            >
-                              {client.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      ) : (
-                        <SelectItem value="empty" disabled>
-                          No hay clientes disponibles
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              <ClientSelect
+                clients={clients}
+                value={clientId}
+                onValueChange={(id) => setClientId(id)}
+                onClientCreated={handleAddNewClient}
+                isLoading={loadingClients}
+              />
             </FormField>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -932,12 +906,9 @@ export default function QuotationForm({
           </DialogFooter>
         </form>
         <ClientForm
-          isOpen={isNewClientDialogOpen || clientId === "new"}
+          isOpen={isNewClientDialogOpen}
           onClose={() => {
             setIsNewClientDialogOpen(false);
-            if (clientId === "new") {
-              setClientId("");
-            }
           }}
           onClientCreated={handleAddNewClient}
         />

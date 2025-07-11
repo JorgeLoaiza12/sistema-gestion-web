@@ -1,19 +1,25 @@
-// web\components\clients\ClientSelect.tsx
+"use client";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectGroup,
-  SelectLabel,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Client, createClient } from "@/services/clients";
+import { CustomerForm } from "@/components/clients/CustomerForm";
+import { cn } from "@/lib/utils";
 import { useNotification } from "@/contexts/NotificationContext";
-import ClientForm from "@/components/clients/ClientForm";
 
 interface ClientSelectProps {
   clients: Client[];
@@ -29,105 +35,145 @@ export default function ClientSelect({
   value,
   onValueChange,
   onClientCreated,
-  placeholder = "Seleccionar cliente",
+  placeholder = "Seleccionar o buscar cliente...",
   isLoading = false,
 }: ClientSelectProps) {
+  const [open, setOpen] = useState(false);
   const [isAddingClient, setIsAddingClient] = useState(false);
-  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { addNotification } = useNotification();
 
-  const handleAddClient = async (clientData: Client) => {
+  const handleSaveNewClient = async (clientData: Client) => {
+    setIsSubmitting(true);
     try {
-      setIsCreatingClient(true);
-      const newClient = await createClient(clientData);
+      const response = await createClient(clientData);
+      const newClient = response.client || (response as unknown as Client);
 
-      // Notificar al componente padre sobre el nuevo cliente
+      if (!newClient || !newClient.id) {
+        throw new Error(
+          "La respuesta del servidor no incluyó un cliente válido."
+        );
+      }
+
+      // Notificar al componente padre que se creó un nuevo cliente para que actualice su lista
       if (onClientCreated) {
         onClientCreated(newClient);
       }
 
-      // Seleccionar el cliente recién creado
+      // Seleccionar automáticamente el cliente recién creado
       onValueChange(newClient.id.toString(), newClient);
 
       addNotification("success", "Cliente creado correctamente");
-      setIsAddingClient(false);
+      setIsAddingClient(false); // Cierra el modal de creación
     } catch (error) {
-      console.error("Error al crear cliente:", error);
-      addNotification("error", "Error al crear el cliente");
+      console.error("Error al crear el nuevo cliente:", error);
+      addNotification(
+        "error",
+        `Error al crear el cliente: ${
+          error instanceof Error ? error.message : "Error desconocido"
+        }`
+      );
     } finally {
-      setIsCreatingClient(false);
+      setIsSubmitting(false);
     }
   };
 
+  const selectedClientName =
+    clients.find((c) => c.id?.toString() === value)?.name || placeholder;
+
   return (
     <>
-      <div className="flex gap-2 items-center">
-        <Select
-          value={value}
-          onValueChange={(val) => {
-            if (val === "new") {
-              setIsAddingClient(true);
-              return;
-            }
-
-            // Encontrar el cliente seleccionado
-            const selectedClient = clients.find(
-              (client) => client.id.toString() === val
-            );
-
-            onValueChange(val, selectedClient);
-          }}
-          className="flex-1"
-          disabled={isLoading || isCreatingClient}
-        >
-          <SelectTrigger>
-            {isLoading ? (
-              <div className="flex items-center">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                <span>Cargando clientes...</span>
-              </div>
-            ) : (
-              <SelectValue placeholder={placeholder} />
-            )}
-          </SelectTrigger>
-          <SelectContent className="max-h-[300px] overflow-y-auto">
-            <SelectItem value="-">Sin cliente</SelectItem>
-            <SelectItem value="new">
-              <div className="flex items-center">
-                <Plus className="h-4 w-4 mr-2" />
-                Crear nuevo cliente
-              </div>
-            </SelectItem>
-            {clients.length > 0 ? (
-              <SelectGroup>
-                <SelectLabel className="px-2 py-1 text-xs text-content-subtle">
-                  Clientes ({clients.length})
-                </SelectLabel>
-                <div className="max-h-[200px] overflow-y-auto">
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id.toString()}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between"
+            disabled={isLoading}
+          >
+            <span className="truncate">
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                selectedClientName
+              )}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+          <Command>
+            <CommandInput placeholder="Buscar cliente por nombre..." />
+            <CommandList style={{ maxHeight: "250px" }}>
+              <CommandEmpty>
+                <div className="py-2 px-3 text-center text-sm">
+                  <p className="mb-2">No se encontró el cliente.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setIsAddingClient(true);
+                      setOpen(false);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Crear Nuevo Cliente
+                  </Button>
                 </div>
-              </SelectGroup>
-            ) : (
-              <SelectItem value="empty" disabled>
-                No hay clientes disponibles
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+              </CommandEmpty>
+              <CommandGroup>
+                {clients.map((client) => (
+                  <CommandItem
+                    key={client.id}
+                    value={client.name}
+                    onSelect={() => {
+                      onValueChange(client.id!.toString(), client);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === client.id!.toString()
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                    <span>{client.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
 
-      {/* Formulario para crear nuevo cliente */}
-      <ClientForm
-        isOpen={isAddingClient}
-        customer={null}
-        onSave={handleAddClient}
-        onCancel={() => setIsAddingClient(false)}
-        isLoading={isCreatingClient}
-      />
+              <div className="p-1 border-t mt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsAddingClient(true);
+                    setOpen(false);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear Nuevo Cliente
+                </Button>
+              </div>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {isAddingClient && (
+        <CustomerForm
+          customer={null}
+          onSave={handleSaveNewClient}
+          onCancel={() => setIsAddingClient(false)}
+          isSubmitting={isSubmitting}
+        />
+      )}
     </>
   );
 }

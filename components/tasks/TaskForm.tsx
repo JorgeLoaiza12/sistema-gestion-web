@@ -40,11 +40,18 @@ interface TaskFormProps {
   isLoading?: boolean;
   isLoadingClients?: boolean;
   isLoadingWorkers?: boolean;
-  maintenanceId?: number;
+  maintenanceId?: number | null;
 }
 
 const TASK_STATES = ["PENDIENTE", "EN_CURSO", "FINALIZADO"];
-const TASK_TYPES = ["REVISION", "REPARACION", "MANTENCION", "MANTENCION UNICA", "INSTALACION", "CONFIGURACION"];
+const TASK_TYPES = [
+  "REVISION",
+  "REPARACION",
+  "MANTENCION",
+  "MANTENCION UNICA",
+  "INSTALACION",
+  "CONFIGURACION",
+];
 const TASK_CATEGORIES = [
   "CCTV",
   "Citofonia",
@@ -248,7 +255,6 @@ export default function TaskForm({
       }
     });
   };
-
   const handleCategoryToggle = (category: string) => {
     setTaskForm((prev) => {
       const categories = prev.categories || [];

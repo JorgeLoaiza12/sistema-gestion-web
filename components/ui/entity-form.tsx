@@ -1,4 +1,3 @@
-// components\ui\entity-form.tsx
 "use client";
 
 import React, { ReactNode } from "react";
@@ -24,6 +23,7 @@ interface EntityFormProps {
   formClassName?: string;
   maxWidth?: string;
   preventClose?: boolean;
+  showSubmitButton?: boolean;
 }
 
 export function EntityForm({
@@ -38,6 +38,7 @@ export function EntityForm({
   formClassName,
   maxWidth = "max-w-md",
   preventClose = false,
+  showSubmitButton = true,
 }: EntityFormProps) {
   const handleOpenChange = (open: boolean) => {
     if (!open && !preventClose) {
@@ -57,27 +58,15 @@ export function EntityForm({
           className={formClassName}
           isLoading={isLoading}
           error={error}
-          showSubmitButton={false}
+          showSubmitButton={showSubmitButton}
         >
           {children}
 
-          <DialogFooter className="flex justify-end space-x-2 pt-4">
-            {footerContent || (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                  type="button"
-                  disabled={isLoading}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Guardando..." : "Guardar"}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
+          {footerContent && (
+            <DialogFooter className="flex justify-end space-x-2 pt-4">
+              {footerContent}
+            </DialogFooter>
+          )}
         </CSRFProtectedForm>
       </DialogContent>
     </Dialog>

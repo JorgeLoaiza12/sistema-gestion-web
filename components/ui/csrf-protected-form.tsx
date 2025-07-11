@@ -40,10 +40,6 @@ interface CSRFProtectedFormProps extends FormHTMLAttributes<HTMLFormElement> {
   };
 }
 
-/**
- * Componente de formulario con protección CSRF integrada
- * Genera un token CSRF al montar y lo incluye automáticamente al enviar el formulario
- */
 export const CSRFProtectedForm = forwardRef<
   HTMLFormElement,
   CSRFProtectedFormProps
@@ -64,24 +60,19 @@ export const CSRFProtectedForm = forwardRef<
   ) => {
     const [csrfToken, setCsrfToken] = useState<string>("");
 
-    // Generar un nuevo token CSRF al montar el componente
     useEffect(() => {
       const token = generateCSRFToken();
       setCsrfToken(token);
       storeCSRFToken(token);
     }, []);
 
-    // Manejador de envío con validación CSRF
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
 
-      // Validar que el token del formulario coincida con el almacenado
       if (validateCSRFToken(csrfToken)) {
-        // Pasar el evento al manejador proporcionado
         onSubmit(e);
       } else {
         console.error("Error de validación CSRF: Los tokens no coinciden");
-        // Podríamos mostrar un mensaje de error o tomar otra acción
         alert(
           "Error de seguridad: Por favor, recarga la página e intenta nuevamente."
         );
@@ -95,20 +86,16 @@ export const CSRFProtectedForm = forwardRef<
         ref={ref}
         {...props}
       >
-        {/* Token CSRF oculto */}
         <input type="hidden" name="csrfToken" value={csrfToken} />
 
-        {/* Contenido del formulario */}
         <div className="space-y-4">{children}</div>
 
-        {/* Mensaje de error */}
         {error && (
           <div className="p-3 rounded-lg bg-error/10 border border-error/20">
             <p className="text-sm text-error text-center">{error}</p>
           </div>
         )}
 
-        {/* Botón de envío */}
         {showSubmitButton && (
           <Button
             type="submit"

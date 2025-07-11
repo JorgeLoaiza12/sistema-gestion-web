@@ -92,7 +92,6 @@ export function CustomerForm({
           />
         </FormField>
 
-        {/* Emails section - takes full width */}
         <div className="md:col-span-2 space-y-3">
           <FormField>
             <FormLabel>Email Principal</FormLabel>

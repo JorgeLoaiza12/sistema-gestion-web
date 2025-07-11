@@ -53,7 +53,9 @@ const TASK_TYPES_OPTIONS = [
   "REVISION",
   "REPARACION",
   "MANTENCION",
+  "MANTENCION UNICA",
   "INSTALACION",
+  "CONFIGURACION",
 ].map((type) => ({
   value: type,
   label: type.charAt(0) + type.slice(1).toLowerCase(),
@@ -229,7 +231,6 @@ export default function TasksPage() {
       setIsStartingTask(false);
     }
   };
-
   const handleDeleteConfirm = (task: Task) => {
     setTaskToDelete(task);
     setIsDeleteConfirmOpen(true);
@@ -424,10 +425,10 @@ export default function TasksPage() {
               <DateRangePicker
                 value={{
                   start: searchFilters.startDate
-                    ? new Date(searchFilters.startDate + "T00:00:00Z")
+                    ? new Date(searchFilters.startDate + "T00:00:00")
                     : undefined,
                   end: searchFilters.endDate
-                    ? new Date(searchFilters.endDate + "T23:59:59Z")
+                    ? new Date(searchFilters.endDate + "T23:59:59")
                     : undefined,
                 }}
                 onChange={(range) => handleDateRangeChange(range)}
@@ -524,6 +525,9 @@ export default function TasksPage() {
         isLoading={isSavingTask}
         isLoadingClients={isLoadingClients}
         isLoadingWorkers={isLoadingWorkers}
+        onClientCreated={(newClient) => {
+          setClients((prev) => [...prev, newClient]);
+        }}
       />
       <FinalizeTaskForm
         isOpen={isFinalizing}
