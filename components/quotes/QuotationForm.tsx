@@ -18,7 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // <--- ESTA ES LA IMPORTACIÓN QUE FALTABA
+} from "@/components/ui/select"; 
 import {
   type QuotationCategory,
   type QuotationItem,
