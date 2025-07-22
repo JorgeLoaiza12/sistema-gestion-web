@@ -1,3 +1,4 @@
+// app\(dashboard)\dashboard\page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -40,7 +41,6 @@ import {
   Pie,
   Cell,
 } from "recharts";
-
 import {
   getAdminDashboardData,
   getTechnicianDashboardData,
@@ -101,13 +101,12 @@ export default function DashboardPage() {
     start: new Date(new Date().setMonth(new Date().getMonth() - 1)),
     end: new Date(),
   });
-
   const [adminData, setAdminData] = useState<any>(null);
   const [technicianData, setTechnicianData] = useState<any>(null);
 
   const isAdmin = session?.user?.role === "ADMIN";
   const today = new Date();
-  const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM,EEEE");
+  const formattedDate = formatDate(today, "EEEE, dd 'de' MMMM");
 
   const fetchData = useCallback(async () => {
     if (sessionStatus !== "authenticated") return;
@@ -248,8 +247,8 @@ export default function DashboardPage() {
               Dashboard
             </h1>
             <p className="text-sm text-content-subtle">
-              {dateRange.start && formatDate(dateRange.start, "dd MMM,EEEE")} -{" "}
-              {dateRange.end && formatDate(dateRange.end, "dd MMM,EEEE")}
+              {dateRange.start && formatDate(dateRange.start, "dd MMM yyyy")} -{" "}
+              {dateRange.end && formatDate(dateRange.end, "dd MMM yyyy")}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -433,8 +432,8 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-6">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <Wrench className="h-5 w-5 mr-2 text-primary" /> Tareas por Tipo
-              de Servicio
+              <Wrench className="h-5 w-5 mr-2 text-primary" />
+              Tareas por Tipo de Servicio
             </h3>
             <div className="h-80">
               {taskStats?.byType?.length > 0 ? (
@@ -472,7 +471,7 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" />{" "}
+              <BarChartHorizontal className="h-5 w-5 mr-2 text-primary" />
               Tareas por Categoría
             </h3>
             <div className="h-80">
@@ -512,8 +511,8 @@ export default function DashboardPage() {
           </Card>
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <Wrench className="h-5 w-5 mr-2 text-primary" /> Fallas en
-              Mantenimientos por Edificio
+              <Wrench className="h-5 w-5 mr-2 text-primary" />
+              Fallas en Mantenimientos por Edificio
             </h3>
             <div className="h-80">
               {maintenanceFailuresByBuilding?.length > 0 ? (
@@ -529,13 +528,14 @@ export default function DashboardPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="category" tick={{ fontSize: 10 }} />
-                    <YAxis />
+                    <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Legend />
                     {buildingNamesForChart?.map((buildingName, index) => (
                       <Bar
                         key={buildingName}
                         dataKey={buildingName}
+                        stackId="a"
                         fill={COLORS[index % COLORS.length]}
                       />
                     ))}
@@ -552,22 +552,19 @@ export default function DashboardPage() {
               )}
             </div>
           </Card>
-          {/* Nuevo Gráfico: Total de Fallas por Edificio con Mantención */}
+
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-6 flex items-center">
-              <Building className="h-5 w-5 mr-2 text-primary" /> Top 10 Fallas
-              por Edificio con Mantención
+              <Building className="h-5 w-5 mr-2 text-primary" />
+              Total de Fallas por Edificio con Mantención
             </h3>
             <div className="h-80">
               {hasMaintenanceCategoriesByClient ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={
-                      maintenanceCategoriesByClient.data
-                        .slice() // Create a shallow copy to avoid modifying the original array
-                        .sort((a, b) => b.value - a.value) // Sort in descending order by value
-                        .slice(0, 10) // Take only the top 10
-                    }
+                    data={maintenanceCategoriesByClient.data
+                      .slice()
+                      .sort((a, b) => b.value - a.value)}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -575,25 +572,18 @@ export default function DashboardPage() {
                       dataKey="name"
                       angle={-45}
                       textAnchor="end"
-                      height={80}
+                      height={100}
                       interval={0}
                       tick={{ fontSize: 10 }}
                     />
-                    <YAxis dataKey="value" />
+                    <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="value" name="N° Fallas">
-                      {maintenanceCategoriesByClient.data
-                        .slice()
-                        .sort((a, b) => b.value - a.value)
-                        .slice(0, 10)
-                        .map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                    </Bar>
+                    <Bar
+                      dataKey="value"
+                      name="N° Total de Fallas"
+                      fill="#b42516"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -654,7 +644,7 @@ export default function DashboardPage() {
             <Card className="overflow-hidden">
               <div className="p-6 border-b">
                 <h3 className="text-lg font-semibold flex items-center">
-                  <PackageIcon className="h-5 w-5 mr-2 text-primary" />{" "}
+                  <PackageIcon className="h-5 w-5 mr-2 text-primary" />
                   Productos más vendidos
                 </h3>
               </div>
@@ -709,7 +699,7 @@ export default function DashboardPage() {
             <Card className="overflow-hidden">
               <div className="p-6 border-b">
                 <h3 className="text-lg font-semibold flex items-center">
-                  <Calendar className="h-5 w-5 mr-2 text-primary" />{" "}
+                  <Calendar className="h-5 w-5 mr-2 text-primary" />
                   Mantenimientos próximos
                 </h3>
               </div>
@@ -732,7 +722,7 @@ export default function DashboardPage() {
                               Próximo:{" "}
                               {formatDate(
                                 new Date(maintenance.nextMaintenanceDate),
-                                "dd MMM,EEEE"
+                                "dd MMM yyyy"
                               )}
                             </p>
                           </div>
@@ -879,7 +869,7 @@ export default function DashboardPage() {
                           : "text-content-subtle"
                       }`}
                     >
-                      {day}{" "}
+                      {day}
                       {isToday && (
                         <span className="text-xs ml-1 bg-primary text-white px-1.5 py-0.5 rounded-full">
                           Hoy
@@ -891,7 +881,7 @@ export default function DashboardPage() {
                         <div key={task.id} className="bg-accent/5 p-3 rounded">
                           <p className="font-medium">{task.title}</p>
                           <p className="text-xs text-content-subtle mt-1">
-                            {formatDate(new Date(task.startDate), "HH:mm")}{" "}
+                            {formatDate(new Date(task.startDate), "HH:mm")}
                             {task.client && `- ${task.client.name}`}
                           </p>
                         </div>

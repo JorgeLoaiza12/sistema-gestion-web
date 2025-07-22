@@ -1,4 +1,4 @@
-// Ruta: app\(dashboard)\dashboard\agenda\page.tsx
+// Ruta: app/(dashboard)/dashboard/agenda/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -72,7 +72,7 @@ export default function AgendaPage() {
     if (viewMode === "weekly") {
       const day = date.getDay();
       const startOfWeek = new Date(date);
-      startOfWeek.setDate(date.getDate() - day);
+      startOfWeek.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
 
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
@@ -100,7 +100,6 @@ export default function AgendaPage() {
 
       if (data && data.tasks) {
         setTasks(data.tasks);
-        addNotification("success", "Tareas cargadas correctamente");
       } else {
         setTasks([]);
         console.error("Formato de datos inválido:", data);
@@ -113,8 +112,7 @@ export default function AgendaPage() {
       setIsLoading(false);
       setIsChangingDate(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, viewMode, addNotification]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -129,11 +127,9 @@ export default function AgendaPage() {
   const handleStartTask = async (task: Task) => {
     try {
       setIsStartingTask(task.id);
-      const result = await startTask(task.id);
+      const result = await startTask(task.id!);
       if (result && result.task) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === result.task.id ? result.task : t))
-        );
+        await fetchWorkerTasks();
         addNotification("success", "Tarea iniciada correctamente");
       } else {
         throw new Error("No se pudo iniciar la tarea");
@@ -179,16 +175,14 @@ export default function AgendaPage() {
     setSelectedDate(new Date().toISOString().split("T")[0]);
   };
 
-  const handleFinalizeSubmit = async (data: FinalizeTaskData) => {
+  const handleFinalizeSubmit = async (data: FinalizeTaskData | FormData) => {
     try {
       const result = await finalizeTask(data);
       if (result && result.task) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === result.task.id ? result.task : t))
-        );
         addNotification("success", "Tarea finalizada correctamente");
         setIsFinalizing(false);
         setCurrentTask(null);
+        await fetchWorkerTasks();
       } else {
         throw new Error("No se pudo finalizar la tarea");
       }
@@ -246,7 +240,6 @@ export default function AgendaPage() {
     if (filterState === "overdue") return isTaskOverdue(task);
     return task.state === filterState;
   });
-
   const renderTaskCard = (task: Task) => {
     const date = new Date(task.startDate);
     const isTaskStarting = isStartingTask === task.id;
@@ -363,18 +356,6 @@ export default function AgendaPage() {
               <Eye className="h-4 w-4 mr-1" />
               Ver Detalles
             </Button>
-            {/* Se elimina el botón de descargar informe para el trabajador
-            {task.state === "FINALIZADO" && task.id && session?.user?.role === "ADMIN" && (
-              <DownloadTaskReportButton
-                taskId={task.id}
-                variant="outline"
-                size="sm"
-                label="Descargar"
-                showIcon={true}
-                className="flex-1"
-              />
-            )}
-            */}
           </div>
         </div>
       </Card>
@@ -501,17 +482,6 @@ export default function AgendaPage() {
               Finalizar
             </Button>
           )}
-          {/* Se elimina el botón de descargar informe para el trabajador
-          {row.original.state === "FINALIZADO" && row.original.id && session?.user?.role === "ADMIN" && (
-            <DownloadTaskReportButton
-              taskId={row.original.id}
-              variant="outline"
-              size="sm"
-              label="Descargar"
-              showIcon={true}
-            />
-          )}
-          */}
           <Button
             variant="outline"
             size="sm"
@@ -705,7 +675,7 @@ export default function AgendaPage() {
             </DialogHeader>
             <TaskDetail
               task={currentTask}
-              isAdmin={session?.user?.role === "ADMIN"} // Solo los admins pueden ver los detalles del informe
+              isAdmin={session?.user?.role === "ADMIN"}
               onEdit={() => {}}
               onDelete={() => {}}
               onStart={(taskToStart) => {

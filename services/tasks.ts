@@ -1,4 +1,4 @@
-// services/tasks.ts
+// Ruta: services/tasks.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -83,6 +83,7 @@ export interface FinalizeTaskData {
   nameWhoReceives?: string;
   positionWhoReceives?: string;
   imageUrlWhoReceives?: string;
+  signatureImageBase64?: string;
 }
 
 export interface TaskFilterParams {
@@ -286,27 +287,31 @@ export async function startTask(taskId: number): Promise<TaskResponse> {
 }
 
 export async function finalizeTask(
-  data: FinalizeTaskData
+  data: FinalizeTaskData | FormData
 ): Promise<TaskResponse> {
   try {
-    const processedData = {
-      ...data,
-      mediaUrls: data.mediaUrls || [],
-      systems: data.systems || [],
-      technicians: data.technicians || [],
-    };
-    return await httpClient<TaskResponse>("/tasks/finalize", {
+    const options: RequestInit & { headers?: HeadersInit } = {
       method: "POST",
-      body: JSON.stringify(processedData),
-    });
+    };
+
+    if (data instanceof FormData) {
+      options.body = data;
+    } else {
+      options.body = JSON.stringify(data);
+      options.headers = { "Content-Type": "application/json" };
+    }
+
+    return await httpClient<TaskResponse>("/tasks/finalize", options);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Forbidden")) {
       console.warn(
         "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada"
       );
       try {
+        const taskId =
+          data instanceof FormData ? data.get("taskId") : data.taskId;
         const taskResponse = await httpClient<{ task: Task }>(
-          `/tasks/${data.taskId}`,
+          `/tasks/${taskId}`,
           {
             method: "GET",
           }

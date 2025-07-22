@@ -14,6 +14,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useNotification } from "@/contexts/NotificationContext";
 import {
   getAllMaintenances,
@@ -40,6 +45,7 @@ import {
   Wrench,
   ChevronRight,
   Eye,
+  HelpCircle,
 } from "lucide-react";
 import {
   Select,
@@ -195,19 +201,17 @@ export default function MaintenancePage() {
           );
           addNotification("success", "Mantenimiento actualizado");
           closeModal();
-          fetchMaintenances(); 
+          fetchMaintenances();
         } else {
           throw new Error("No se recibió el mantenimiento actualizado.");
         }
       } else {
-        // Si estamos creando
         const response = await createMaintenance(maintenanceData);
-        // Si la creación fue exitosa, añade a la lista y notifica
         if (response.maintenance) {
           setMaintenances((prev) => [...prev, response.maintenance]);
           addNotification("success", "Mantenimiento creado");
           closeModal();
-          fetchMaintenances(); // Refrescar datos después de la creación
+          fetchMaintenances();
         } else {
           throw new Error("No se recibió el mantenimiento creado.");
         }
@@ -241,39 +245,7 @@ export default function MaintenancePage() {
     }
   };
 
-  const handleScheduleNext = async (maintenance: Maintenance) => {
-    if (!maintenance.id) return;
-    setIsSchedulingNext(maintenance.id);
-    try {
-      const response = await scheduleNextMaintenance(maintenance.id.toString());
-      addNotification(
-        "success",
-        "Siguiente ciclo de mantenimiento programado."
-      );
-      await fetchMaintenances();
-      // Abrir el modal de tarea con la fecha de la nueva mantención pre-llenada
-      if (response.maintenance && response.maintenance.nextMaintenanceDate) {
-        setMaintenanceForTask({
-          ...response.maintenance,
-          // Convertir la fecha a formato ISO (YYYY-MM-DD) para el campo de fecha del formulario
-          startDate: new Date(response.maintenance.nextMaintenanceDate)
-            .toISOString()
-            .split("T")[0], // Usar startDate para TaskForm
-        });
-        setIsTaskFormOpen(true);
-      }
-    } catch (error) {
-      addNotification(
-        "error",
-        "Error al programar el siguiente ciclo de mantenimiento."
-      );
-    } finally {
-      setIsSchedulingNext(null);
-    }
-  };
-
   const getStatusBadge = (maintenance: Maintenance) => {
-    // Si el estado en la BD es FINALIZADO, priorizar eso
     if (maintenance.state === "FINALIZADO") {
       return (
         <Badge variant="success" className="flex items-center gap-1">
@@ -282,7 +254,6 @@ export default function MaintenancePage() {
       );
     }
 
-    // Si el estado es PENDIENTE, usar la lógica de fechas
     const status = getMaintenanceStatus(maintenance.nextMaintenanceDate);
     switch (status) {
       case "overdue":
@@ -362,62 +333,19 @@ export default function MaintenancePage() {
       header: "Acciones",
       cell: ({ row }) => {
         const maintenance = row.original;
-        const isScheduling = isSchedulingNext === maintenance.id;
-
-        // Verificar si hay tareas activas (PENDIENTE o EN_CURSO) asociadas a este mantenimiento
         const hasActiveTask =
           Array.isArray(maintenance.tasks) &&
           maintenance.tasks.some(
             (task) => task.state === "PENDIENTE" || task.state === "EN_CURSO"
           );
-        // Obtener la primera tarea activa para el botón "Ver Tarea"
         const firstActiveTask = Array.isArray(maintenance.tasks)
           ? maintenance.tasks.find(
               (task) => task.state === "PENDIENTE" || task.state === "EN_CURSO"
             )
           : undefined;
 
-        // Verificar si ya existe un siguiente ciclo de mantenimiento PENDIENTE
-        // (Esto evita que se puedan programar múltiples sucesores desde un mismo mantenimiento finalizado)
-        const hasPendingSuccessor = maintenances.some(
-          (m) =>
-            m.clientId === maintenance.clientId &&
-            m.state === "PENDIENTE" &&
-            m.createdAt &&
-            maintenance.createdAt && // Asegurar que createdAt no sea undefined
-            new Date(m.createdAt) > new Date(maintenance.createdAt) &&
-            m.notes?.includes(
-              `Ciclo de seguimiento generado desde mantenimiento #${maintenance.id}`
-            ) // Asegurar que sea el sucesor
-        );
-
         return (
           <div className="flex items-center space-x-1">
-            {/* Botón para Programar Siguiente Mantenimiento */}
-            {/* Se muestra si el mantenimiento actual está FINALIZADO y no hay un sucesor pendiente */}
-            {maintenance.state === "FINALIZADO" && !hasPendingSuccessor && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => handleScheduleNext(maintenance)}
-                title="Programar Siguiente Mantenimiento"
-                disabled={isScheduling}
-              >
-                {isScheduling ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    Programando...
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            )}
-
-            {/* Botón para Generar Tarea */}
-            {/* Se muestra si el mantenimiento está PENDIENTE y NO tiene una tarea activa */}
             {maintenance.state === "PENDIENTE" && !hasActiveTask && (
               <Button
                 variant="outline"
@@ -426,13 +354,9 @@ export default function MaintenancePage() {
                 title="Generar Tarea de Mantenimiento"
                 className="flex items-center gap-2"
               >
-                <Wrench className="h-4 w-4" />
-                <span>Generar Tarea</span>
+                <Wrench className="h-4 w-4" /> <span>Generar Tarea</span>
               </Button>
             )}
-
-            {/* Botón para Ver Tarea */}
-            {/* Se muestra si el mantenimiento está PENDIENTE y SÍ tiene una tarea activa */}
             {maintenance.state === "PENDIENTE" &&
               hasActiveTask &&
               firstActiveTask?.id && (
@@ -447,11 +371,9 @@ export default function MaintenancePage() {
                   title="Ver tarea existente"
                   className="flex items-center gap-2"
                 >
-                  <Eye className="h-4 w-4" />
-                  <span>Ver Tarea</span>
+                  <Eye className="h-4 w-4" /> <span>Ver Tarea</span>
                 </Button>
               )}
-
             <Button
               variant="ghost"
               size="sm"
@@ -680,19 +602,85 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Mantenimientos</h1>
           <p className="text-content-subtle mt-1">
             Gestiona los ciclos de mantenimientos programados para tus clientes
           </p>
         </div>
-        <Button onClick={() => openModal()} disabled={isLoadingClients}>
-          <Plus className="mr-2 h-4 w-4" />
-          Agregar Mantenimiento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span>¿Qué significan los estados?</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">
+                    Leyenda de Estados
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Los colores indican la urgencia del próximo mantenimiento.
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  <div className="grid grid-cols-[auto_1fr] items-start gap-x-4">
+                    <Badge variant="success" className="mt-1">
+                      Finalizado
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      El ciclo de mantenimiento fue completado exitosamente.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] items-start gap-x-4">
+                    <Badge variant="destructive" className="mt-1">
+                      Vencido
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      La fecha programada ya pasó y el trabajo está pendiente.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] items-start gap-x-4">
+                    <Badge variant="warning" className="mt-1">
+                      Urgente
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      El mantenimiento debe realizarse en los próximos 7 días.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] items-start gap-x-4">
+                    <Badge variant="info" className="mt-1">
+                      Próximo
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Programado para los próximos 30 días.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] items-start gap-x-4">
+                    <Badge variant="default" className="mt-1">
+                      Programado
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Programado para más de 30 días en el futuro.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button onClick={() => openModal()} disabled={isLoadingClients}>
+            <Plus className="mr-2 h-4 w-4" /> Agregar Mantenimiento
+          </Button>
+        </div>
       </div>
-
       <div className="flex flex-col md:flex-row gap-4 justify-between">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 md:w-64">
@@ -707,7 +695,6 @@ export default function MaintenancePage() {
               />
             </div>
           </div>
-
           <Select
             value={selectedClientFilter || "ALL"}
             onValueChange={(value) =>
@@ -731,7 +718,6 @@ export default function MaintenancePage() {
               ))}
             </SelectContent>
           </Select>
-
           <Select
             value={viewMode}
             onValueChange={(val: "all" | "upcoming") => setViewMode(val)}
@@ -745,7 +731,6 @@ export default function MaintenancePage() {
               <SelectItem value="upcoming">Próximos</SelectItem>
             </SelectContent>
           </Select>
-
           {viewMode === "upcoming" && (
             <Select
               value={upcomingDays.toString()}
@@ -771,11 +756,9 @@ export default function MaintenancePage() {
           className="self-start"
           disabled={isLoading}
         >
-          <RefreshCcw className="h-4 w-4 mr-2" />
-          Actualizar
+          <RefreshCcw className="h-4 w-4 mr-2" /> Actualizar
         </Button>
       </div>
-
       <Card>
         <DataTable
           columns={columns}
@@ -783,7 +766,6 @@ export default function MaintenancePage() {
           isLoading={isLoading}
         />
       </Card>
-
       <ConfirmDialog
         open={isDeleteConfirmOpen}
         onOpenChange={setIsDeleteConfirmOpen}
@@ -793,7 +775,6 @@ export default function MaintenancePage() {
         confirmLabel="Eliminar"
         isLoading={isDeleting}
       />
-
       {isModalOpen && (
         <Dialog
           open={isModalOpen}
@@ -817,7 +798,6 @@ export default function MaintenancePage() {
           </DialogContent>
         </Dialog>
       )}
-
       {isTaskFormOpen && maintenanceForTask && (
         <TaskForm
           isOpen={isTaskFormOpen}
