@@ -605,11 +605,22 @@ export default function FinalizeTaskForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => signaturePad.current?.clear()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                signaturePad.current?.clear();
+              }}
             >
               Limpiar
             </Button>
-            <Button type="button" onClick={handleSaveSignature}>
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSaveSignature();
+              }}
+            >
               Guardar Firma
             </Button>
           </DialogFooter>
