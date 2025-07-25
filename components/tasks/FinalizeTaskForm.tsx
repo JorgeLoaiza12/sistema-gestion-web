@@ -1,3 +1,4 @@
+// web/components/tasks/FinalizeTaskForm.tsx
 import { useState, useEffect, useRef } from "react";
 import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Task, FinalizeTaskData } from "@/services/tasks";
+import {
+  Task,
+  FinalizeTaskData,
+  uploadTaskImageFormData,
+} from "@/services/tasks";
 import { formatNumber } from "@/utils/number-format";
 import { getTodayISOString } from "@/utils/date-format";
 import {
@@ -31,7 +36,7 @@ import SignatureCanvas from "react-signature-canvas";
 interface FinalizeTaskFormProps {
   isOpen: boolean;
   task: Task | null;
-  onSave: (data: FormData) => Promise<void>;
+  onSave: (data: FinalizeTaskData) => Promise<void>;
   onClose: () => void;
   isLoading?: boolean;
 }
@@ -40,6 +45,20 @@ interface StagedFile {
   file: File;
   previewUrl: string;
 }
+
+// Helper para convertir base64 a File
+const base64ToFile = (base64: string, filename: string): File => {
+  const arr = base64.split(",");
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : "image/png";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+};
 
 export default function FinalizeTaskForm({
   isOpen,
@@ -58,9 +77,7 @@ export default function FinalizeTaskForm({
     mediaUrls: [],
     nameWhoReceives: "",
     positionWhoReceives: "",
-    signatureImageBase64: "",
     endDate: getTodayISOString(),
-    technicians: [],
   });
 
   const [stagedWorkImages, setStagedWorkImages] = useState<StagedFile[]>([]);
@@ -71,6 +88,7 @@ export default function FinalizeTaskForm({
   const fileInputWorkRef = useRef<HTMLInputElement>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const signaturePad = useRef<SignatureCanvas | null>(null);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (task?.id) {
@@ -86,13 +104,12 @@ export default function FinalizeTaskForm({
         mediaUrls: task.mediaUrls || [],
         nameWhoReceives: task.metadata?.receivedBy?.name || "",
         positionWhoReceives: task.metadata?.receivedBy?.position || "",
-        signatureImageBase64: "",
         endDate: getTodayISOString(),
-        technicians: technicians,
       });
 
       setStagedWorkImages([]);
       setStagedWhoReceivesImage(null);
+      setSignatureDataUrl(task.metadata?.receivedBy?.signatureUrl || null);
     }
     setValidationError(null);
   }, [task, isOpen]);
@@ -158,12 +175,9 @@ export default function FinalizeTaskForm({
         ctx.fillRect(0, 0, newCanvas.width, newCanvas.height);
         ctx.drawImage(canvas, 0, 0);
       }
-      const signatureDataUrl = newCanvas.toDataURL("image/png");
+      const signatureB64 = newCanvas.toDataURL("image/png");
 
-      setFinalizeForm({
-        ...finalizeForm,
-        signatureImageBase64: signatureDataUrl,
-      });
+      setSignatureDataUrl(signatureB64);
       setIsSignatureModalOpen(false);
       setValidationError(null);
     }
@@ -191,56 +205,57 @@ export default function FinalizeTaskForm({
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      formData.append("taskId", finalizeForm.taskId!.toString());
-      formData.append("technicalReport", finalizeForm.technicalReport);
-      if (finalizeForm.observations) {
-        formData.append("observations", finalizeForm.observations);
-      }
-      formData.append("hoursWorked", finalizeForm.hoursWorked.toString());
-      if (finalizeForm.nameWhoReceives) {
-        formData.append("nameWhoReceives", finalizeForm.nameWhoReceives);
-      }
-      if (finalizeForm.positionWhoReceives) {
-        formData.append(
-          "positionWhoReceives",
-          finalizeForm.positionWhoReceives
-        );
-      }
-      if (finalizeForm.endDate) {
-        formData.append("endDate", finalizeForm.endDate);
-      }
-      if (finalizeForm.signatureImageBase64) {
-        formData.append(
-          "signatureImageBase64",
-          finalizeForm.signatureImageBase64
-        );
-      }
-
+      let uploadedWhoReceivesUrl: string | null =
+        task?.metadata?.receivedBy?.imageUrl || null;
       if (stagedWhoReceivesImage) {
-        formData.append("imageWhoReceives", stagedWhoReceivesImage.file);
+        uploadedWhoReceivesUrl = await uploadTaskImageFormData(
+          stagedWhoReceivesImage.file,
+          "who-receives"
+        );
       }
 
-      if (finalizeForm.mediaUrls) {
-        finalizeForm.mediaUrls.forEach((url) => {
-          formData.append("mediaUrls[]", url);
-        });
+      let uploadedSignatureUrl: string | null = signatureDataUrl;
+      if (signatureDataUrl && signatureDataUrl.startsWith("data:image")) {
+        const signatureFile = base64ToFile(
+          signatureDataUrl,
+          `signature-${task?.id}.png`
+        );
+        uploadedSignatureUrl = await uploadTaskImageFormData(
+          signatureFile,
+          "signatures"
+        );
       }
 
-      stagedWorkImages.forEach((stagedFile) => {
-        formData.append("image", stagedFile.file);
-      });
+      const uploadedWorkImageUrls = await Promise.all(
+        stagedWorkImages.map((stagedFile) =>
+          uploadTaskImageFormData(stagedFile.file, "tasks")
+        )
+      );
 
-      if (finalizeForm.technicians) {
-        finalizeForm.technicians.forEach((tech) => {
-          formData.append("technicians[]", tech);
-        });
-      }
+      const finalMediaUrls = [
+        ...(finalizeForm.mediaUrls || []),
+        ...uploadedWorkImageUrls,
+      ];
 
-      await onSave(formData);
+      const finalData: FinalizeTaskData = {
+        taskId: finalizeForm.taskId!,
+        technicalReport: finalizeForm.technicalReport,
+        observations: finalizeForm.observations,
+        hoursWorked: finalizeForm.hoursWorked,
+        mediaUrls: finalMediaUrls,
+        endDate: finalizeForm.endDate,
+        nameWhoReceives: finalizeForm.nameWhoReceives,
+        positionWhoReceives: finalizeForm.positionWhoReceives,
+        imageUrlWhoReceives: uploadedWhoReceivesUrl,
+        signatureUrl: uploadedSignatureUrl,
+      };
+
+      await onSave(finalData);
     } catch (error) {
       console.error("Error al finalizar la tarea:", error);
-      setValidationError("Ocurrió un error al finalizar la tarea");
+      setValidationError(
+        "Ocurrió un error al finalizar la tarea. Verifica las imágenes e intenta de nuevo."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -408,7 +423,7 @@ export default function FinalizeTaskForm({
                     style={{ display: "none" }}
                   />
 
-                  {stagedWhoReceivesImage && (
+                  {stagedWhoReceivesImage ? (
                     <div className="relative w-full h-32 bg-gray-100 rounded-md overflow-hidden">
                       <img
                         src={stagedWhoReceivesImage.previewUrl}
@@ -416,6 +431,16 @@ export default function FinalizeTaskForm({
                         className="w-full h-full object-contain"
                       />
                     </div>
+                  ) : (
+                    task?.metadata?.receivedBy?.imageUrl && (
+                      <div className="relative w-full h-32 bg-gray-100 rounded-md overflow-hidden">
+                        <img
+                          src={task.metadata.receivedBy.imageUrl}
+                          alt="Foto de quien recibe"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    )
                   )}
 
                   <Button
@@ -425,7 +450,8 @@ export default function FinalizeTaskForm({
                     disabled={isFormDisabled}
                     className="w-full"
                   >
-                    {stagedWhoReceivesImage ? (
+                    {stagedWhoReceivesImage ||
+                    task?.metadata?.receivedBy?.imageUrl ? (
                       <>
                         <Edit className="mr-2 h-4 w-4" />
                         Cambiar imagen
@@ -443,10 +469,10 @@ export default function FinalizeTaskForm({
               <FormField>
                 <FormLabel>Firma de quien recibe (opcional)</FormLabel>
                 <div className="flex flex-col gap-4">
-                  {finalizeForm.signatureImageBase64 && (
+                  {signatureDataUrl && (
                     <div className="relative w-full h-32 bg-gray-100 rounded-md overflow-hidden border">
                       <img
-                        src={finalizeForm.signatureImageBase64}
+                        src={signatureDataUrl}
                         alt="Firma de quien recibe"
                         className="w-full h-full object-contain"
                       />
@@ -460,9 +486,7 @@ export default function FinalizeTaskForm({
                     className="w-full"
                   >
                     <PenTool className="mr-2 h-4 w-4" />
-                    {finalizeForm.signatureImageBase64
-                      ? "Cambiar Firma"
-                      : "Agregar Firma"}
+                    {signatureDataUrl ? "Cambiar Firma" : "Agregar Firma"}
                   </Button>
                 </div>
               </FormField>

@@ -1,4 +1,4 @@
-// Ruta: services/tasks.ts
+// web/services/tasks.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
 
@@ -77,13 +77,10 @@ export interface FinalizeTaskData {
   hoursWorked: number;
   mediaUrls?: string[];
   endDate?: string;
-  types?: string[];
-  systems?: string[];
-  technicians?: string[];
   nameWhoReceives?: string;
   positionWhoReceives?: string;
-  imageUrlWhoReceives?: string;
-  signatureImageBase64?: string;
+  imageUrlWhoReceives?: string | null;
+  signatureUrl?: string | null;
 }
 
 export interface TaskFilterParams {
@@ -287,44 +284,16 @@ export async function startTask(taskId: number): Promise<TaskResponse> {
 }
 
 export async function finalizeTask(
-  data: FinalizeTaskData | FormData
+  data: FinalizeTaskData
 ): Promise<TaskResponse> {
   try {
-    const options: RequestInit & { headers?: HeadersInit } = {
+    return await httpClient<TaskResponse>("/tasks/finalize", {
       method: "POST",
-    };
-
-    if (data instanceof FormData) {
-      options.body = data;
-    } else {
-      options.body = JSON.stringify(data);
-      options.headers = { "Content-Type": "application/json" };
-    }
-
-    return await httpClient<TaskResponse>("/tasks/finalize", options);
+      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Forbidden")) {
-      console.warn(
-        "Advertencia: No se pudo enviar el correo electrónico, pero la tarea fue finalizada"
-      );
-      try {
-        const taskId =
-          data instanceof FormData ? data.get("taskId") : data.taskId;
-        const taskResponse = await httpClient<{ task: Task }>(
-          `/tasks/${taskId}`,
-          {
-            method: "GET",
-          }
-        );
-        return {
-          message: "Task finalized successfully but email could not be sent",
-          task: taskResponse.task,
-        };
-      } catch (secondError) {
-        throw error;
-      }
-    }
-    console.error("Error al finalizar tarea:", error);
+    console.error("Error al finalizar la tarea:", error);
     throw error;
   }
 }
