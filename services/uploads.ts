@@ -1,53 +1,6 @@
-// services/uploads.ts
+// web/services/uploads.ts
 import { httpClient } from "@/lib/httpClient";
 import { getSession } from "next-auth/react";
-
-/**
- * Sube una imagen para una tarea (trabajo realizado o quien recibe)
- * @param file Archivo de imagen a subir
- * @param type Tipo de imagen ('work' o 'who-receives')
- * @returns URL de la imagen subida
- */
-export async function uploadTaskImage(
-  file: File, // El archivo ya debería estar comprimido y en formato JPEG/PNG por compressImage
-  type: "work" | "who-receives"
-): Promise<string> {
-  try {
-    const formData = new FormData();
-    formData.append("image", file); // Enviar el archivo procesado
-    formData.append("type", type);
-
-    const session = await getSession();
-    const accessToken = session?.accessToken;
-
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`,
-      {
-        method: "POST",
-        headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "include", // Asegúrate que esto sea necesario y compatible con tu CORS
-        body: formData,
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        message: `Error ${response.status}: ${response.statusText}`,
-      }));
-      throw new Error(
-        errorData.message || `Error al subir imagen: ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    return data.imageUrl;
-  } catch (error) {
-    console.error("Error al subir imagen de tarea:", error);
-    throw error;
-  }
-}
 
 /**
  * Comprime una imagen antes de subirla y la convierte a JPEG.
@@ -58,8 +11,8 @@ export async function uploadTaskImage(
  */
 export async function compressImage(
   file: File,
-  maxWidth = 1200, // Mantenido como en tu código original
-  quality = 0.7 // Calidad para JPEG, 0.7 es un buen compromiso
+  maxWidth = 1200,
+  quality = 0.7
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -89,11 +42,8 @@ export async function compressImage(
 
         canvas.width = width;
         canvas.height = height;
-
-        // Dibujar imagen en el canvas (esto la convierte a un formato que el canvas entiende, usualmente PNG/JPEG internamente)
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convertir a blob como JPEG
         canvas.toBlob(
           (blob) => {
             if (blob) {
@@ -102,7 +52,7 @@ export async function compressImage(
               reject(new Error("Error al generar blob desde canvas"));
             }
           },
-          "image/jpeg", // Forzar la salida a JPEG
+          "image/jpeg",
           quality
         );
       };
@@ -126,27 +76,69 @@ export async function compressImage(
 
 /**
  * Crea un archivo File a partir de un Blob.
- * Asegura que el nombre del archivo tenga la extensión .jpeg si se convirtió a JPEG.
  * @param blob Blob de datos
- * @param originalFileName Nombre del archivo original (para obtener la base del nombre)
- * @param options Opciones adicionales
+ * @param originalFileName Nombre del archivo original
  * @returns Objeto File
  */
-export function blobToFile(
-  blob: Blob,
-  originalFileName: string, // Necesitamos el nombre original para generar uno nuevo
-  options?: FilePropertyBag
-): File {
-  // Generar un nuevo nombre de archivo con extensión .jpeg
+export function blobToFile(blob: Blob, originalFileName: string): File {
   const nameWithoutExtension =
     originalFileName.substring(0, originalFileName.lastIndexOf(".")) ||
     originalFileName;
   const newFileName = `${nameWithoutExtension}.jpeg`;
 
   return new File([blob], newFileName, {
-    // Usar el nuevo nombre con extensión .jpeg
-    type: "image/jpeg", // El tipo MIME ahora es image/jpeg
+    type: "image/jpeg",
     lastModified: Date.now(),
-    ...options,
   });
+}
+
+/**
+ * Sube una imagen para una tarea, comprimiéndola primero.
+ * @param file Archivo de imagen a subir
+ * @param type Tipo de imagen ('work' o 'who-receives')
+ * @returns URL de la imagen subida
+ */
+export async function uploadTaskImage(
+  file: File,
+  type: "work" | "who-receives" | "signatures"
+): Promise<string> {
+  try {
+    // Comprimir la imagen antes de subirla
+    const compressedBlob = await compressImage(file);
+    const compressedFile = blobToFile(compressedBlob, file.name);
+
+    const formData = new FormData();
+    formData.append("image", compressedFile);
+    formData.append("type", type);
+
+    const session = await getSession();
+    const accessToken = session?.accessToken;
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/tasks/upload-image`,
+      {
+        method: "POST",
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "include",
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        message: `Error ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(
+        errorData.message || `Error al subir imagen: ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    return data.imageUrl;
+  } catch (error) {
+    console.error("Error al subir imagen de tarea:", error);
+    throw error;
+  }
 }
